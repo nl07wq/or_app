@@ -14,6 +14,8 @@ import 'package:or_app/features/themes/base_camp/base_camp_facility_assets.dart'
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 
+import 'base_camp_water_surface_v2.dart';
+
 /// The registered image remains the single visual source. Facility regions are
 /// normalised against it so the image, feedback affordances, and hit testing
 /// always receive the same [InteractiveViewer] transform.
@@ -138,9 +140,6 @@ const baseCampMapArtworkSize = Size(1254, 1254);
 /// A single translucent compositing layer keeps the night treatment cheap on
 /// WebKit while preserving the original full-colour map underneath it.
 const baseCampMapNightOverlayColor = Color(0x560A2230);
-const baseCampWaterPrimaryMotionColor = Color(0x164E9A9A);
-const baseCampWaterSecondaryMotionColor = Color(0x1276A9A1);
-const baseCampWaterMotionStep = Duration(milliseconds: 900);
 
 bool baseCampMapUsesNightFilter(DateTime localTime) =>
     localTime.hour >= 18 || localTime.hour < 6;
@@ -557,7 +556,8 @@ class _BaseCampMapState extends State<BaseCampMap>
   late final AnimationController _walkerTimeline;
   final Stopwatch _mapLoadWatch = Stopwatch();
   final BaseCampMapAssetResolver _assetResolver = BaseCampMapAssetResolver();
-  final ValueNotifier<int> _waterMotionPhase = ValueNotifier<int>(0);
+  final ValueNotifier<int> _waterReflectionTick = ValueNotifier<int>(0);
+  final ValueNotifier<int> _waterArcTick = ValueNotifier<int>(0);
   final Set<String> _resolvedFacilityObjects = <String>{};
   final Set<String> _displayedFacilityObjects = <String>{};
   bool _configurationReady = false;
@@ -581,7 +581,8 @@ class _BaseCampMapState extends State<BaseCampMap>
   bool _waterMotionActive = false;
   bool _appResumed = true;
   bool? _lastReportedWaterActive;
-  int _lastWaterMotionPhase = -1;
+  int _lastWaterReflectionTick = -1;
+  int _lastWaterArcTick = -1;
   int _lastNightCheckSlot = -1;
 
   @override
@@ -728,10 +729,17 @@ class _BaseCampMapState extends State<BaseCampMap>
     if (!_waterFxInitialized || !_waterMotionActive) {
       return;
     }
-    final phase = elapsedMilliseconds ~/ baseCampWaterMotionStep.inMilliseconds;
-    if (phase == _lastWaterMotionPhase) return;
-    _lastWaterMotionPhase = phase;
-    _waterMotionPhase.value = phase;
+    final reflectionTick =
+        elapsedMilliseconds ~/ baseCampWaterReflectionStep.inMilliseconds;
+    if (reflectionTick != _lastWaterReflectionTick) {
+      _lastWaterReflectionTick = reflectionTick;
+      _waterReflectionTick.value = reflectionTick;
+    }
+    final arcTick = elapsedMilliseconds ~/ baseCampWaterArcStep.inMilliseconds;
+    if (arcTick != _lastWaterArcTick) {
+      _lastWaterArcTick = arcTick;
+      _waterArcTick.value = arcTick;
+    }
   }
 
   void _applyNightFilter({
@@ -773,7 +781,7 @@ class _BaseCampMapState extends State<BaseCampMap>
       fields: <String, Object?>{
         'areaCount': water?.effectiveAreas.length ?? 0,
         'configuredVisible': water?.visible ?? false,
-        'implementation': 'clippedStaticBands',
+        'implementation': 'surfaceReflectionAndArcFragments',
       },
     );
     await SchedulerBinding.instance.endOfFrame;
@@ -791,7 +799,8 @@ class _BaseCampMapState extends State<BaseCampMap>
             ) ??
             0,
         'patternLayers': 2,
-        'motionStepMs': baseCampWaterMotionStep.inMilliseconds,
+        'reflectionStepMs': baseCampWaterReflectionStep.inMilliseconds,
+        'arcStepMs': baseCampWaterArcStep.inMilliseconds,
         'durationMs': watch.elapsedMilliseconds,
       },
     );
@@ -810,7 +819,8 @@ class _BaseCampMapState extends State<BaseCampMap>
       fields: <String, Object?>{
         'active': active,
         'reason': reason,
-        'motionStepMs': baseCampWaterMotionStep.inMilliseconds,
+        'reflectionStepMs': baseCampWaterReflectionStep.inMilliseconds,
+        'arcStepMs': baseCampWaterArcStep.inMilliseconds,
       },
     );
   }
@@ -837,7 +847,8 @@ class _BaseCampMapState extends State<BaseCampMap>
     _selectionPulse.dispose();
     _selectionVisibility.dispose();
     _walkerTimeline.dispose();
-    _waterMotionPhase.dispose();
+    _waterReflectionTick.dispose();
+    _waterArcTick.dispose();
     baseCampMapConfigurationController.removeListener(_configurationChanged);
     _transform.dispose();
     super.dispose();
@@ -1290,14 +1301,12 @@ class _BaseCampMapState extends State<BaseCampMap>
                           IgnorePointer(
                             key: const ValueKey('base-camp-water-fx'),
                             child: RepaintBoundary(
-                              child: ValueListenableBuilder<int>(
-                                valueListenable: _waterMotionPhase,
-                                builder: (context, phase, _) =>
-                                    _BaseCampWaterMotionLayer(
-                                      configuration: configuration,
-                                      geometry: geometry,
-                                      phase: phase,
-                                    ),
+                              child: BaseCampWaterSurfaceV2Layer(
+                                water: configuration.waterFx['water']!,
+                                imageRect: geometry.imageRect,
+                                artworkSize: baseCampMapArtworkSize,
+                                reflectionTick: _waterReflectionTick,
+                                arcTick: _waterArcTick,
                               ),
                             ),
                           ),
@@ -1485,134 +1494,6 @@ class _BaseCampMapState extends State<BaseCampMap>
       ),
     );
   }
-}
-
-class _BaseCampWaterMotionLayer extends StatelessWidget {
-  const _BaseCampWaterMotionLayer({
-    required this.configuration,
-    required this.geometry,
-    required this.phase,
-  });
-
-  final BaseCampMapConfiguration configuration;
-  final BaseCampMapGeometry geometry;
-  final int phase;
-
-  @override
-  Widget build(BuildContext context) {
-    final water = configuration.waterFx['water'];
-    if (water == null || !water.visible || water.effectiveAreas.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final primaryOffset = (phase % 84) * .5;
-    final secondaryOffset = (phase % 153) * .4;
-    return ClipPath(
-      key: const ValueKey('base-camp-water-mask-clip'),
-      clipper: _BaseCampWaterMaskClipper(water: water, geometry: geometry),
-      clipBehavior: Clip.hardEdge,
-      child: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          Transform.translate(
-            key: const ValueKey('base-camp-water-pattern-primary'),
-            offset: Offset(0, primaryOffset),
-            child: const RepaintBoundary(
-              child: _BaseCampWaterBandField(
-                spacing: 42,
-                bandHeight: 6,
-                angle: .018,
-                color: baseCampWaterPrimaryMotionColor,
-              ),
-            ),
-          ),
-          Transform.translate(
-            key: const ValueKey('base-camp-water-pattern-secondary'),
-            offset: Offset(0, -secondaryOffset),
-            child: const RepaintBoundary(
-              child: _BaseCampWaterBandField(
-                spacing: 61,
-                bandHeight: 4,
-                angle: -.026,
-                color: baseCampWaterSecondaryMotionColor,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BaseCampWaterBandField extends StatelessWidget {
-  const _BaseCampWaterBandField({
-    required this.spacing,
-    required this.bandHeight,
-    required this.angle,
-    required this.color,
-  });
-
-  final double spacing;
-  final double bandHeight;
-  final double angle;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final count = (constraints.maxHeight / spacing).ceil() + 6;
-      return Transform.rotate(
-        angle: angle,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            for (var index = 0; index < count; index++)
-              Positioned(
-                left: -constraints.maxWidth * .12,
-                right: -constraints.maxWidth * .12,
-                top: (index - 3) * spacing,
-                height: bandHeight,
-                child: ColoredBox(color: color),
-              ),
-          ],
-        ),
-      );
-    },
-  );
-}
-
-class _BaseCampWaterMaskClipper extends CustomClipper<Path> {
-  const _BaseCampWaterMaskClipper({
-    required this.water,
-    required this.geometry,
-  });
-
-  final BaseCampWaterFx water;
-  final BaseCampMapGeometry geometry;
-
-  @override
-  Path getClip(Size size) {
-    final path = Path()..fillType = PathFillType.evenOdd;
-    for (final area in water.effectiveAreas) {
-      if (area.mask.length < 3) continue;
-      path.addPolygon(
-        area.mask.map(geometry.artworkToViewport).toList(growable: false),
-        true,
-      );
-      for (final exclusion in area.exclusionMasks) {
-        if (exclusion.length < 3) continue;
-        path.addPolygon(
-          exclusion.map(geometry.artworkToViewport).toList(growable: false),
-          true,
-        );
-      }
-    }
-    return path;
-  }
-
-  @override
-  bool shouldReclip(_BaseCampWaterMaskClipper oldClipper) =>
-      oldClipper.water != water ||
-      oldClipper.geometry.imageRect != geometry.imageRect;
 }
 
 class _FacilityConfirmation extends StatelessWidget {

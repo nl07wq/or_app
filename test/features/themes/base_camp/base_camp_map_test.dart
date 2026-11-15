@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:or_app/features/themes/base_camp/base_camp_facility_assets.dart'
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
+import 'package:or_app/features/themes/base_camp/widgets/base_camp_water_surface_v2.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -215,7 +217,7 @@ void main() {
     expect(trace, contains('"atomicReveal": true'));
   });
 
-  testWidgets('water motion is clipped to masks and excludes protected land', (
+  testWidgets('WATER V2 layers are clipped to masks and protected land', (
     tester,
   ) async {
     final original = baseCampMapConfigurationController.value;
@@ -246,6 +248,22 @@ void main() {
     expect(clipFinder, findsOneWidget);
     expect(
       find.descendant(of: water, matching: find.byType(CustomPaint)),
+      findsNWidgets(2),
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-water-surface-reflection')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-water-arc-fragments')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-water-pattern-primary')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-water-pattern-secondary')),
       findsNothing,
     );
     final clip = tester.widget<ClipPath>(clipFinder);
@@ -265,28 +283,7 @@ void main() {
       isFalse,
     );
 
-    final primary = find.byKey(
-      const ValueKey('base-camp-water-pattern-primary'),
-    );
-    final secondary = find.byKey(
-      const ValueKey('base-camp-water-pattern-secondary'),
-    );
-    final before = tester.widget<Transform>(primary).transform.getTranslation();
-    final secondaryBefore = tester
-        .widget<Transform>(secondary)
-        .transform
-        .getTranslation();
-    await tester.pump(const Duration(milliseconds: 950));
-    final after = tester.widget<Transform>(primary).transform.getTranslation();
-    final secondaryAfter = tester
-        .widget<Transform>(secondary)
-        .transform
-        .getTranslation();
-    expect(after.y, greaterThan(before.y));
-    expect(secondaryAfter.y, lessThan(secondaryBefore.y));
-    expect(after.y - before.y, isNot(secondaryBefore.y - secondaryAfter.y));
-    expect(baseCampWaterPrimaryMotionColor.toARGB32(), 0x164E9A9A);
-    expect(baseCampWaterSecondaryMotionColor.toARGB32(), 0x1276A9A1);
+    await tester.pump(const Duration(milliseconds: 140));
     expect(tester.takeException(), isNull);
 
     final trace = SystemDiagnostics.instance.copyText();
@@ -294,7 +291,120 @@ void main() {
     expect(trace, contains('WATER_FX_INIT_COMPLETE'));
     expect(trace, contains('WATER_FX_ACTIVE_STATE'));
     expect(trace, contains('"patternLayers": 2'));
-    expect(trace, contains('"motionStepMs": 900'));
+    expect(trace, contains('"reflectionStepMs": 67'));
+    expect(trace, contains('"arcStepMs": 34'));
+    expect(trace, contains('surfaceReflectionAndArcFragments'));
+  });
+
+  test('WATER V2 uses deterministic local reflection and arc lifecycles', () {
+    final water = BaseCampMapConfiguration.defaults().waterFx['water']!;
+    final first = BaseCampWaterV2Scene.create(
+      water: water,
+      artworkSize: baseCampMapArtworkSize,
+    );
+    final second = BaseCampWaterV2Scene.create(
+      water: water,
+      artworkSize: baseCampMapArtworkSize,
+    );
+
+    expect(first.fragmentCount, inInclusiveRange(1, 80));
+    expect(first.fragmentCount, second.fragmentCount);
+    expect(
+      first.fragmentCount,
+      ((first.validSurfaceArea / 10000 * 1.2).round()).clamp(1, 80),
+    );
+
+    const pointA = Offset(200, 300);
+    const pointB = Offset(850, 900);
+    final reflectionA0 = first.sampleReflection(pointA, Duration.zero);
+    final reflectionA1 = first.sampleReflection(
+      pointA,
+      const Duration(milliseconds: 800),
+    );
+    final reflectionB0 = first.sampleReflection(pointB, Duration.zero);
+    final reflectionB1 = first.sampleReflection(
+      pointB,
+      const Duration(milliseconds: 800),
+    );
+    expect(reflectionA0, second.sampleReflection(pointA, Duration.zero));
+    expect(reflectionA1, isNot(reflectionA0));
+    expect(reflectionB1 - reflectionB0, isNot(reflectionA1 - reflectionA0));
+    expect(<double>[
+      reflectionA0,
+      reflectionA1,
+      reflectionB0,
+      reflectionB1,
+    ], everyElement(inInclusiveRange(-1.0, 1.0)));
+
+    final initial = <BaseCampWaterArcSample>[
+      for (var index = 0; index < first.fragmentCount; index++)
+        first.arcSample(index, Duration.zero),
+    ];
+    final later = <BaseCampWaterArcSample>[
+      for (var index = 0; index < first.fragmentCount; index++)
+        first.arcSample(index, const Duration(milliseconds: 700)),
+    ];
+    expect(
+      initial.map((sample) => sample.lifecycleProgress).toSet().length,
+      greaterThan(5),
+    );
+    expect(
+      initial.where((sample) => sample.perceptiblyVisible).length /
+          first.fragmentCount,
+      inInclusiveRange(.4, .6),
+    );
+    expect(
+      initial,
+      everyElement(
+        isA<BaseCampWaterArcSample>()
+            .having(
+              (sample) => sample.radiusX,
+              'radiusX',
+              inInclusiveRange(4.7, 14.9),
+            )
+            .having(
+              (sample) => sample.radiusY,
+              'radiusY',
+              inInclusiveRange(1.8, 6.6),
+            )
+            .having(
+              (sample) => sample.sweepAngle,
+              'sweep',
+              inInclusiveRange(math.pi / 3, math.pi * 5 / 6),
+            )
+            .having(
+              (sample) => sample.strokeWidth,
+              'stroke',
+              inInclusiveRange(1.5, 3.0),
+            )
+            .having(
+              (sample) => sample.rotation,
+              'rotation',
+              inInclusiveRange(-35 * math.pi / 180, 35 * math.pi / 180),
+            )
+            .having(
+              (sample) => sample.alpha,
+              'alpha',
+              inInclusiveRange(0.0, .25),
+            ),
+      ),
+    );
+    final sameLifecycleDeltas = <Offset>[
+      for (var index = 0; index < first.fragmentCount; index++)
+        if (later[index].lifecycleProgress > initial[index].lifecycleProgress)
+          later[index].center - initial[index].center,
+    ];
+    expect(sameLifecycleDeltas.toSet().length, greaterThan(5));
+    expect(
+      sameLifecycleDeltas,
+      everyElement(
+        isA<Offset>().having(
+          (offset) => offset.distance,
+          'local movement',
+          lessThanOrEqualTo(4),
+        ),
+      ),
+    );
   });
 
   testWidgets('one failed facility does not block the atomic reveal', (
