@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -10,7 +10,7 @@ import 'package:or_app/features/themes/base_camp/base_camp_facility_assets.dart'
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
-import 'package:or_app/features/themes/base_camp/widgets/base_camp_water_surface_v2.dart';
+import 'package:or_app/features/themes/base_camp/widgets/base_camp_water_surface_v3b.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -217,7 +217,7 @@ void main() {
     expect(trace, contains('"atomicReveal": true'));
   });
 
-  testWidgets('WATER V2 layers are clipped to masks and protected land', (
+  testWidgets('WATER V3B overlay is clipped to masks and protected land', (
     tester,
   ) async {
     final original = baseCampMapConfigurationController.value;
@@ -247,16 +247,16 @@ void main() {
     expect(water, findsOneWidget);
     expect(clipFinder, findsOneWidget);
     expect(
-      find.descendant(of: water, matching: find.byType(CustomPaint)),
-      findsNWidgets(2),
+      find.byKey(const ValueKey('base-camp-water-v3b-overlay')),
+      findsOneWidget,
     );
     expect(
       find.byKey(const ValueKey('base-camp-water-surface-reflection')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.byKey(const ValueKey('base-camp-water-arc-fragments')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.byKey(const ValueKey('base-camp-water-pattern-primary')),
@@ -283,128 +283,172 @@ void main() {
       isFalse,
     );
 
-    await tester.pump(const Duration(milliseconds: 140));
+    expect(
+      find.descendant(of: water, matching: find.byType(Image)),
+      findsOneWidget,
+    );
+    await tester.pump(baseCampWaterV3BFrameDuration);
     expect(tester.takeException(), isNull);
 
     final trace = SystemDiagnostics.instance.copyText();
     expect(trace, contains('WATER_FX_INIT_START'));
     expect(trace, contains('WATER_FX_INIT_COMPLETE'));
     expect(trace, contains('WATER_FX_ACTIVE_STATE'));
-    expect(trace, contains('"patternLayers": 2'));
-    expect(trace, contains('"reflectionStepMs": 67'));
-    expect(trace, contains('"arcStepMs": 34'));
-    expect(trace, contains('surfaceReflectionAndArcFragments'));
+    expect(trace, contains('"patternLayers": 1'));
+    expect(trace, contains('"frameCount": 24'));
+    expect(trace, contains('"frameDurationMs": 140'));
+    expect(trace, contains('"loopDurationMs": 3360'));
+    expect(trace, contains('approvedV3BRoundingV2RgbaFrames'));
   });
 
-  test('WATER V2 uses deterministic local reflection and arc lifecycles', () {
-    final water = BaseCampMapConfiguration.defaults().waterFx['water']!;
-    final first = BaseCampWaterV2Scene.create(
-      water: water,
-      artworkSize: baseCampMapArtworkSize,
-    );
-    final second = BaseCampWaterV2Scene.create(
-      water: water,
-      artworkSize: baseCampMapArtworkSize,
-    );
+  test('WATER V3B uses exact frame order, timing, and seamless loop', () {
+    expect(baseCampWaterV3BFrameAssets, hasLength(24));
+    expect(baseCampWaterV3BFrameAssets.toSet(), hasLength(24));
+    for (var index = 0; index < baseCampWaterV3BFrameCount; index++) {
+      expect(
+        baseCampWaterV3BFrameAssets[index],
+        endsWith('frame_${index.toString().padLeft(2, '0')}.png'),
+      );
+      expect(baseCampWaterV3BFrameIndex(index), index);
+    }
+    expect(baseCampWaterV3BFrameDuration, const Duration(milliseconds: 140));
+    expect(baseCampWaterV3BLoopDuration, const Duration(milliseconds: 3360));
+    expect(baseCampWaterV3BFrameIndex(24), 0);
+    expect(baseCampWaterV3BFrameIndex(47), 23);
+  });
 
-    expect(first.fragmentCount, inInclusiveRange(1, 80));
-    expect(first.fragmentCount, second.fragmentCount);
-    expect(
-      first.fragmentCount,
-      ((first.validSurfaceArea / 10000 * 1.2).round()).clamp(1, 80),
-    );
-
-    const pointA = Offset(200, 300);
-    const pointB = Offset(850, 900);
-    final reflectionA0 = first.sampleReflection(pointA, Duration.zero);
-    final reflectionA1 = first.sampleReflection(
-      pointA,
-      const Duration(milliseconds: 800),
-    );
-    final reflectionB0 = first.sampleReflection(pointB, Duration.zero);
-    final reflectionB1 = first.sampleReflection(
-      pointB,
-      const Duration(milliseconds: 800),
-    );
-    expect(reflectionA0, second.sampleReflection(pointA, Duration.zero));
-    expect(reflectionA1, isNot(reflectionA0));
-    expect(reflectionB1 - reflectionB0, isNot(reflectionA1 - reflectionA0));
-    expect(<double>[
-      reflectionA0,
-      reflectionA1,
-      reflectionB0,
-      reflectionB1,
-    ], everyElement(inInclusiveRange(-1.0, 1.0)));
-
-    final initial = <BaseCampWaterArcSample>[
-      for (var index = 0; index < first.fragmentCount; index++)
-        first.arcSample(index, Duration.zero),
-    ];
-    final later = <BaseCampWaterArcSample>[
-      for (var index = 0; index < first.fragmentCount; index++)
-        first.arcSample(index, const Duration(milliseconds: 700)),
-    ];
-    expect(
-      initial.map((sample) => sample.lifecycleProgress).toSet().length,
-      greaterThan(5),
-    );
-    expect(
-      initial.where((sample) => sample.perceptiblyVisible).length /
-          first.fragmentCount,
-      inInclusiveRange(.4, .6),
-    );
-    expect(
-      initial,
-      everyElement(
-        isA<BaseCampWaterArcSample>()
-            .having(
-              (sample) => sample.radiusX,
-              'radiusX',
-              inInclusiveRange(4.7, 14.9),
-            )
-            .having(
-              (sample) => sample.radiusY,
-              'radiusY',
-              inInclusiveRange(1.8, 6.6),
-            )
-            .having(
-              (sample) => sample.sweepAngle,
-              'sweep',
-              inInclusiveRange(math.pi / 3, math.pi * 5 / 6),
-            )
-            .having(
-              (sample) => sample.strokeWidth,
-              'stroke',
-              inInclusiveRange(1.5, 3.0),
-            )
-            .having(
-              (sample) => sample.rotation,
-              'rotation',
-              inInclusiveRange(-35 * math.pi / 180, 35 * math.pi / 180),
-            )
-            .having(
-              (sample) => sample.alpha,
-              'alpha',
-              inInclusiveRange(0.0, .25),
-            ),
-      ),
-    );
-    final sameLifecycleDeltas = <Offset>[
-      for (var index = 0; index < first.fragmentCount; index++)
-        if (later[index].lifecycleProgress > initial[index].lifecycleProgress)
-          later[index].center - initial[index].center,
-    ];
-    expect(sameLifecycleDeltas.toSet().length, greaterThan(5));
-    expect(
-      sameLifecycleDeltas,
-      everyElement(
-        isA<Offset>().having(
-          (offset) => offset.distance,
-          'local movement',
-          lessThanOrEqualTo(4),
+  testWidgets('WATER V3B layer selects the controlled frame exactly', (
+    tester,
+  ) async {
+    final tick = ValueNotifier<int>(0);
+    addTearDown(tick.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.square(
+          dimension: 390,
+          child: BaseCampWaterSurfaceV3BLayer(
+            water: BaseCampMapConfiguration.defaults().waterFx['water']!,
+            imageRect: const Rect.fromLTWH(0, 0, 390, 390),
+            artworkSize: baseCampMapArtworkSize,
+            frameTick: tick,
+          ),
         ),
       ),
     );
+    expect(
+      find.byKey(const ValueKey('base-camp-water-v3b-frame-0')),
+      findsOneWidget,
+    );
+    final image = tester.widget<Image>(
+      find.byKey(const ValueKey('base-camp-water-v3b-frame-0')),
+    );
+    expect(image.color, isNull);
+    expect(image.colorBlendMode, isNull);
+    expect(image.fit, BoxFit.fill);
+    expect(image.filterQuality, FilterQuality.medium);
+    tick.value = 1;
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('base-camp-water-v3b-frame-1')),
+      findsOneWidget,
+    );
+    tick.value = 24;
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('base-camp-water-v3b-frame-0')),
+      findsOneWidget,
+    );
+  });
+
+  for (final width in [320.0, 375.0, 390.0, 430.0]) {
+    testWidgets('WATER V3B overlay has no overflow at width $width', (
+      tester,
+    ) async {
+      final tick = ValueNotifier<int>(0);
+      addTearDown(tick.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SizedBox.square(
+            dimension: width,
+            child: BaseCampWaterSurfaceV3BLayer(
+              water: BaseCampMapConfiguration.defaults().waterFx['water']!,
+              imageRect: Rect.fromLTWH(0, 0, width, width),
+              artworkSize: baseCampMapArtworkSize,
+              frameTick: tick,
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const ValueKey('base-camp-water-v3b-overlay')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('base-camp-water-v3b-overlay')),
+          matching: find.byType(Image),
+        ),
+        findsOneWidget,
+      );
+    });
+  }
+
+  test('WATER V3B placement uniformly covers MAP without tiling', () {
+    const imageRect = Rect.fromLTWH(0, 0, 1254, 1254);
+    final destination = baseCampWaterV3BDestinationRect(imageRect);
+    expect(destination.center, imageRect.center);
+    expect(destination.width, greaterThanOrEqualTo(imageRect.width));
+    expect(destination.height, greaterThanOrEqualTo(imageRect.height));
+    expect(
+      destination.width / destination.height,
+      closeTo(440 / 248, 0.000001),
+    );
+  });
+
+  test('approved WATER V3B manifest and RGBA frames are bundled', () async {
+    final manifestData = await rootBundle.loadString(
+      'assets/images/themes/base_camp/water_v3b/manifest.json',
+    );
+    final manifest = jsonDecode(manifestData) as Map<String, dynamic>;
+    expect(manifest['reference'], 'WATER V3B rounding_v2 / prototype 5');
+    expect(manifest['width'], 440);
+    expect(manifest['height'], 248);
+    expect(manifest['frames'], 24);
+    expect(manifest['frame_duration_ms'], 140);
+    expect(manifest['loop_ms'], 3360);
+
+    for (final asset in baseCampWaterV3BFrameAssets) {
+      final data = await rootBundle.load(asset);
+      final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+      final frame = await codec.getNextFrame();
+      expect(frame.image.width, 440, reason: asset);
+      expect(frame.image.height, 248, reason: asset);
+      frame.image.dispose();
+      codec.dispose();
+    }
+
+    final firstData = await rootBundle.load(baseCampWaterV3BFrameAssets.first);
+    final firstCodec = await ui.instantiateImageCodec(
+      firstData.buffer.asUint8List(),
+    );
+    final firstFrame = await firstCodec.getNextFrame();
+    final pixels = await firstFrame.image.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
+    expect(pixels, isNotNull);
+    var hasTransparentPixel = false;
+    var hasVisiblePixel = false;
+    for (var offset = 3; offset < pixels!.lengthInBytes; offset += 4) {
+      final alpha = pixels.getUint8(offset);
+      hasTransparentPixel |= alpha == 0;
+      hasVisiblePixel |= alpha > 0;
+      if (hasTransparentPixel && hasVisiblePixel) break;
+    }
+    expect(hasTransparentPixel, isTrue);
+    expect(hasVisiblePixel, isTrue);
+    firstFrame.image.dispose();
+    firstCodec.dispose();
   });
 
   testWidgets('one failed facility does not block the atomic reveal', (
@@ -1678,9 +1722,15 @@ Future<void> _pumpUntilFacilityLayer(WidgetTester tester) async {
 
 Future<void> _pumpUntilWaterFx(WidgetTester tester) async {
   final finder = find.byKey(const ValueKey('base-camp-water-fx'));
-  for (var attempt = 0; attempt < 20; attempt++) {
+  for (var attempt = 0; attempt < 300; attempt++) {
     await tester.pump(const Duration(milliseconds: 20));
-    if (finder.evaluate().isNotEmpty) return;
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 2)),
+    );
+    if (finder.evaluate().isNotEmpty) {
+      await tester.pump();
+      return;
+    }
   }
   fail('Water FX did not initialize after the facility layer.');
 }

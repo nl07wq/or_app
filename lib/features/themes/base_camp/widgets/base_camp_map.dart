@@ -14,7 +14,7 @@ import 'package:or_app/features/themes/base_camp/base_camp_facility_assets.dart'
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 
-import 'base_camp_water_surface_v2.dart';
+import 'base_camp_water_surface_v3b.dart';
 
 /// The registered image remains the single visual source. Facility regions are
 /// normalised against it so the image, feedback affordances, and hit testing
@@ -556,8 +556,7 @@ class _BaseCampMapState extends State<BaseCampMap>
   late final AnimationController _walkerTimeline;
   final Stopwatch _mapLoadWatch = Stopwatch();
   final BaseCampMapAssetResolver _assetResolver = BaseCampMapAssetResolver();
-  final ValueNotifier<int> _waterReflectionTick = ValueNotifier<int>(0);
-  final ValueNotifier<int> _waterArcTick = ValueNotifier<int>(0);
+  final ValueNotifier<int> _waterFrameTick = ValueNotifier<int>(0);
   final Set<String> _resolvedFacilityObjects = <String>{};
   final Set<String> _displayedFacilityObjects = <String>{};
   bool _configurationReady = false;
@@ -577,12 +576,12 @@ class _BaseCampMapState extends State<BaseCampMap>
   bool _nightFilterActive = false;
   bool _waterFxInitStarted = false;
   bool _waterFxInitialized = false;
+  bool _deferredAnimationWarmupStarted = false;
   bool _waterMotionAllowed = true;
   bool _waterMotionActive = false;
   bool _appResumed = true;
   bool? _lastReportedWaterActive;
-  int _lastWaterReflectionTick = -1;
-  int _lastWaterArcTick = -1;
+  int _lastWaterFrameTick = -1;
   int _lastNightCheckSlot = -1;
 
   @override
@@ -729,16 +728,11 @@ class _BaseCampMapState extends State<BaseCampMap>
     if (!_waterFxInitialized || !_waterMotionActive) {
       return;
     }
-    final reflectionTick =
-        elapsedMilliseconds ~/ baseCampWaterReflectionStep.inMilliseconds;
-    if (reflectionTick != _lastWaterReflectionTick) {
-      _lastWaterReflectionTick = reflectionTick;
-      _waterReflectionTick.value = reflectionTick;
-    }
-    final arcTick = elapsedMilliseconds ~/ baseCampWaterArcStep.inMilliseconds;
-    if (arcTick != _lastWaterArcTick) {
-      _lastWaterArcTick = arcTick;
-      _waterArcTick.value = arcTick;
+    final frameTick =
+        elapsedMilliseconds ~/ baseCampWaterV3BFrameDuration.inMilliseconds;
+    if (frameTick != _lastWaterFrameTick) {
+      _lastWaterFrameTick = frameTick;
+      _waterFrameTick.value = frameTick;
     }
   }
 
@@ -781,10 +775,37 @@ class _BaseCampMapState extends State<BaseCampMap>
       fields: <String, Object?>{
         'areaCount': water?.effectiveAreas.length ?? 0,
         'configuredVisible': water?.visible ?? false,
-        'implementation': 'surfaceReflectionAndArcFragments',
+        'implementation': 'approvedV3BRoundingV2RgbaFrames',
+        'frameCount': baseCampWaterV3BFrameCount,
+        'frameDurationMs': baseCampWaterV3BFrameDuration.inMilliseconds,
       },
     );
-    await SchedulerBinding.instance.endOfFrame;
+    try {
+      for (var index = 0; index < baseCampWaterV3BFrameAssets.length; index++) {
+        await baseCampPrecacheImage(
+          AssetImage(baseCampWaterV3BFrameAssets[index]),
+          context,
+        );
+        if (!mounted) return;
+        // Spread nonessential decodes across frames so the approved overlay
+        // never competes with MAP/facility first presentation.
+        if ((index + 1) % 4 == 0) {
+          await SchedulerBinding.instance.endOfFrame;
+          if (!mounted) return;
+        }
+      }
+    } catch (error) {
+      diagnostics.record(
+        'ASSET',
+        'WATER_FX_FRAME_PRECACHE_FAILED',
+        fields: <String, Object?>{
+          'errorType': error.runtimeType.toString(),
+          'implementation': 'approvedV3BRoundingV2RgbaFrames',
+        },
+      );
+      _waterFxInitStarted = false;
+      return;
+    }
     if (!mounted) return;
     setState(() => _waterFxInitialized = true);
     diagnostics.record(
@@ -798,9 +819,15 @@ class _BaseCampMapState extends State<BaseCampMap>
               (count, area) => count + area.exclusionMasks.length,
             ) ??
             0,
-        'patternLayers': 2,
-        'reflectionStepMs': baseCampWaterReflectionStep.inMilliseconds,
-        'arcStepMs': baseCampWaterArcStep.inMilliseconds,
+        'patternLayers': 1,
+        'frameCount': baseCampWaterV3BFrameCount,
+        'frameDurationMs': baseCampWaterV3BFrameDuration.inMilliseconds,
+        'loopDurationMs': baseCampWaterV3BLoopDuration.inMilliseconds,
+        'estimatedDecodedBytes':
+            baseCampWaterV3BSourceSize.width.toInt() *
+            baseCampWaterV3BSourceSize.height.toInt() *
+            4 *
+            baseCampWaterV3BFrameCount,
         'durationMs': watch.elapsedMilliseconds,
       },
     );
@@ -819,8 +846,8 @@ class _BaseCampMapState extends State<BaseCampMap>
       fields: <String, Object?>{
         'active': active,
         'reason': reason,
-        'reflectionStepMs': baseCampWaterReflectionStep.inMilliseconds,
-        'arcStepMs': baseCampWaterArcStep.inMilliseconds,
+        'frameDurationMs': baseCampWaterV3BFrameDuration.inMilliseconds,
+        'frameCount': baseCampWaterV3BFrameCount,
       },
     );
   }
@@ -847,8 +874,7 @@ class _BaseCampMapState extends State<BaseCampMap>
     _selectionPulse.dispose();
     _selectionVisibility.dispose();
     _walkerTimeline.dispose();
-    _waterReflectionTick.dispose();
-    _waterArcTick.dispose();
+    _waterFrameTick.dispose();
     baseCampMapConfigurationController.removeListener(_configurationChanged);
     _transform.dispose();
     super.dispose();
@@ -884,7 +910,7 @@ class _BaseCampMapState extends State<BaseCampMap>
           visibleFacilityCount: 0,
           displayedFacilityCount: 0,
         );
-        unawaited(_warmWalkerFrames());
+        unawaited(_warmDeferredMapAnimationAssets());
       }
     });
   }
@@ -996,8 +1022,7 @@ class _BaseCampMapState extends State<BaseCampMap>
     );
     setState(() => _facilityLayerRevealed = true);
     if (readyCount + failedCount == 0) {
-      unawaited(_initializeWaterFx());
-      unawaited(_warmWalkerFrames());
+      unawaited(_warmDeferredMapAnimationAssets());
     }
   }
 
@@ -1047,8 +1072,7 @@ class _BaseCampMapState extends State<BaseCampMap>
           .where(_displayedFacilityObjects.contains)
           .length,
     );
-    unawaited(_initializeWaterFx());
-    unawaited(_warmWalkerFrames());
+    unawaited(_warmDeferredMapAnimationAssets());
   }
 
   void _recordDashboardInteractive({
@@ -1143,6 +1167,19 @@ class _BaseCampMapState extends State<BaseCampMap>
       },
     );
     baseCampDeferredAssetWarmupEpoch.value++;
+  }
+
+  Future<void> _warmDeferredMapAnimationAssets() async {
+    if (_deferredAnimationWarmupStarted) return;
+    _deferredAnimationWarmupStarted = true;
+    // Dashboard interaction and the existing walking animation take priority.
+    // The nonessential 24-frame WATER overlay is decoded only after the
+    // staged walker warm-up, avoiding a burst of competing image decodes.
+    await _warmWalkerFrames();
+    if (!mounted) return;
+    await SchedulerBinding.instance.endOfFrame;
+    if (!mounted) return;
+    await _initializeWaterFx();
   }
 
   Future<void> _openEditor() async {
@@ -1301,12 +1338,11 @@ class _BaseCampMapState extends State<BaseCampMap>
                           IgnorePointer(
                             key: const ValueKey('base-camp-water-fx'),
                             child: RepaintBoundary(
-                              child: BaseCampWaterSurfaceV2Layer(
+                              child: BaseCampWaterSurfaceV3BLayer(
                                 water: configuration.waterFx['water']!,
                                 imageRect: geometry.imageRect,
                                 artworkSize: baseCampMapArtworkSize,
-                                reflectionTick: _waterReflectionTick,
-                                arcTick: _waterArcTick,
+                                frameTick: _waterFrameTick,
                               ),
                             ),
                           ),
