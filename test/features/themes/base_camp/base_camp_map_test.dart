@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/services/system_diagnostics.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_facility_assets.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
@@ -92,8 +93,36 @@ void main() {
     final trace = SystemDiagnostics.instance.copyText();
     expect(trace, contains('MAP_BACKGROUND_LOAD_START'));
     expect(trace, contains('MAP_BACKGROUND_LOAD_COMPLETE'));
+    expect(trace, contains('MAP_BACKGROUND_READY'));
     expect(trace, contains('MAP_DISPLAY_COMPLETE'));
+    expect(
+      trace.indexOf('MAP_DISPLAY_COMPLETE'),
+      lessThan(trace.indexOf('FACILITY_ASSET_LOAD_START')),
+    );
   });
+
+  test(
+    'local map asset resolver shares reads and invalidates updates',
+    () async {
+      var reads = 0;
+      final resolver = BaseCampMapAssetResolver(
+        reader: (assetId) async {
+          reads++;
+          return null;
+        },
+      );
+
+      final first = resolver.read('local-facility');
+      final duplicate = resolver.read('local-facility');
+      expect(identical(first, duplicate), isTrue);
+      await Future.wait([first, duplicate]);
+      expect(reads, 1);
+
+      resolver.invalidate('local-facility');
+      await resolver.read('local-facility');
+      expect(reads, 2);
+    },
+  );
 
   test(
     'Base Camp restore failure preserves defaults without escaping boot',
@@ -225,6 +254,8 @@ void main() {
   testWidgets('facility label taps use the same confirmation flow', (
     tester,
   ) async {
+    SystemDiagnostics.instance.clear();
+    addTearDown(SystemDiagnostics.instance.clear);
     final selected = <String>[];
     await tester.pumpWidget(
       MaterialApp(
@@ -252,6 +283,15 @@ void main() {
       await tester.pump();
     }
     expect(selected, baseCampFacilities.map((facility) => facility.id));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump();
+    final trace = SystemDiagnostics.instance.copyText();
+    expect(trace, contains('ENTRY_PRELOAD_START'));
+    for (final facility in baseCampFacilities) {
+      expect(trace, contains(baseCampFacilityEntryAssetForId(facility.id)));
+    }
   });
 
   testWidgets('map drags do not trigger facility navigation', (tester) async {

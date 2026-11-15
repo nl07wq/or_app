@@ -1,23 +1,24 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/services/device_settings_controller.dart';
+import 'package:or_app/core/services/system_diagnostics.dart';
 import 'package:or_app/core/theme/app_spacing.dart';
 import 'package:or_app/core/widgets/mixed_script_text.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart'
     show BaseCampLcdGrainPainter;
+import 'package:or_app/features/themes/base_camp/base_camp_facility_assets.dart';
 
-const baseCampStatusEntryAsset =
-    'assets/images/themes/base_camp/entry/status.jpg';
-const baseCampActivityEntryAsset =
-    'assets/images/themes/base_camp/entry/activity.jpg';
-const baseCampFoodEntryAsset = 'assets/images/themes/base_camp/entry/food.jpg';
-const baseCampTrainingEntryAsset =
-    'assets/images/themes/base_camp/entry/training.jpg';
-const baseCampCommandCenterEntryAsset =
-    'assets/images/themes/base_camp/entry/command_center.jpg';
+export 'base_camp_facility_assets.dart'
+    show
+        baseCampActivityEntryAsset,
+        baseCampCommandCenterEntryAsset,
+        baseCampFoodEntryAsset,
+        baseCampStatusEntryAsset,
+        baseCampTrainingEntryAsset;
 
 /// Static BASE CAMP facility entrance used only by the five map modules.
 /// Business actions are supplied by the existing feature pages so this layer
@@ -37,10 +38,6 @@ class BaseCampFacilityEntryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final cacheWidth = math
-        .max(512, mediaQuery.size.width * mediaQuery.devicePixelRatio)
-        .round()
-        .clamp(512, 1536);
     return Scaffold(
       key: ValueKey('base-camp-${title.toLowerCase()}-facility-entry'),
       backgroundColor: const Color(0xff11150f),
@@ -79,23 +76,9 @@ class BaseCampFacilityEntryPage extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Image.asset(
-                      imageAsset,
-                      key: ValueKey('base-camp-facility-image-$title'),
-                      fit: BoxFit.cover,
-                      alignment: Alignment.center,
-                      cacheWidth: cacheWidth,
-                      filterQuality: FilterQuality.medium,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const ColoredBox(
-                            color: Color(0xff20251b),
-                            child: Center(
-                              child: Text(
-                                'FACILITY IMAGE UNAVAILABLE',
-                                style: TextStyle(color: Color(0xffc8c2a6)),
-                              ),
-                            ),
-                          ),
+                    child: _BaseCampFacilityEntryImage(
+                      title: title,
+                      asset: imageAsset,
                     ),
                   ),
                 ),
@@ -132,6 +115,108 @@ class BaseCampFacilityEntryPage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _BaseCampFacilityEntryImage extends StatefulWidget {
+  const _BaseCampFacilityEntryImage({required this.title, required this.asset});
+
+  final String title;
+  final String asset;
+
+  @override
+  State<_BaseCampFacilityEntryImage> createState() =>
+      _BaseCampFacilityEntryImageState();
+}
+
+class _BaseCampFacilityEntryImageState
+    extends State<_BaseCampFacilityEntryImage> {
+  ImageProvider<Object>? _provider;
+  int? _cacheWidth;
+  bool _displayRecorded = false;
+  late Stopwatch _displayWatch;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final cacheWidth = baseCampFacilityEntryCacheWidth(MediaQuery.of(context));
+    if (_provider != null &&
+        _cacheWidth == cacheWidth &&
+        _providerAsset == widget.asset) {
+      return;
+    }
+    _cacheWidth = cacheWidth;
+    _providerAsset = widget.asset;
+    _provider = baseCampFacilityEntryImageProvider(
+      asset: widget.asset,
+      cacheWidth: cacheWidth,
+    );
+    _displayRecorded = false;
+    _displayWatch = Stopwatch()..start();
+    unawaited(_recordDisplayStart(_provider!));
+  }
+
+  String? _providerAsset;
+
+  Future<void> _recordDisplayStart(ImageProvider<Object> provider) async {
+    final cache = await baseCampImageCacheFields(provider, context);
+    if (!mounted || provider != _provider) return;
+    SystemDiagnostics.instance.record(
+      'ASSET',
+      'ENTRY_IMAGE_DISPLAY_START',
+      fields: <String, Object?>{
+        'asset': widget.asset,
+        'cacheWidth': _cacheWidth,
+        ...cache,
+      },
+    );
+  }
+
+  void _recordDisplayed() {
+    if (_displayRecorded) return;
+    _displayRecorded = true;
+    _displayWatch.stop();
+    SystemDiagnostics.instance.record(
+      'ASSET',
+      'ENTRY_IMAGE_DISPLAY_COMPLETE',
+      fields: <String, Object?>{
+        'asset': widget.asset,
+        'cacheWidth': _cacheWidth,
+        'durationMs': _displayWatch.elapsedMilliseconds,
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Image(
+    image: _provider!,
+    key: ValueKey('base-camp-facility-image-${widget.title}'),
+    fit: BoxFit.cover,
+    alignment: Alignment.center,
+    filterQuality: FilterQuality.medium,
+    frameBuilder: (context, child, frame, synchronous) {
+      if (frame != null || synchronous) _recordDisplayed();
+      return child;
+    },
+    errorBuilder: (context, error, stackTrace) {
+      SystemDiagnostics.instance.record(
+        'ASSET',
+        'ENTRY_IMAGE_DISPLAY_FAILED',
+        fields: <String, Object?>{
+          'asset': widget.asset,
+          'errorType': error.runtimeType.toString(),
+        },
+      );
+      return const ColoredBox(
+        color: Color(0xff20251b),
+        child: Center(
+          child: Text(
+            'FACILITY IMAGE UNAVAILABLE',
+            style: TextStyle(color: Color(0xffc8c2a6)),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _BaseCampModuleTerminal extends StatelessWidget {

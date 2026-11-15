@@ -30,6 +30,7 @@ import 'package:or_app/features/system/widgets/system_menu_button.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_soldier_motion.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_asset_metrics.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_facility_assets.dart';
 import 'package:or_app/features/themes/base_camp/soldier_live_motion_preview_page.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
@@ -635,7 +636,11 @@ class _BreathingSoldierCompartmentState
   Timer? _specialTimer;
   bool _active = true;
   bool _rifleFramesReady = false;
-  bool _rifleFramePrecacheStarted = false;
+  bool _riflePrecacheInFlight = false;
+  bool _rifleManualPriorityRequested = false;
+  bool _pendingManualRegrip = false;
+  final Set<String> _readyRifleFrames = <String>{};
+  final Set<String> _failedRifleFrames = <String>{};
   bool _manualEvent = false;
   bool _automaticEventPending = false;
   BaseCampRifleGlobalAlignment _eventAlignment =
@@ -661,28 +666,47 @@ class _BreathingSoldierCompartmentState
   }
 
   void _onDeferredAssetsReady() {
-    if (_rifleFramePrecacheStarted ||
+    if (_rifleFramesReady ||
+        _riflePrecacheInFlight ||
         baseCampDeferredAssetWarmupEpoch.value == _deferredWarmupEpoch) {
       return;
     }
     _deferredWarmupEpoch = baseCampDeferredAssetWarmupEpoch.value;
-    _rifleFramePrecacheStarted = true;
     unawaited(_precacheRifleFrames());
   }
 
-  Future<void> _precacheRifleFrames() async {
+  Future<void> _precacheRifleFrames({bool manualPriority = false}) async {
+    if (_rifleFramesReady || _riflePrecacheInFlight || !mounted) return;
+    _riflePrecacheInFlight = true;
     final diagnostics = SystemDiagnostics.instance;
     final watch = Stopwatch()..start();
-    diagnostics.record('SOLDIER', 'RIFLE_REGRIP_PRECACHE_START');
-    var allFramesLoaded = true;
-    for (final asset in baseCampRifleRegripAssets) {
-      await SchedulerBinding.instance.endOfFrame;
-      if (!mounted) return;
+    final pendingAssets = baseCampRifleRegripAssets
+        .where((asset) => !_readyRifleFrames.contains(asset))
+        .toList(growable: false);
+    diagnostics.record(
+      'SOLDIER',
+      'RIFLE_REGRIP_PRECACHE_START',
+      fields: <String, Object?>{
+        'frameCount': pendingAssets.length,
+        'manualPriority': manualPriority,
+        'retry': _failedRifleFrames.isNotEmpty,
+      },
+    );
+    for (final asset in pendingAssets) {
+      if (!manualPriority && !_rifleManualPriorityRequested) {
+        await SchedulerBinding.instance.endOfFrame;
+      }
+      if (!mounted || !_active) {
+        _riflePrecacheInFlight = false;
+        return;
+      }
       try {
-        await precacheImage(AssetImage(asset), context);
+        await baseCampPrecacheImage(AssetImage(asset), context);
+        _readyRifleFrames.add(asset);
+        _failedRifleFrames.remove(asset);
         recordBaseCampAssetReady(asset);
       } catch (error, stackTrace) {
-        allFramesLoaded = false;
+        _failedRifleFrames.add(asset);
         diagnostics.record(
           'ASSET',
           'ASSET_LOAD_FAILED',
@@ -704,14 +728,38 @@ class _BreathingSoldierCompartmentState
         );
       }
     }
+    _riflePrecacheInFlight = false;
+    _rifleManualPriorityRequested = false;
+    final allFramesLoaded =
+        _readyRifleFrames.length == baseCampRifleRegripAssets.length;
     diagnostics.record(
       'SOLDIER',
       allFramesLoaded
           ? 'RIFLE_REGRIP_PRECACHE_COMPLETE'
           : 'RIFLE_REGRIP_PRECACHE_INCOMPLETE',
-      fields: <String, Object?>{'durationMs': watch.elapsedMilliseconds},
+      fields: <String, Object?>{
+        'readyFrames': _readyRifleFrames.length,
+        'frameCount': baseCampRifleRegripAssets.length,
+        'failedAssets': _failedRifleFrames.toList(growable: false),
+        'durationMs': watch.elapsedMilliseconds,
+      },
     );
-    if (mounted) setState(() => _rifleFramesReady = allFramesLoaded);
+    if (!mounted || !_active) return;
+    setState(() => _rifleFramesReady = allFramesLoaded);
+    if (!allFramesLoaded) return;
+    diagnostics.record(
+      'SOLDIER',
+      'RIFLE_REGRIP_FRAMES_READY',
+      fields: <String, Object?>{'frameCount': baseCampRifleRegripAssets.length},
+    );
+    if (_pendingManualRegrip) {
+      _pendingManualRegrip = false;
+      _automaticEventPending = false;
+      _startSpecialEvent(manual: true);
+    } else if (_automaticEventPending) {
+      _automaticEventPending = false;
+      _startSpecialEvent(manual: false);
+    }
   }
 
   void _onSpecialStatus(AnimationStatus status) {
@@ -746,19 +794,60 @@ class _BreathingSoldierCompartmentState
       _automaticEventPending = true;
       return;
     }
+    if (!_rifleFramesReady) {
+      _automaticEventPending = true;
+      SystemDiagnostics.instance.record(
+        'SOLDIER',
+        'RIFLE_REGRIP_AUTOMATIC_DEFERRED',
+        fields: <String, Object?>{
+          'readyFrames': _readyRifleFrames.length,
+          'frameCount': baseCampRifleRegripAssets.length,
+        },
+      );
+      unawaited(_precacheRifleFrames());
+      return;
+    }
     _startSpecialEvent(manual: false);
   }
 
   void triggerManualRegrip() => unawaited(_triggerManualRegrip());
 
   Future<void> _triggerManualRegrip() async {
+    final diagnostics = SystemDiagnostics.instance;
+    diagnostics.record('SOLDIER', 'RIFLE_REGRIP_MANUAL_REQUEST');
     await baseCampRifleGlobalAlignment.load();
-    if (!mounted || !_active || _specialController.isAnimating) return;
+    if (!mounted || !_active) return;
+    if (_specialController.isAnimating) {
+      diagnostics.record('SOLDIER', 'RIFLE_REGRIP_MANUAL_IGNORED_ACTIVE');
+      return;
+    }
+    if (!_rifleFramesReady) {
+      _pendingManualRegrip = true;
+      _rifleManualPriorityRequested = true;
+      diagnostics.record(
+        'SOLDIER',
+        'RIFLE_REGRIP_MANUAL_DEFERRED',
+        fields: <String, Object?>{
+          'readyFrames': _readyRifleFrames.length,
+          'frameCount': baseCampRifleRegripAssets.length,
+        },
+      );
+      unawaited(_precacheRifleFrames(manualPriority: true));
+      return;
+    }
     _startSpecialEvent(manual: true);
   }
 
   void _startSpecialEvent({required bool manual}) {
     if (!mounted || !_active || _specialController.isAnimating) return;
+    if (!_rifleFramesReady) {
+      if (manual) {
+        _pendingManualRegrip = true;
+      } else {
+        _automaticEventPending = true;
+      }
+      return;
+    }
     _manualEvent = manual;
     _eventAlignment = baseCampRifleGlobalAlignment.value;
     _specialController.duration = Duration(
@@ -767,6 +856,11 @@ class _BreathingSoldierCompartmentState
     _breathingController
       ..stop()
       ..value = 0;
+    SystemDiagnostics.instance.record(
+      'SOLDIER',
+      'RIFLE_REGRIP_PLAYBACK_START',
+      fields: <String, Object?>{'manual': manual, 'firstFrame': 0},
+    );
     _specialController.forward(from: 0);
   }
 
@@ -784,6 +878,8 @@ class _BreathingSoldierCompartmentState
       _specialTimer?.cancel();
       _specialTimer = null;
       _automaticEventPending = false;
+      _pendingManualRegrip = false;
+      _rifleManualPriorityRequested = false;
       _manualEvent = false;
       _breathingController.stop();
       _specialController
@@ -857,7 +953,7 @@ class _BreathingSoldierCompartmentState
                                 )
                               : BaseCampRifleRegripPhase.breathing;
                           final showRifleFrame =
-                              (_rifleFramesReady || _manualEvent) &&
+                              _rifleFramesReady &&
                               (phase == BaseCampRifleRegripPhase.rifleRegrip ||
                                   phase == BaseCampRifleRegripPhase.postIdle);
                           if (showRifleFrame) {

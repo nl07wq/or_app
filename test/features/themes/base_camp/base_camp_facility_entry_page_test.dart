@@ -17,6 +17,7 @@ import 'package:or_app/features/morning/morning_page.dart';
 import 'package:or_app/features/morning/widgets/status_radial_spectrum_ambient.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_facility_entry_page.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_facility_assets.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart'
     show BaseCampLcdGrainPainter;
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
@@ -61,6 +62,41 @@ void main() {
       }
     },
   );
+
+  testWidgets('ENTRY uses the same cache key contract as map selection', (
+    tester,
+  ) async {
+    const media = MediaQueryData(size: Size(390, 844), devicePixelRatio: 3);
+    final cacheWidth = baseCampFacilityEntryCacheWidth(media);
+    expect(cacheWidth, 1170);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: media,
+          child: BaseCampFacilityEntryPage(
+            title: 'STATUS',
+            imageAsset: baseCampStatusEntryAsset,
+            actions: const <BaseCampFacilityEntryAction>[],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final image = tester.widget<Image>(
+      find.byKey(const ValueKey('base-camp-facility-image-STATUS')),
+    );
+    final provider = image.image as ResizeImage;
+    expect(provider.width, cacheWidth);
+    expect(provider.imageProvider, const AssetImage(baseCampStatusEntryAsset));
+    expect(
+      image.image,
+      baseCampFacilityEntryImageProvider(
+        asset: baseCampStatusEntryAsset,
+        cacheWidth: cacheWidth,
+      ),
+    );
+  });
 
   test('walker frames use one bounded shared decode contract', () {
     expect(baseCampWalkerWarmupAssets, hasLength(25));

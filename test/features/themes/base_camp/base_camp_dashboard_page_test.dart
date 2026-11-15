@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -7,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/engine/operation_status.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
+import 'package:or_app/core/services/system_diagnostics.dart';
 import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart';
@@ -194,6 +196,8 @@ void main() {
   testWidgets('soldier panel tap plays one exclusive manual regrip', (
     tester,
   ) async {
+    SystemDiagnostics.instance.clear();
+    addTearDown(SystemDiagnostics.instance.clear);
     await baseCampRifleGlobalAlignment.save(
       const BaseCampRifleGlobalAlignment(
         x: 7,
@@ -211,6 +215,15 @@ void main() {
     final panel = find.byKey(const ValueKey('base-camp-soldier-panel'));
     await tester.tap(panel);
     await tester.pump();
+    expect(
+      find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-soldier-lower')),
+      findsOneWidget,
+    );
+    await _pumpUntilDiagnostic(tester, 'RIFLE_REGRIP_PLAYBACK_START');
     await tester.pump(const Duration(milliseconds: 1001));
     expect(
       find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
@@ -236,6 +249,118 @@ void main() {
       find.byKey(const ValueKey('base-camp-soldier-lower')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('manual regrip stays breathing until every frame is ready', (
+    tester,
+  ) async {
+    SystemDiagnostics.instance.clear();
+    addTearDown(SystemDiagnostics.instance.clear);
+    final blocker = Completer<void>();
+    final bundle = _ControlledRifleAssetBundle(blocker: blocker);
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      DefaultAssetBundle(
+        bundle: bundle,
+        child: const MaterialApp(home: BaseCampDashboardPage()),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(find.byKey(const ValueKey('base-camp-soldier-panel')));
+    await tester.pump(const Duration(milliseconds: 1200));
+    expect(
+      find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-soldier-lower')),
+      findsOneWidget,
+    );
+    var trace = SystemDiagnostics.instance.copyText();
+    expect(trace, contains('RIFLE_REGRIP_MANUAL_DEFERRED'));
+    expect(trace, isNot(contains('RIFLE_REGRIP_PLAYBACK_START')));
+
+    blocker.complete();
+    await _pumpUntilDiagnostic(tester, 'RIFLE_REGRIP_PLAYBACK_START');
+    trace = SystemDiagnostics.instance.copyText();
+    expect(trace, contains('RIFLE_REGRIP_FRAMES_READY'));
+    await tester.pump(const Duration(milliseconds: 1001));
+    expect(
+      find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('failed regrip retry loads only the missing frame', (
+    tester,
+  ) async {
+    SystemDiagnostics.instance.clear();
+    addTearDown(SystemDiagnostics.instance.clear);
+    final bundle = _ControlledRifleAssetBundle(
+      failingSuffixes: <String>{'rifle_regrip_corrected_F2.png'},
+    );
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      DefaultAssetBundle(
+        bundle: bundle,
+        child: const MaterialApp(home: BaseCampDashboardPage()),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final panel = find.byKey(const ValueKey('base-camp-soldier-panel'));
+    await tester.tap(panel);
+    await _pumpUntilDiagnostic(tester, 'RIFLE_REGRIP_PRECACHE_INCOMPLETE');
+    final reported = tester.takeException();
+    var trace = SystemDiagnostics.instance.copyText();
+    expect(trace, contains('rifle_regrip_corrected_F2.png'));
+    expect(trace, isNot(contains('RIFLE_REGRIP_PLAYBACK_START')));
+    expect(reported, isA<FlutterError>());
+
+    bundle.failingSuffixes.clear();
+    await tester.tap(panel);
+    await _pumpUntilDiagnostic(tester, 'RIFLE_REGRIP_PLAYBACK_START');
+    trace = SystemDiagnostics.instance.copyText();
+    final retryStart = trace.lastIndexOf('RIFLE_REGRIP_PRECACHE_START');
+    expect(retryStart, greaterThanOrEqualTo(0));
+    expect(trace.substring(retryStart), contains('"frameCount": 1'));
+  });
+
+  testWidgets('disposing the soldier panel drops a pending manual request', (
+    tester,
+  ) async {
+    SystemDiagnostics.instance.clear();
+    addTearDown(SystemDiagnostics.instance.clear);
+    final blocker = Completer<void>();
+    final bundle = _ControlledRifleAssetBundle(blocker: blocker);
+    await tester.pumpWidget(
+      DefaultAssetBundle(
+        bundle: bundle,
+        child: const MaterialApp(home: BaseCampDashboardPage()),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const ValueKey('base-camp-soldier-panel')));
+    await tester.pump();
+    expect(
+      SystemDiagnostics.instance.copyText(),
+      contains('RIFLE_REGRIP_MANUAL_DEFERRED'),
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    blocker.complete();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+    expect(
+      SystemDiagnostics.instance.copyText(),
+      isNot(contains('RIFLE_REGRIP_PLAYBACK_START')),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -1408,6 +1533,40 @@ void main() {
       findsOneWidget,
     );
   });
+}
+
+Future<void> _pumpUntilDiagnostic(
+  WidgetTester tester,
+  String event, {
+  int attempts = 80,
+}) async {
+  for (var attempt = 0; attempt < attempts; attempt++) {
+    if (SystemDiagnostics.instance.copyText().contains(event)) return;
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 1)),
+    );
+  }
+  fail('Diagnostic event not recorded: $event');
+}
+
+class _ControlledRifleAssetBundle extends CachingAssetBundle {
+  _ControlledRifleAssetBundle({this.blocker, Set<String>? failingSuffixes})
+    : failingSuffixes = failingSuffixes ?? <String>{};
+
+  final Completer<void>? blocker;
+  final Set<String> failingSuffixes;
+
+  @override
+  Future<ByteData> load(String key) async {
+    if (key.contains('/rifle_regrip/')) {
+      await blocker?.future;
+      if (failingSuffixes.any(key.endsWith)) {
+        throw FlutterError('Rejected test asset: $key');
+      }
+    }
+    return rootBundle.load(key);
+  }
 }
 
 Future<Rect> _rasterTextInkBounds(TextSpan span) async {

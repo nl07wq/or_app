@@ -10,6 +10,7 @@ import 'package:or_app/core/services/system_diagnostics.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_asset_metrics.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_asset_store.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_facility_assets.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 
@@ -20,6 +21,9 @@ import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart'
 /// historic 1280×720 scene coordinate system, so saved editor settings are
 /// never rewritten simply because the surrounding artwork became taller.
 const baseCampMapAsset = 'assets/images/themes/base_camp/base_camp_map_v3.png';
+const ImageProvider<Object> baseCampMapImageProvider = AssetImage(
+  baseCampMapAsset,
+);
 const baseCampWalkerUpLeftAsset =
     'assets/images/themes/base_camp/base_camp_walker_up_left.gif';
 const baseCampWalkerDownRightAsset =
@@ -530,7 +534,15 @@ class _BaseCampMapState extends State<BaseCampMap>
   late final AnimationController _selectionVisibility;
   late final AnimationController _walkerTimeline;
   final Stopwatch _mapLoadWatch = Stopwatch();
-  bool _mapReadyRecorded = false;
+  final BaseCampMapAssetResolver _assetResolver = BaseCampMapAssetResolver();
+  final Set<String> _resolvedFacilityObjects = <String>{};
+  final Set<String> _displayedFacilityObjects = <String>{};
+  bool _mapPrecacheStarted = false;
+  bool _mapDecodeReady = false;
+  bool _mapDisplayQueued = false;
+  bool _mapDisplayed = false;
+  int _entryPreloadGeneration = 0;
+  bool _facilityBatchRecorded = false;
   bool _walkerWarmupStarted = false;
   bool _walkerFirstFramesReady = false;
   bool _walkerFramesReady = false;
@@ -538,12 +550,6 @@ class _BaseCampMapState extends State<BaseCampMap>
   @override
   void initState() {
     super.initState();
-    _mapLoadWatch.start();
-    SystemDiagnostics.instance.record(
-      'BASE_CAMP',
-      'MAP_BACKGROUND_LOAD_START',
-      fields: const <String, Object?>{'asset': baseCampMapAsset},
-    );
     _selectionPulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
@@ -571,6 +577,74 @@ class _BaseCampMapState extends State<BaseCampMap>
     baseCampMapConfigurationController.addListener(_configurationChanged);
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_mapPrecacheStarted) return;
+    _mapPrecacheStarted = true;
+    unawaited(_precacheMapBackground());
+  }
+
+  Future<void> _precacheMapBackground() async {
+    _mapLoadWatch
+      ..reset()
+      ..start();
+    final diagnostics = SystemDiagnostics.instance;
+    final cache = await baseCampImageCacheFields(
+      baseCampMapImageProvider,
+      context,
+    );
+    if (!mounted) return;
+    diagnostics.record(
+      'BASE_CAMP',
+      'MAP_BACKGROUND_LOAD_START',
+      fields: <String, Object?>{'asset': baseCampMapAsset, ...cache},
+    );
+    try {
+      await baseCampPrecacheImage(baseCampMapImageProvider, context);
+      if (!mounted) return;
+      _mapDecodeReady = true;
+      recordBaseCampAssetReady(baseCampMapAsset);
+      diagnostics.record(
+        'BASE_CAMP',
+        'MAP_BACKGROUND_READY',
+        fields: <String, Object?>{
+          'asset': baseCampMapAsset,
+          'durationMs': _mapLoadWatch.elapsedMilliseconds,
+        },
+      );
+      // Compatibility for existing exported diagnostic readers. READY is the
+      // decode boundary; DISPLAY_COMPLETE remains a separate frame event.
+      diagnostics.record(
+        'BASE_CAMP',
+        'MAP_BACKGROUND_LOAD_COMPLETE',
+        fields: <String, Object?>{
+          'asset': baseCampMapAsset,
+          'stage': 'decodeReady',
+          'durationMs': _mapLoadWatch.elapsedMilliseconds,
+        },
+      );
+    } catch (error, stackTrace) {
+      diagnostics.record(
+        'ASSET',
+        'ASSET_LOAD_FAILED',
+        fields: <String, Object?>{
+          'asset': baseCampMapAsset,
+          'stage': 'decodeReady',
+          'errorType': error.runtimeType.toString(),
+        },
+      );
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'base_camp',
+          context: ErrorDescription('while preloading Base Camp map'),
+        ),
+      );
+    }
+  }
+
   void _configurationChanged() {
     if (mounted) setState(() {});
   }
@@ -589,23 +663,62 @@ class _BaseCampMapState extends State<BaseCampMap>
     setState(() => _transform.value = Matrix4.identity());
   }
 
-  void _recordMapReady() {
-    if (_mapReadyRecorded) return;
-    _mapReadyRecorded = true;
+  void _recordMapDisplayed() {
+    if (_mapDisplayQueued || _mapDisplayed) return;
+    _mapDisplayQueued = true;
     _mapLoadWatch.stop();
     recordBaseCampAssetReady(baseCampMapAsset);
-    SystemDiagnostics.instance.record(
-      'BASE_CAMP',
-      'MAP_BACKGROUND_LOAD_COMPLETE',
-      fields: <String, Object?>{
-        'durationMs': _mapLoadWatch.elapsedMilliseconds,
-      },
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      SystemDiagnostics.instance.record('BASE_CAMP', 'MAP_DISPLAY_COMPLETE');
-      unawaited(_warmWalkerFrames());
+      _mapDisplayed = true;
+      SystemDiagnostics.instance.record(
+        'BASE_CAMP',
+        'MAP_DISPLAY_COMPLETE',
+        fields: <String, Object?>{
+          'asset': baseCampMapAsset,
+          'decodeReadyBeforeDisplay': _mapDecodeReady,
+          'durationMs': _mapLoadWatch.elapsedMilliseconds,
+        },
+      );
+      setState(() {});
+      if (!baseCampMapConfigurationController.value.objects.values.any(
+        (object) => object.visible,
+      )) {
+        unawaited(_warmWalkerFrames());
+      }
     });
+  }
+
+  void _recordFacilityObjectResolved(String objectId, bool displayed) {
+    if (!_resolvedFacilityObjects.add(objectId)) return;
+    if (displayed) _displayedFacilityObjects.add(objectId);
+    SystemDiagnostics.instance.record(
+      'ASSET',
+      displayed
+          ? 'FACILITY_OBJECT_DISPLAY_COMPLETE'
+          : 'FACILITY_OBJECT_DISPLAY_FAILED',
+      fields: <String, Object?>{'objectId': objectId},
+    );
+    final visibleIds = baseCampMapConfigurationController.value.objects.values
+        .where((object) => object.visible)
+        .map((object) => object.id)
+        .toSet();
+    if (_facilityBatchRecorded ||
+        !visibleIds.every(_resolvedFacilityObjects.contains)) {
+      return;
+    }
+    _facilityBatchRecorded = true;
+    SystemDiagnostics.instance.record(
+      'ASSET',
+      'FACILITY_OBJECTS_DISPLAY_COMPLETE',
+      fields: <String, Object?>{
+        'objectCount': visibleIds.length,
+        'displayedCount': visibleIds
+            .where(_displayedFacilityObjects.contains)
+            .length,
+      },
+    );
+    unawaited(_warmWalkerFrames());
   }
 
   Future<void> _warmWalkerFrames() async {
@@ -628,7 +741,10 @@ class _BaseCampMapState extends State<BaseCampMap>
       if (!mounted) return;
       final asset = assets[index];
       try {
-        await precacheImage(baseCampWalkerFrameProvider(asset), context);
+        await baseCampPrecacheImage(
+          baseCampWalkerFrameProvider(asset),
+          context,
+        );
         loaded++;
         recordBaseCampAssetReady(asset);
       } catch (error, stackTrace) {
@@ -669,6 +785,15 @@ class _BaseCampMapState extends State<BaseCampMap>
         'durationMs': watch.elapsedMilliseconds,
       },
     );
+    diagnostics.record(
+      'ASSET',
+      'WALKER_FRAMES_READY',
+      fields: <String, Object?>{
+        'loadedFrames': loaded,
+        'frameCount': assets.length,
+        'allFramesReady': loaded == assets.length,
+      },
+    );
     baseCampDeferredAssetWarmupEpoch.value++;
   }
 
@@ -685,6 +810,64 @@ class _BaseCampMapState extends State<BaseCampMap>
     });
     if (!_selectionPulse.isAnimating) _selectionPulse.repeat();
     _selectionVisibility.forward(from: 0);
+    final generation = ++_entryPreloadGeneration;
+    unawaited(_preloadFacilityEntry(facility, generation));
+  }
+
+  Future<void> _preloadFacilityEntry(
+    BaseCampFacility facility,
+    int generation,
+  ) async {
+    final asset = baseCampFacilityEntryAssetForId(facility.id);
+    if (asset == null || !mounted) return;
+    final cacheWidth = baseCampFacilityEntryCacheWidth(MediaQuery.of(context));
+    final provider = baseCampFacilityEntryImageProvider(
+      asset: asset,
+      cacheWidth: cacheWidth,
+    );
+    final watch = Stopwatch()..start();
+    final cache = await baseCampImageCacheFields(provider, context);
+    if (!mounted) return;
+    SystemDiagnostics.instance.record(
+      'ASSET',
+      'ENTRY_PRELOAD_START',
+      fields: <String, Object?>{
+        'facilityId': facility.id,
+        'asset': asset,
+        'cacheWidth': cacheWidth,
+        'selectionGeneration': generation,
+        ...cache,
+      },
+    );
+    try {
+      await baseCampPrecacheImage(provider, context);
+      if (!mounted) return;
+      SystemDiagnostics.instance.record(
+        'ASSET',
+        'ENTRY_PRELOAD_COMPLETE',
+        fields: <String, Object?>{
+          'facilityId': facility.id,
+          'asset': asset,
+          'cacheWidth': cacheWidth,
+          'durationMs': watch.elapsedMilliseconds,
+          'superseded': generation != _entryPreloadGeneration,
+        },
+      );
+    } catch (error) {
+      if (!mounted) return;
+      SystemDiagnostics.instance.record(
+        'ASSET',
+        'ENTRY_PRELOAD_FAILED',
+        fields: <String, Object?>{
+          'facilityId': facility.id,
+          'asset': asset,
+          'cacheWidth': cacheWidth,
+          'durationMs': watch.elapsedMilliseconds,
+          'errorType': error.runtimeType.toString(),
+          'superseded': generation != _entryPreloadGeneration,
+        },
+      );
+    }
   }
 
   void _clearSelection() {
@@ -744,12 +927,14 @@ class _BaseCampMapState extends State<BaseCampMap>
                     return Stack(
                       fit: StackFit.expand,
                       children: [
-                        Image.asset(
-                          baseCampMapAsset,
+                        Image(
+                          image: baseCampMapImageProvider,
                           fit: BoxFit.contain,
                           filterQuality: FilterQuality.high,
                           frameBuilder: (context, child, frame, synchronous) {
-                            if (frame != null || synchronous) _recordMapReady();
+                            if (frame != null || synchronous) {
+                              _recordMapDisplayed();
+                            }
                             return child;
                           },
                           errorBuilder: (context, error, stackTrace) {
@@ -783,34 +968,38 @@ class _BaseCampMapState extends State<BaseCampMap>
                             ),
                           ),
                         ),
-                        IgnorePointer(
-                          child: AnimatedBuilder(
-                            animation: Listenable.merge(<Listenable>[
-                              _selectionPulse,
-                              _selectionVisibility,
-                            ]),
-                            builder: (context, _) {
-                              final pulse = reducedMotion
-                                  ? 1.0
-                                  : .84 +
-                                        .16 *
-                                            ((1 +
-                                                    math.sin(
-                                                      _selectionPulse.value *
-                                                          math.pi *
-                                                          2,
-                                                    )) /
-                                                2);
-                              return BaseCampObjectLayer(
-                                configuration: configuration,
-                                geometry: geometry,
-                                highlightedObjectId: glowingFacility?.id,
-                                highlightOpacity:
-                                    _selectionVisibility.value * pulse,
-                              );
-                            },
+                        if (_mapDisplayed)
+                          IgnorePointer(
+                            child: AnimatedBuilder(
+                              animation: Listenable.merge(<Listenable>[
+                                _selectionPulse,
+                                _selectionVisibility,
+                              ]),
+                              builder: (context, _) {
+                                final pulse = reducedMotion
+                                    ? 1.0
+                                    : .84 +
+                                          .16 *
+                                              ((1 +
+                                                      math.sin(
+                                                        _selectionPulse.value *
+                                                            math.pi *
+                                                            2,
+                                                      )) /
+                                                  2);
+                                return BaseCampObjectLayer(
+                                  configuration: configuration,
+                                  geometry: geometry,
+                                  assetResolver: _assetResolver,
+                                  onObjectResolved:
+                                      _recordFacilityObjectResolved,
+                                  highlightedObjectId: glowingFacility?.id,
+                                  highlightOpacity:
+                                      _selectionVisibility.value * pulse,
+                                );
+                              },
+                            ),
                           ),
-                        ),
                         if (reducedMotion || _walkerFirstFramesReady)
                           IgnorePointer(
                             child: RepaintBoundary(
@@ -893,6 +1082,8 @@ class _BaseCampMapState extends State<BaseCampMap>
                                 facility: facility,
                                 object: object,
                                 geometry: geometry,
+                                assetResolver: _assetResolver,
+                                enabled: _mapDisplayed,
                                 onPressed: () => _openFacility(facility),
                               ),
                         ],
@@ -1370,12 +1561,16 @@ class BaseCampObjectLayer extends StatelessWidget {
     super.key,
     required this.configuration,
     required this.geometry,
+    this.assetResolver,
+    this.onObjectResolved,
     this.highlightedObjectId,
     this.highlightOpacity = 0,
   });
 
   final BaseCampMapConfiguration configuration;
   final BaseCampMapGeometry geometry;
+  final BaseCampMapAssetResolver? assetResolver;
+  final void Function(String objectId, bool displayed)? onObjectResolved;
   final String? highlightedObjectId;
   final double highlightOpacity;
 
@@ -1391,6 +1586,10 @@ class BaseCampObjectLayer extends StatelessWidget {
           _BaseCampMapObjectPositioned(
             object: object,
             geometry: geometry,
+            assetResolver: assetResolver,
+            onResolved: onObjectResolved == null
+                ? null
+                : (displayed) => onObjectResolved!(object.id, displayed),
             highlightOpacity: object.id == highlightedObjectId
                 ? highlightOpacity
                 : 0,
@@ -1593,14 +1792,36 @@ void _paintLabelText(Canvas canvas, String text, Rect rect, double fontSize) {
   );
 }
 
+/// Shares one IndexedDB read between an imported object's visual and alpha
+/// hit mask. Asset IDs are immutable for an import; a replacement receives a
+/// new ID, so old bytes cannot survive an editor update under the same key.
+class BaseCampMapAssetResolver {
+  BaseCampMapAssetResolver({
+    Future<BaseCampStoredAsset?> Function(String assetId)? reader,
+  }) : _reader = reader ?? BaseCampAssetStore().read;
+
+  final Future<BaseCampStoredAsset?> Function(String assetId) _reader;
+  final Map<String, Future<BaseCampStoredAsset?>> _reads =
+      <String, Future<BaseCampStoredAsset?>>{};
+
+  Future<BaseCampStoredAsset?> read(String assetId) =>
+      _reads.putIfAbsent(assetId, () => _reader(assetId));
+
+  void invalidate(String assetId) => _reads.remove(assetId);
+}
+
 class _BaseCampMapObjectPositioned extends StatelessWidget {
   const _BaseCampMapObjectPositioned({
     required this.object,
     required this.geometry,
+    this.assetResolver,
+    this.onResolved,
     this.highlightOpacity = 0,
   });
   final BaseCampMapObject object;
   final BaseCampMapGeometry geometry;
+  final BaseCampMapAssetResolver? assetResolver;
+  final ValueChanged<bool>? onResolved;
   final double highlightOpacity;
 
   @override
@@ -1626,6 +1847,10 @@ class _BaseCampMapObjectPositioned extends StatelessWidget {
         child: BaseCampMapObjectImage(
           assetId: object.assetId,
           bundledAsset: asset,
+          storedAsset: asset == null
+              ? assetResolver?.read(object.assetId)
+              : null,
+          onFirstFrameResolved: onResolved,
           highlightOpacity: highlightOpacity,
         ),
       ),
@@ -1641,12 +1866,16 @@ class _BaseCampAlphaFacilityTarget extends StatefulWidget {
     required this.facility,
     required this.object,
     required this.geometry,
+    required this.assetResolver,
+    required this.enabled,
     required this.onPressed,
   });
 
   final BaseCampFacility facility;
   final BaseCampMapObject object;
   final BaseCampMapGeometry geometry;
+  final BaseCampMapAssetResolver assetResolver;
+  final bool enabled;
   final VoidCallback onPressed;
 
   @override
@@ -1663,18 +1892,22 @@ class _BaseCampAlphaFacilityTargetState
   void initState() {
     super.initState();
     _animationStartedAt = DateTime.now();
-    _mask = _loadMask();
+    _mask = widget.enabled
+        ? _loadMask()
+        : Future<_BaseCampAlphaMaskSequence?>.value(null);
   }
 
   @override
   void didUpdateWidget(_BaseCampAlphaFacilityTarget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.object.assetId != widget.object.assetId) {
+    if ((!oldWidget.enabled && widget.enabled) ||
+        oldWidget.object.assetId != widget.object.assetId) {
       _mask = _loadMask();
     }
   }
 
   Future<_BaseCampAlphaMaskSequence?> _loadMask() async {
+    if (!widget.enabled) return null;
     try {
       final bundled = baseCampObjectAssets[widget.object.assetId];
       if (bundled != null) {
@@ -1683,7 +1916,7 @@ class _BaseCampAlphaFacilityTargetState
           data.buffer.asUint8List(),
         );
       }
-      final stored = await BaseCampAssetStore().read(widget.object.assetId);
+      final stored = await widget.assetResolver.read(widget.object.assetId);
       return stored == null
           ? null
           : await _BaseCampAlphaMaskSequence.decode(stored.bytes);
@@ -1752,11 +1985,15 @@ class BaseCampMapObjectImage extends StatefulWidget {
     super.key,
     required this.assetId,
     this.bundledAsset,
+    this.storedAsset,
+    this.onFirstFrameResolved,
     this.highlightOpacity = 0,
   });
 
   final String assetId;
   final String? bundledAsset;
+  final Future<BaseCampStoredAsset?>? storedAsset;
+  final ValueChanged<bool>? onFirstFrameResolved;
   final double highlightOpacity;
 
   @override
@@ -1765,66 +2002,137 @@ class BaseCampMapObjectImage extends StatefulWidget {
 
 class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
   late Future<BaseCampStoredAsset?> _asset;
-  bool _readyRecorded = false;
+  ImageProvider<Object>? _provider;
+  String? _providerIdentity;
+  bool _precacheStarted = false;
+  bool _decodeReady = false;
+  bool _displayRecorded = false;
+  bool _failureRecorded = false;
+  bool _resolvedReported = false;
   late final Stopwatch _loadWatch;
 
   @override
   void initState() {
     super.initState();
-    _loadWatch = Stopwatch()..start();
-    SystemDiagnostics.instance.record(
-      'ASSET',
-      'FACILITY_ASSET_LOAD_START',
-      fields: <String, Object?>{'asset': widget.bundledAsset ?? widget.assetId},
-    );
-    _asset = _load();
+    _loadWatch = Stopwatch();
+    _restartLoad();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final bundled = widget.bundledAsset;
+    if (bundled != null) {
+      _setProvider(AssetImage(bundled), bundled);
+    }
   }
 
   @override
   void didUpdateWidget(BaseCampMapObjectImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.assetId != widget.assetId ||
-        oldWidget.bundledAsset != widget.bundledAsset) {
-      _readyRecorded = false;
-      _loadWatch
-        ..reset()
-        ..start();
-      _asset = _load();
+        oldWidget.bundledAsset != widget.bundledAsset ||
+        oldWidget.storedAsset != widget.storedAsset) {
+      _restartLoad();
+      final bundled = widget.bundledAsset;
+      if (bundled != null) _setProvider(AssetImage(bundled), bundled);
     }
   }
 
-  Future<BaseCampStoredAsset?> _load() => widget.bundledAsset == null
-      ? BaseCampAssetStore().read(widget.assetId)
-      : Future<BaseCampStoredAsset?>.value(null);
+  void _restartLoad() {
+    _provider = null;
+    _providerIdentity = null;
+    _precacheStarted = false;
+    _decodeReady = false;
+    _displayRecorded = false;
+    _failureRecorded = false;
+    _resolvedReported = false;
+    _loadWatch
+      ..reset()
+      ..start();
+    _asset = widget.bundledAsset == null
+        ? widget.storedAsset ?? BaseCampAssetStore().read(widget.assetId)
+        : Future<BaseCampStoredAsset?>.value(null);
+    SystemDiagnostics.instance.record(
+      'ASSET',
+      'FACILITY_ASSET_LOAD_START',
+      fields: <String, Object?>{'asset': _assetName},
+    );
+  }
+
+  String get _assetName => widget.bundledAsset ?? widget.assetId;
+
+  void _setProvider(ImageProvider<Object> provider, String identity) {
+    if (_providerIdentity == identity) return;
+    _provider = provider;
+    _providerIdentity = identity;
+    _precacheStarted = false;
+    unawaited(_prepareProvider(provider, identity));
+  }
+
+  Future<void> _prepareProvider(
+    ImageProvider<Object> provider,
+    String identity,
+  ) async {
+    if (_precacheStarted) return;
+    _precacheStarted = true;
+    final cache = await baseCampImageCacheFields(provider, context);
+    if (!mounted || identity != _providerIdentity) return;
+    try {
+      await baseCampPrecacheImage(provider, context);
+      if (!mounted || identity != _providerIdentity) return;
+      _decodeReady = true;
+      recordBaseCampAssetReady(identity);
+      SystemDiagnostics.instance.record(
+        'ASSET',
+        'FACILITY_ASSET_READY',
+        fields: <String, Object?>{
+          'asset': identity,
+          'durationMs': _loadWatch.elapsedMilliseconds,
+          ...cache,
+        },
+      );
+      SystemDiagnostics.instance.record(
+        'ASSET',
+        'FACILITY_ASSET_LOAD_COMPLETE',
+        fields: <String, Object?>{
+          'asset': identity,
+          'stage': 'decodeReady',
+          'durationMs': _loadWatch.elapsedMilliseconds,
+        },
+      );
+    } catch (error) {
+      _recordFailure(identity, error, stage: 'decodeReady');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final bundled = widget.bundledAsset;
     if (bundled != null) {
-      return _withSelectionGlow(() => _bundledImage(bundled));
+      return _withSelectionGlow(() => _image(_provider!, bundled));
     }
     return FutureBuilder<BaseCampStoredAsset?>(
       future: _asset,
       builder: (context, snapshot) {
         final asset = snapshot.data;
         if (asset != null) {
+          _setProvider(MemoryImage(asset.bytes), widget.assetId);
           return _withSelectionGlow(
-            () => Image.memory(
-              asset.bytes,
-              fit: BoxFit.contain,
-              gaplessPlayback: true,
-              filterQuality: FilterQuality.high,
-              frameBuilder: (context, child, frame, synchronous) {
-                if (frame != null || synchronous) {
-                  _recordReady(widget.assetId, bytes: asset.bytes.length);
-                }
-                return child;
-              },
-            ),
+            () => _image(_provider!, widget.assetId, bytes: asset.bytes.length),
           );
         }
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SizedBox.expand();
+        }
+        if (snapshot.hasError) {
+          _recordFailure(widget.assetId, snapshot.error!, stage: 'storageRead');
+        } else {
+          _recordFailure(
+            widget.assetId,
+            StateError('missing stored asset'),
+            stage: 'storageRead',
+          );
         }
         return Semantics(
           label: 'Missing Base Camp asset',
@@ -1848,42 +2156,61 @@ class _BaseCampMapObjectImageState extends State<BaseCampMapObjectImage> {
     );
   }
 
-  Widget _bundledImage(String asset) => Image.asset(
-    asset,
-    fit: BoxFit.contain,
-    gaplessPlayback: true,
-    filterQuality: FilterQuality.high,
-    frameBuilder: (context, child, frame, synchronous) {
-      if (frame != null || synchronous) _recordReady(asset);
-      return child;
-    },
-    errorBuilder: (context, error, stackTrace) {
-      SystemDiagnostics.instance.record(
-        'ASSET',
-        'ASSET_LOAD_FAILED',
-        fields: <String, Object?>{
-          'asset': asset,
-          'errorType': error.runtimeType.toString(),
+  Widget _image(ImageProvider<Object> provider, String asset, {int? bytes}) =>
+      Image(
+        image: provider,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.high,
+        frameBuilder: (context, child, frame, synchronous) {
+          if (frame != null || synchronous) {
+            _recordDisplayed(asset, bytes: bytes);
+          }
+          return child;
+        },
+        errorBuilder: (context, error, stackTrace) {
+          _recordFailure(asset, error, stage: 'display');
+          return const SizedBox.expand();
         },
       );
-      return const SizedBox.expand();
-    },
-  );
 
-  void _recordReady(String asset, {int? bytes}) {
-    if (_readyRecorded) return;
-    _readyRecorded = true;
+  void _recordDisplayed(String asset, {int? bytes}) {
+    if (_displayRecorded) return;
+    _displayRecorded = true;
     _loadWatch.stop();
     recordBaseCampAssetReady(asset);
     SystemDiagnostics.instance.record(
       'ASSET',
-      'FACILITY_ASSET_LOAD_COMPLETE',
+      'FACILITY_ASSET_DISPLAY_COMPLETE',
       fields: <String, Object?>{
         'asset': asset,
         'fileBytes': ?bytes,
+        'decodeReadyBeforeDisplay': _decodeReady,
         'durationMs': _loadWatch.elapsedMilliseconds,
       },
     );
+    _reportResolved(true);
+  }
+
+  void _recordFailure(String asset, Object error, {required String stage}) {
+    if (_failureRecorded) return;
+    _failureRecorded = true;
+    SystemDiagnostics.instance.record(
+      'ASSET',
+      'ASSET_LOAD_FAILED',
+      fields: <String, Object?>{
+        'asset': asset,
+        'stage': stage,
+        'errorType': error.runtimeType.toString(),
+      },
+    );
+    _reportResolved(false);
+  }
+
+  void _reportResolved(bool displayed) {
+    if (_resolvedReported) return;
+    _resolvedReported = true;
+    widget.onFirstFrameResolved?.call(displayed);
   }
 
   Widget _withSelectionGlow(Widget Function() createImage) {
