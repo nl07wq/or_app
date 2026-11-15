@@ -117,17 +117,17 @@ void main() {
 
     await tester.tap(find.text('START'));
     await tester.pump();
+    expect(find.byType(BaseCampCommunicationMotion), findsNothing);
+    task.complete();
+    await tester.pump();
+    await tester.pump();
     expect(find.text('DAILY BRIEF'), findsOneWidget);
     expect(find.text('CONNECTING...'), findsOneWidget);
     expect(find.text('PROCESSING'), findsNothing);
     await tester.pump(baseCampCommunicationConnectingDuration);
     expect(find.text('RECEIVING...'), findsOneWidget);
 
-    task.complete();
-    await tester.pump(
-      baseCampCommunicationTransferFloor -
-          baseCampCommunicationConnectingDuration,
-    );
+    await tester.pump(baseCampCommunicationTransferDuration);
     expect(find.text('RECEIVED'), findsOneWidget);
     expect(returned, isFalse);
     await tester.pump(baseCampCommunicationCompletionHold);
@@ -151,17 +151,17 @@ void main() {
 
     await tester.tap(find.text('START'));
     await tester.pump();
+    expect(find.byType(BaseCampCommunicationMotion), findsNothing);
+    task.complete();
+    await tester.pump();
+    await tester.pump();
     expect(find.text('DAILY DEBRIEF'), findsOneWidget);
     expect(find.text('CONNECTING...'), findsOneWidget);
     expect(find.text('PROCESSING'), findsNothing);
     await tester.pump(baseCampCommunicationConnectingDuration);
     expect(find.text('RECEIVING...'), findsOneWidget);
 
-    task.complete();
-    await tester.pump(
-      baseCampCommunicationTransferFloor -
-          baseCampCommunicationConnectingDuration,
-    );
+    await tester.pump(baseCampCommunicationTransferDuration);
     expect(find.text('RECEIVED'), findsOneWidget);
     await tester.pump(baseCampCommunicationCompletionHold);
   });

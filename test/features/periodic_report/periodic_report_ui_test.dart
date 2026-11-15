@@ -126,18 +126,18 @@ void main() {
       expect(baseCampCommunicationKindForPeriodicReport(entry.$1), entry.$2);
       await tester.tap(find.text('APPLY REPORT'));
       await tester.pump();
+      expect(find.byType(BaseCampCommunicationMotion), findsNothing);
+      expect(calls, 1);
+      task.complete('saved');
+      await tester.pump();
+      await tester.pump();
       expect(find.text(entry.$3), findsOneWidget);
       expect(find.text('CONNECTING...'), findsOneWidget);
       expect(find.text('RECEIVED'), findsNothing);
-      expect(calls, 1);
       await tester.pump(baseCampCommunicationConnectingDuration);
       expect(find.text('RECEIVING...'), findsOneWidget);
 
-      task.complete('saved');
-      await tester.pump(
-        baseCampCommunicationTransferFloor -
-            baseCampCommunicationConnectingDuration,
-      );
+      await tester.pump(baseCampCommunicationTransferDuration);
       expect(find.text('RECEIVED'), findsOneWidget);
       expect(result, isNull);
       await tester.pump(

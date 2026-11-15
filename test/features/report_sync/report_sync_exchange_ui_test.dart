@@ -13,6 +13,7 @@ import 'package:or_app/features/import_export/services/backup_file_gateway.dart'
 import 'package:or_app/features/operation_sync/models/operation_sync_history.dart';
 import 'package:or_app/features/operation_sync/services/historical_training_workflow.dart';
 import 'package:or_app/features/report_sync/models/report_sync_envelope.dart';
+import 'package:or_app/features/report_sync/models/formal_record_change.dart';
 import 'package:or_app/features/report_sync/models/report_sync_history.dart';
 import 'package:or_app/features/report_sync/models/report_sync_issue.dart';
 import 'package:or_app/features/report_sync/models/status_report_sync_source.dart';
@@ -286,12 +287,18 @@ void main() {
         ),
       ),
     );
+    final formalRevision = formalRecordChangeNotifier.value.revision;
     await tester.tap(find.text('OPEN IMPORT'));
     await tester.pumpAndSettle();
     await _validateAndConfirmImport(tester, 'IMPORT DAILY DEBRIEF');
 
     expect(gateway.applyCalls, 1);
     expect(applied, 1);
+    expect(formalRecordChangeNotifier.value, (
+      revision: formalRevision + 1,
+      operationDate: '2026-08-02',
+      kind: FormalRecordKind.dailyDebrief,
+    ));
     expect(find.text('OPEN IMPORT'), findsOneWidget);
     expect(find.byType(ReportSyncExchangePage), findsNothing);
   });
@@ -354,7 +361,11 @@ void main() {
   });
 
   testWidgets('failed import remains on the import page', (tester) async {
-    final gateway = _FakeExchangeGateway(applyError: StateError('failed'));
+    final gateway = _FakeExchangeGateway(
+      responseExchangeType: ReportSyncExchangeType.dailyDebrief,
+      applyError: StateError('failed'),
+    );
+    final formalRevision = formalRecordChangeNotifier.value.revision;
     await tester.pumpWidget(
       MaterialApp(
         home: Builder(
@@ -364,7 +375,7 @@ void main() {
                 context,
                 MaterialPageRoute(
                   builder: (_) => ReportSyncExchangePage(
-                    exchangeType: ReportSyncExchangeType.training,
+                    exchangeType: ReportSyncExchangeType.dailyDebrief,
                     gateway: gateway,
                     fileGateway: _FakeFileGateway(),
                     clipboardWriter: (_) async {},
@@ -379,10 +390,44 @@ void main() {
     );
     await tester.tap(find.text('OPEN IMPORT'));
     await tester.pumpAndSettle();
-    await _validateAndConfirmImport(tester, 'IMPORT TRAINING');
+    await _validateAndConfirmImport(tester, 'IMPORT DAILY DEBRIEF');
 
     expect(gateway.applyCalls, 1);
+    expect(formalRecordChangeNotifier.value.revision, formalRevision);
     expect(find.byType(ReportSyncExchangePage), findsOneWidget);
+  });
+
+  testWidgets('cancelled formal import emits no Dashboard refresh event', (
+    tester,
+  ) async {
+    final gateway = _FakeExchangeGateway(
+      responseExchangeType: ReportSyncExchangeType.dailyDebrief,
+    );
+    final formalRevision = formalRecordChangeNotifier.value.revision;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReportSyncExchangePage(
+          exchangeType: ReportSyncExchangeType.dailyDebrief,
+          gateway: gateway,
+          fileGateway: _FakeFileGateway(),
+          clipboardWriter: (_) async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _validateOnly(tester);
+    await tester.scrollUntilVisible(
+      find.text('IMPORT DAILY DEBRIEF'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('IMPORT DAILY DEBRIEF'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CANCEL'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.applyCalls, 0);
+    expect(formalRecordChangeNotifier.value.revision, formalRevision);
   });
 
   testWidgets('food exchange UI is import-only and supports meal selection', (
@@ -1681,6 +1726,11 @@ Future<void> _validateAndConfirmImport(
   await tester.tap(find.text(importLabel));
   await tester.pumpAndSettle();
   await tester.tap(find.text('CONFIRM IMPORT'));
+  await tester.pump();
+  final skip = find.widgetWithText(TextButton, 'TAP TO SKIP');
+  if (skip.evaluate().isNotEmpty) {
+    await tester.tap(skip);
+  }
   await tester.pumpAndSettle();
 }
 

@@ -19,10 +19,10 @@ enum BaseCampCommunicationPhase { running, success }
 enum BaseCampCommunicationEndpoint { documentToComputer, folderToServer }
 
 const baseCampCommunicationFrameDuration = Duration(milliseconds: 200);
-const baseCampCommunicationConnectingDuration = Duration(milliseconds: 500);
-const baseCampCommunicationTransferFloor = Duration(milliseconds: 3000);
+const baseCampCommunicationConnectingDuration = Duration(milliseconds: 300);
+const baseCampCommunicationTransferDuration = Duration(milliseconds: 1200);
 const baseCampCommunicationCompletionHold = Duration(milliseconds: 1000);
-const baseCampCommunicationMinimumDisplay = Duration(milliseconds: 4000);
+const baseCampCommunicationMinimumDisplay = Duration(milliseconds: 2500);
 
 const baseCampCommunicationAssetRoot =
     'assets/images/themes/base_camp/communication';
@@ -143,11 +143,10 @@ String baseCampCommunicationStatus(
     'COMPLETE',
 };
 
-/// Runs a BASE CAMP-only presentation around an existing operation Future.
+/// Runs a BASE CAMP-only presentation after an existing operation succeeds.
 ///
-/// The operation remains the sole source of truth. A timer can advance the
-/// transfer display, but it can never turn a pending or failed operation into
-/// a visual success.
+/// The operation remains the sole source of truth. Failed, cancelled, or
+/// rejected operations return without inserting a success presentation.
 abstract final class BaseCampCommunicationOverlay {
   static Future<T> run<T>(
     BuildContext context, {
@@ -155,8 +154,13 @@ abstract final class BaseCampCommunicationOverlay {
     required Future<T> Function() task,
     bool Function(T result)? isSuccess,
   }) async {
-    final overlay = Overlay.of(context, rootOverlay: true);
+    final result = await task();
+    if (!(isSuccess?.call(result) ?? true)) return result;
+    if (!context.mounted) return result;
+
     await prepareBaseCampCommunicationAssets(context);
+    if (!context.mounted) return result;
+    final overlay = Overlay.of(context, rootOverlay: true);
     final phase = ValueNotifier(BaseCampCommunicationPhase.running);
     final entry = OverlayEntry(
       builder: (_) => ValueListenableBuilder<BaseCampCommunicationPhase>(
@@ -166,34 +170,15 @@ abstract final class BaseCampCommunicationOverlay {
       ),
     );
     overlay.insert(entry);
-    final transferFloorReached = Completer<void>();
-    final transferFloorTimer = Timer(baseCampCommunicationTransferFloor, () {
-      transferFloorReached.complete();
-    });
-
-    T? result;
-    Object? taskError;
-    StackTrace? taskStackTrace;
     try {
-      try {
-        result = await task();
-      } catch (error, stackTrace) {
-        taskError = error;
-        taskStackTrace = stackTrace;
-      }
-
-      if (taskError != null) {
-        Error.throwWithStackTrace(taskError, taskStackTrace!);
-      }
-      final value = result as T;
-      if (!(isSuccess?.call(value) ?? true)) return value;
-
-      await transferFloorReached.future;
+      await Future<void>.delayed(
+        baseCampCommunicationConnectingDuration +
+            baseCampCommunicationTransferDuration,
+      );
       phase.value = BaseCampCommunicationPhase.success;
       await Future<void>.delayed(baseCampCommunicationCompletionHold);
-      return value;
+      return result;
     } finally {
-      transferFloorTimer.cancel();
       entry.remove();
       phase.dispose();
     }

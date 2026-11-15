@@ -10,6 +10,8 @@ import 'package:or_app/core/engine/operation_status.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/services/system_diagnostics.dart';
 import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.dart';
+import 'package:or_app/features/report_sync/models/formal_record_change.dart';
+import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
@@ -694,6 +696,48 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('current formal-record event refreshes the cached snapshot', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 160));
+    expect(_progressStatus(tester, 'BRIEF'), 'NO DATA');
+
+    await AppRepositoryRegistry.container.morningBriefs.create(
+      _brief('2026-11-01'),
+    );
+    notifyFormalRecordChanged(
+      operationDate: '2026-11-01',
+      kind: FormalRecordKind.dailyBrief,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+
+    expect(_progressStatus(tester, 'BRIEF'), 'COMPLETE');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('other-date event does not invalidate the current snapshot', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+    await tester.pump(const Duration(milliseconds: 160));
+    expect(_progressStatus(tester, 'BRIEF'), 'NO DATA');
+
+    await AppRepositoryRegistry.container.morningBriefs.create(
+      _brief('2026-11-01'),
+    );
+    notifyFormalRecordChanged(
+      operationDate: '2026-10-31',
+      kind: FormalRecordKind.dailyDebrief,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+
+    expect(_progressStatus(tester, 'BRIEF'), 'NO DATA');
     expect(tester.takeException(), isNull);
   });
 
@@ -1533,6 +1577,45 @@ void main() {
       findsOneWidget,
     );
   });
+}
+
+String _progressStatus(WidgetTester tester, String label) {
+  final panel = find.ancestor(
+    of: find.text(label),
+    matching: find.byKey(const ValueKey('base-camp-instrument-panel')),
+  );
+  return tester
+      .widget<Text>(
+        find.descendant(
+          of: panel,
+          matching: find.byKey(
+            const ValueKey('base-camp-progress-status-text'),
+          ),
+        ),
+      )
+      .data!;
+}
+
+MorningBriefRecord _brief(String date) {
+  final timestamp = DateTime.utc(2026, 11, 1);
+  return MorningBriefRecord(
+    localDate: date,
+    requestId: 'request-$date',
+    requestDigest:
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    responseDigest:
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    generatedAt: timestamp,
+    importedAt: timestamp,
+    situationAnalysis: 'FORMAL SITUATION',
+    operationStatus: MorningBriefOperationStatus.green,
+    commanderIntent: 'FORMAL INTENT',
+    argoComment: 'FORMAL COMMENT',
+    strategicResourceDecision: 'FORMAL RESOURCE',
+    actions: const [],
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  );
 }
 
 Future<void> _pumpUntilDiagnostic(

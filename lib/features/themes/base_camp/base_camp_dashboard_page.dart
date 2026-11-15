@@ -24,6 +24,7 @@ import 'package:or_app/features/dashboard/widgets/operation_ambient_animation.da
 import 'package:or_app/features/food/models/food_summary_state.dart';
 import 'package:or_app/features/morning/models/morning_fact.dart';
 import 'package:or_app/features/morning/models/morning_fact_state.dart';
+import 'package:or_app/features/report_sync/models/formal_record_change.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/schedule/pages/calendar_page.dart';
 import 'package:or_app/features/system/widgets/system_menu_button.dart';
@@ -66,6 +67,7 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
       'DASHBOARD_GENERATION_START',
     );
     SchedulerBinding.instance.addTimingsCallback(_recordFrameTimings);
+    formalRecordChangeNotifier.addListener(_handleFormalRecordChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         SystemDiagnostics.instance.record('BASE_CAMP', 'DASHBOARD_FIRST_FRAME');
@@ -100,10 +102,24 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
 
   @override
   void dispose() {
+    formalRecordChangeNotifier.removeListener(_handleFormalRecordChange);
     SchedulerBinding.instance.removeTimingsCallback(_recordFrameTimings);
     SystemDiagnostics.instance.record('BASE_CAMP', 'DASHBOARD_DISPOSE');
     _pages.dispose();
     super.dispose();
+  }
+
+  void _handleFormalRecordChange() {
+    final change = formalRecordChangeNotifier.value;
+    if (change.revision == 0) return;
+    unawaited(_refreshFormalSnapshot(change));
+  }
+
+  Future<void> _refreshFormalSnapshot(FormalRecordChange change) async {
+    final state = await AppRepositoryRegistry.container.operationState
+        .requireCurrent();
+    if (!mounted || state.operationDate.value != change.operationDate) return;
+    setState(() => _snapshot = null);
   }
 
   Future<_TerminalSnapshot> _snapshotFor(

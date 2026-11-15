@@ -189,11 +189,13 @@ void main() {
     }
   });
 
-  testWidgets('fast success keeps transfer floor and one-second completion', (
+  testWidgets('successful task completes before the fixed 2.5 second motion', (
     tester,
   ) async {
     expect(
-      baseCampCommunicationTransferFloor + baseCampCommunicationCompletionHold,
+      baseCampCommunicationConnectingDuration +
+          baseCampCommunicationTransferDuration +
+          baseCampCommunicationCompletionHold,
       baseCampCommunicationMinimumDisplay,
     );
     final task = Completer<String>();
@@ -211,33 +213,28 @@ void main() {
     );
 
     await tester.tap(find.text('START'));
-    await _pumpUntilMotion(tester);
+    await tester.pump();
+    expect(find.byType(BaseCampCommunicationMotion), findsNothing);
     task.complete('saved');
-    await tester.pump();
-    await tester.pump();
+    await _pumpUntilMotion(tester);
+    expect(find.text('CONNECTING...'), findsOneWidget);
     expect(find.text('RECEIVED'), findsNothing);
     expect(result, isNull);
 
-    var transferElapsed = Duration.zero;
-    while (find.text('RECEIVED').evaluate().isEmpty &&
-        transferElapsed < const Duration(milliseconds: 3200)) {
-      await tester.pump(const Duration(milliseconds: 10));
-      transferElapsed += const Duration(milliseconds: 10);
-    }
-    expect(
-      transferElapsed,
-      greaterThanOrEqualTo(const Duration(milliseconds: 2950)),
+    await tester.pump(
+      baseCampCommunicationConnectingDuration +
+          baseCampCommunicationTransferDuration,
     );
     expect(find.text('RECEIVED'), findsOneWidget);
     expect(result, isNull);
-    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pump(const Duration(milliseconds: 800));
     expect(result, isNull);
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 250));
     expect(result, 'saved');
     expect(find.text('DAILY DEBRIEF'), findsNothing);
   });
 
-  testWidgets('long operation stays in transfer until actual success', (
+  testWidgets('pending operation remains motion-free until actual success', (
     tester,
   ) async {
     final task = Completer<void>();
@@ -252,19 +249,20 @@ void main() {
     );
 
     await tester.tap(find.text('START'));
-    await _pumpUntilMotion(tester);
     await tester.pump(const Duration(milliseconds: 3500));
-    expect(find.text('ARCHIVING...'), findsOneWidget);
+    expect(find.byType(BaseCampCommunicationMotion), findsNothing);
     expect(find.text('COMPLETE'), findsNothing);
 
     await tester.runAsync(() async {
       task.complete();
       await Future<void>.delayed(const Duration(milliseconds: 1));
     });
-    for (var attempt = 0; attempt < 10; attempt++) {
-      await tester.pump(const Duration(milliseconds: 10));
-      if (find.text('COMPLETE').evaluate().isNotEmpty) break;
-    }
+    await _pumpUntilMotion(tester);
+    expect(find.text('CONNECTING...'), findsOneWidget);
+    await tester.pump(
+      baseCampCommunicationConnectingDuration +
+          baseCampCommunicationTransferDuration,
+    );
     expect(find.text('COMPLETE'), findsOneWidget);
     await tester.pump(baseCampCommunicationCompletionHold);
     expect(find.byType(BaseCampCommunicationMotion), findsNothing);
@@ -291,8 +289,8 @@ void main() {
       ),
     );
     await tester.tap(find.text('START'));
-    await _pumpUntilMotion(tester);
     failedTask.completeError(StateError('save failed'));
+    await tester.pump();
     await tester.pump();
     expect(caught, isA<StateError>());
     expect(find.text('RECEIVED'), findsNothing);

@@ -18,6 +18,7 @@ import '../../system/widgets/operation_sequence_overlay.dart';
 import '../models/report_sync_envelope.dart';
 import '../models/report_sync_history.dart';
 import '../models/daily_debrief_record.dart';
+import '../models/formal_record_change.dart';
 import '../models/report_sync_issue.dart';
 import '../models/morning_brief_state.dart';
 import '../models/status_report_sync_source.dart';
@@ -574,6 +575,13 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
                 if (!applied.readBackVerified) {
                   throw StateError('Read-back verification failed.');
                 }
+                notifyFormalRecordChanged(
+                  operationDate: preview.operationDate,
+                  kind:
+                      widget.exchangeType == ReportSyncExchangeType.morningBrief
+                      ? FormalRecordKind.dailyBrief
+                      : FormalRecordKind.dailyDebrief,
+                );
                 return applied;
               },
             );
