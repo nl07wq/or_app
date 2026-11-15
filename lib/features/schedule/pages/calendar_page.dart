@@ -716,7 +716,7 @@ class _CalendarPageState extends State<CalendarPage> {
     return BaseCampRetroTerminalScreen(
       screenKey: 'calendar',
       child: Scaffold(
-        extendBodyBehindAppBar: isStatusAmbient,
+        extendBodyBehindAppBar: transparentStatusAppBar,
         appBar: AppBar(
           backgroundColor: transparentStatusAppBar ? Colors.transparent : null,
           surfaceTintColor: transparentStatusAppBar ? Colors.transparent : null,
@@ -752,260 +752,268 @@ class _CalendarPageState extends State<CalendarPage> {
             if (!BaseCampPresentation.isActive(context))
               const Positioned.fill(child: HolographicAmbientBackground()),
             Positioned.fill(
-              child: _loading
-                  ? const OrLoadingSurface(title: 'LOADING SCHEDULE')
-                  : SingleChildScrollView(
-                      padding: EdgeInsets.fromLTRB(
-                        AppSpacing.cardPadding.left,
-                        AppSpacing.cardPadding.top +
-                            (isStatusAmbient ? topInset : 0),
-                        AppSpacing.cardPadding.right,
-                        AppSpacing.cardPadding.bottom,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _CalendarWeatherHud(
-                            preferences: _weatherPreferences,
-                            snapshot: _weatherSnapshot,
-                            selectedDate: _selectedKey,
-                            loading: _weatherLoading,
-                            stale: _weatherStale,
-                            error: _weatherError,
-                            refreshing: _weatherRefreshing,
-                            expanded: _weatherExpanded,
-                            hourlyExpanded: _weatherHourlyExpanded,
-                            detailsExpanded: _weatherDetailsExpanded,
-                            sevenDayExpanded: _weatherSevenDayExpanded,
-                            onSettings: _openWeatherSettings,
-                            onRefresh: () => _loadWeather(forceRefresh: true),
-                            onSelectDate: _selectWeatherDate,
-                            onSwipeDate: _shiftWeatherDate,
-                            onSwipeLocation: _switchWeatherLocation,
-                            onToggleDisclosure: _toggleWeatherDisclosure,
-                            onToggleHourly: _toggleWeatherHourly,
-                            onToggleDetails: _toggleWeatherDetails,
-                            onToggleSevenDay: _toggleWeatherSevenDay,
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.translucent,
-                            onTap: _collapseWeatherForCalendarAction,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                AppSpacing.gapLG,
-                                _MonthGrid(
-                                  month: _month,
-                                  selected: _selected,
-                                  byDate: _byDate,
-                                  onPrevious: () {
-                                    _collapseWeatherForCalendarAction();
-                                    GlobalTouchRipple.previewFeedback(
-                                      TouchFeedbackSound.cursor,
-                                    );
-                                    setState(
-                                      () => _month = DateTime(
-                                        _month.year,
-                                        _month.month - 1,
-                                      ),
-                                    );
-                                    _load();
-                                  },
-                                  onNext: () {
-                                    _collapseWeatherForCalendarAction();
-                                    GlobalTouchRipple.previewFeedback(
-                                      TouchFeedbackSound.cursor,
-                                    );
-                                    setState(
-                                      () => _month = DateTime(
-                                        _month.year,
-                                        _month.month + 1,
-                                      ),
-                                    );
-                                    _load();
-                                  },
-                                  onToday: () {
-                                    final now = _dateOnly(DateTime.now());
-                                    final changed =
-                                        !_sameDay(_selected, now) ||
-                                        _month.year != now.year ||
-                                        _month.month != now.month;
-                                    if (!changed) return;
-                                    _collapseWeatherForCalendarAction();
-                                    GlobalTouchRipple.previewFeedback(
-                                      TouchFeedbackSound.cursor,
-                                    );
-                                    setState(() {
-                                      _selected = now;
-                                      _month = DateTime(now.year, now.month);
-                                    });
-                                    _load();
-                                  },
-                                  onSelect: (date) {
-                                    if (_sameDay(_selected, date)) return;
-                                    _collapseWeatherForCalendarAction();
-                                    GlobalTouchRipple.previewFeedback(
-                                      TouchFeedbackSound.cursor,
-                                    );
-                                    setState(() => _selected = date);
-                                  },
-                                ),
-                                AppSpacing.gapLG,
-                                _CalendarFloatingSurface(
-                                  key: const ValueKey(
-                                    'calendar-timeline-floating-surface',
-                                  ),
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      SectionHeader(
-                                        icon: Icons.timeline,
-                                        title:
-                                            DateUtils.isSameDay(
-                                              _selected,
-                                              DateTime.now(),
-                                            )
-                                            ? '今日の予定'
-                                            : '選択日の予定',
-                                      ),
-                                      Text(
-                                        '${_selected.month.toString().padLeft(2, '0')} / ${_selected.day.toString().padLeft(2, '0')}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                      AppSpacing.gapSM,
-                                      if (_selectedSchedules.isEmpty)
-                                        const Padding(
-                                          padding: EdgeInsets.symmetric(
-                                            vertical: 24,
-                                          ),
-                                          child: Text(
-                                            '予定はありません',
-                                            textAlign: TextAlign.center,
-                                          ),
+              child: BaseCampTerminalDisplay(
+                key: const ValueKey('calendar-bounded-lcd-display'),
+                margin: const EdgeInsets.all(8),
+                child: _loading
+                    ? const OrLoadingSurface(title: 'LOADING SCHEDULE')
+                    : SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(
+                          AppSpacing.cardPadding.left,
+                          AppSpacing.cardPadding.top +
+                              (transparentStatusAppBar ? topInset : 0),
+                          AppSpacing.cardPadding.right,
+                          AppSpacing.cardPadding.bottom,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _CalendarWeatherHud(
+                              preferences: _weatherPreferences,
+                              snapshot: _weatherSnapshot,
+                              selectedDate: _selectedKey,
+                              loading: _weatherLoading,
+                              stale: _weatherStale,
+                              error: _weatherError,
+                              refreshing: _weatherRefreshing,
+                              expanded: _weatherExpanded,
+                              hourlyExpanded: _weatherHourlyExpanded,
+                              detailsExpanded: _weatherDetailsExpanded,
+                              sevenDayExpanded: _weatherSevenDayExpanded,
+                              onSettings: _openWeatherSettings,
+                              onRefresh: () => _loadWeather(forceRefresh: true),
+                              onSelectDate: _selectWeatherDate,
+                              onSwipeDate: _shiftWeatherDate,
+                              onSwipeLocation: _switchWeatherLocation,
+                              onToggleDisclosure: _toggleWeatherDisclosure,
+                              onToggleHourly: _toggleWeatherHourly,
+                              onToggleDetails: _toggleWeatherDetails,
+                              onToggleSevenDay: _toggleWeatherSevenDay,
+                            ),
+                            GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onTap: _collapseWeatherForCalendarAction,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  AppSpacing.gapLG,
+                                  _MonthGrid(
+                                    month: _month,
+                                    selected: _selected,
+                                    byDate: _byDate,
+                                    onPrevious: () {
+                                      _collapseWeatherForCalendarAction();
+                                      GlobalTouchRipple.previewFeedback(
+                                        TouchFeedbackSound.cursor,
+                                      );
+                                      setState(
+                                        () => _month = DateTime(
+                                          _month.year,
+                                          _month.month - 1,
                                         ),
-                                      if (_selectedSchedules.isNotEmpty)
-                                        KeyedSubtree(
-                                          key: const ValueKey(
-                                            'calendar-daily-timeline-stack',
+                                      );
+                                      _load();
+                                    },
+                                    onNext: () {
+                                      _collapseWeatherForCalendarAction();
+                                      GlobalTouchRipple.previewFeedback(
+                                        TouchFeedbackSound.cursor,
+                                      );
+                                      setState(
+                                        () => _month = DateTime(
+                                          _month.year,
+                                          _month.month + 1,
+                                        ),
+                                      );
+                                      _load();
+                                    },
+                                    onToday: () {
+                                      final now = _dateOnly(DateTime.now());
+                                      final changed =
+                                          !_sameDay(_selected, now) ||
+                                          _month.year != now.year ||
+                                          _month.month != now.month;
+                                      if (!changed) return;
+                                      _collapseWeatherForCalendarAction();
+                                      GlobalTouchRipple.previewFeedback(
+                                        TouchFeedbackSound.cursor,
+                                      );
+                                      setState(() {
+                                        _selected = now;
+                                        _month = DateTime(now.year, now.month);
+                                      });
+                                      _load();
+                                    },
+                                    onSelect: (date) {
+                                      if (_sameDay(_selected, date)) return;
+                                      _collapseWeatherForCalendarAction();
+                                      GlobalTouchRipple.previewFeedback(
+                                        TouchFeedbackSound.cursor,
+                                      );
+                                      setState(() => _selected = date);
+                                    },
+                                  ),
+                                  AppSpacing.gapLG,
+                                  _CalendarFloatingSurface(
+                                    key: const ValueKey(
+                                      'calendar-timeline-floating-surface',
+                                    ),
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        SectionHeader(
+                                          icon: Icons.timeline,
+                                          title:
+                                              DateUtils.isSameDay(
+                                                _selected,
+                                                DateTime.now(),
+                                              )
+                                              ? '今日の予定'
+                                              : '選択日の予定',
+                                        ),
+                                        Text(
+                                          '${_selected.month.toString().padLeft(2, '0')} / ${_selected.day.toString().padLeft(2, '0')}',
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                        AppSpacing.gapSM,
+                                        if (_selectedSchedules.isEmpty)
+                                          const Padding(
+                                            padding: EdgeInsets.symmetric(
+                                              vertical: 24,
+                                            ),
+                                            child: Text(
+                                              '予定はありません',
+                                              textAlign: TextAlign.center,
+                                            ),
                                           ),
-                                          child: Stack(
-                                            key: _dailyTimelineKey,
-                                            children: [
-                                              Positioned.fill(
-                                                child: IgnorePointer(
-                                                  child: CustomPaint(
-                                                    key: const ValueKey(
-                                                      'calendar-daily-timeline-rail',
-                                                    ),
-                                                    painter: _DailyTimelineRailPainter(
-                                                      color: Theme.of(
-                                                        context,
-                                                      ).colorScheme.primary,
-                                                      markerBounds:
-                                                          _dailyTimelineMarkerBounds,
-                                                      descriptionBounds:
-                                                          _dailyTimelineDescriptionBounds,
+                                        if (_selectedSchedules.isNotEmpty)
+                                          KeyedSubtree(
+                                            key: const ValueKey(
+                                              'calendar-daily-timeline-stack',
+                                            ),
+                                            child: Stack(
+                                              key: _dailyTimelineKey,
+                                              children: [
+                                                Positioned.fill(
+                                                  child: IgnorePointer(
+                                                    child: CustomPaint(
+                                                      key: const ValueKey(
+                                                        'calendar-daily-timeline-rail',
+                                                      ),
+                                                      painter: _DailyTimelineRailPainter(
+                                                        color: Theme.of(
+                                                          context,
+                                                        ).colorScheme.primary,
+                                                        markerBounds:
+                                                            _dailyTimelineMarkerBounds,
+                                                        descriptionBounds:
+                                                            _dailyTimelineDescriptionBounds,
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
-                                              ),
-                                              Column(
-                                                children: [
-                                                  for (final entry
-                                                      in _selectedSchedules
-                                                          .indexed)
-                                                    Dismissible(
-                                                      key: ValueKey(
-                                                        'schedule-entry-${entry.$2.id}',
-                                                      ),
-                                                      direction:
-                                                          DismissDirection
-                                                              .endToStart,
-                                                      background:
-                                                          const _TimelineDeleteBackground(),
-                                                      confirmDismiss:
-                                                          (_) async {
-                                                            await _deleteRecord(
+                                                Column(
+                                                  children: [
+                                                    for (final entry
+                                                        in _selectedSchedules
+                                                            .indexed)
+                                                      Dismissible(
+                                                        key: ValueKey(
+                                                          'schedule-entry-${entry.$2.id}',
+                                                        ),
+                                                        direction:
+                                                            DismissDirection
+                                                                .endToStart,
+                                                        background:
+                                                            const _TimelineDeleteBackground(),
+                                                        confirmDismiss:
+                                                            (_) async {
+                                                              await _deleteRecord(
+                                                                entry.$2,
+                                                              );
+                                                              return false;
+                                                            },
+                                                        child: _TimelineEntry(
+                                                          record: entry.$2,
+                                                          overdue:
+                                                              _isSelectedReminderOverdue(
+                                                                entry.$2,
+                                                              ),
+                                                          markerKey:
+                                                              _timelineMarkerKeys
+                                                                  .putIfAbsent(
+                                                                    entry.$2.id,
+                                                                    GlobalKey
+                                                                        .new,
+                                                                  ),
+                                                          descriptionKey:
+                                                              _timelineDescriptionKeys
+                                                                  .putIfAbsent(
+                                                                    entry.$2.id,
+                                                                    GlobalKey
+                                                                        .new,
+                                                                  ),
+                                                          onTap: () {
+                                                            _collapseWeatherForCalendarAction();
+                                                            if (_projectedReminders
+                                                                .containsKey(
+                                                                  entry.$2.id,
+                                                                )) {
+                                                              Navigator.of(
+                                                                context,
+                                                              ).pushNamed(
+                                                                AppRoutes
+                                                                    .reminders,
+                                                              );
+                                                              return;
+                                                            }
+                                                            _openEditor(
                                                               entry.$2,
                                                             );
-                                                            return false;
                                                           },
-                                                      child: _TimelineEntry(
-                                                        record: entry.$2,
-                                                        overdue:
-                                                            _isSelectedReminderOverdue(
-                                                              entry.$2,
-                                                            ),
-                                                        markerKey:
-                                                            _timelineMarkerKeys
-                                                                .putIfAbsent(
-                                                                  entry.$2.id,
-                                                                  GlobalKey.new,
-                                                                ),
-                                                        descriptionKey:
-                                                            _timelineDescriptionKeys
-                                                                .putIfAbsent(
-                                                                  entry.$2.id,
-                                                                  GlobalKey.new,
-                                                                ),
-                                                        onTap: () {
-                                                          _collapseWeatherForCalendarAction();
-                                                          if (_projectedReminders
-                                                              .containsKey(
-                                                                entry.$2.id,
-                                                              )) {
-                                                            Navigator.of(
-                                                              context,
-                                                            ).pushNamed(
-                                                              AppRoutes
-                                                                  .reminders,
-                                                            );
-                                                            return;
-                                                          }
-                                                          _openEditor(entry.$2);
-                                                        },
-                                                        onToggle: () =>
-                                                            _toggleCompletion(
-                                                              entry.$2,
-                                                            ),
-                                                        onMove: (minutes) =>
-                                                            _moveTimed(
-                                                              entry.$2,
-                                                              minutes,
-                                                            ),
+                                                          onToggle: () =>
+                                                              _toggleCompletion(
+                                                                entry.$2,
+                                                              ),
+                                                          onMove: (minutes) =>
+                                                              _moveTimed(
+                                                                entry.$2,
+                                                                minutes,
+                                                              ),
+                                                        ),
                                                       ),
+                                                    const SizedBox(
+                                                      height:
+                                                          calendarTimelineTailAreaHeight,
                                                     ),
-                                                  const SizedBox(
-                                                    height:
-                                                        calendarTimelineTailAreaHeight,
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        AppSpacing.gapMD,
+                                        Center(
+                                          child: _CalendarTimelineAddControl(
+                                            onPressed: () {
+                                              _collapseWeatherForCalendarAction();
+                                              _openEditor();
+                                            },
                                           ),
                                         ),
-                                      AppSpacing.gapMD,
-                                      Center(
-                                        child: _CalendarTimelineAddControl(
-                                          onPressed: () {
-                                            _collapseWeatherForCalendarAction();
-                                            _openEditor();
-                                          },
-                                        ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
+              ),
             ),
           ],
         ),

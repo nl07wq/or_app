@@ -125,18 +125,24 @@ class _MorningHistoryPageState extends State<MorningHistoryPage> {
               itemBuilder: (context, index) {
                 final data = records[index];
 
-                return DashboardGlassCard(
-                  child: _StatusRecordPlate(
-                    data: data,
-                    formatTime: formatTime,
-                    onEdit: appInitializationController.value.isReadOnly
-                        ? null
-                        : () => _editRecord(data),
-                    onDelete: appInitializationController.value.isReadOnly
-                        ? null
-                        : () => _deleteRecord(data),
-                  ),
+                final plate = _StatusRecordPlate(
+                  data: data,
+                  formatTime: formatTime,
+                  onEdit: appInitializationController.value.isReadOnly
+                      ? null
+                      : () => _editRecord(data),
+                  onDelete: appInitializationController.value.isReadOnly
+                      ? null
+                      : () => _deleteRecord(data),
                 );
+                if (baseCamp) {
+                  return BaseCampTerminalDisplay(
+                    key: ValueKey('status-record-lcd-${data.date}'),
+                    padding: const EdgeInsets.all(12),
+                    child: plate,
+                  );
+                }
+                return DashboardGlassCard(child: plate);
               },
             );
           },
@@ -348,7 +354,16 @@ class _PlateValue extends StatelessWidget {
             ).textTheme.labelSmall?.copyWith(letterSpacing: .55),
           ),
           const SizedBox(height: 2),
-          MixedScriptText(value, style: Theme.of(context).textTheme.titleSmall),
+          MixedScriptText(
+            value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontFamily: baseCamp ? 'PressStart2P' : null,
+              fontFamilyFallback: baseCamp
+                  ? const <String>['DotGothic16']
+                  : null,
+              fontWeight: baseCamp ? FontWeight.w700 : null,
+            ),
+          ),
         ],
       ),
     );

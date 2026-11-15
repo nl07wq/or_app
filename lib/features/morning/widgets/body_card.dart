@@ -4,6 +4,7 @@ import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../themes/base_camp/base_camp_retro_theme.dart';
 
 class BodyCard extends StatelessWidget {
   const BodyCard({
@@ -1264,11 +1265,21 @@ class _Toggle extends StatelessWidget {
   final bool selected;
   final VoidCallback onPressed;
   @override
-  Widget build(BuildContext c) => ChoiceChip(
-    label: const Text('未計測'),
-    selected: selected,
-    onSelected: (_) => onPressed(),
-  ).actionableFeedback(role: ActionableFeedbackRole.cursor);
+  Widget build(BuildContext c) {
+    final baseCamp = BaseCampRetroTheme.isApplied(Theme.of(c));
+    return ChoiceChip(
+      label: Text(
+        '未計測',
+        style: baseCamp
+            ? BaseCampRetroTheme.japaneseControl(
+                Theme.of(c).textTheme.labelLarge,
+              )
+            : null,
+      ),
+      selected: selected,
+      onSelected: (_) => onPressed(),
+    ).actionableFeedback(role: ActionableFeedbackRole.cursor);
+  }
 }
 
 class _Unmeasured extends StatelessWidget {
@@ -1292,9 +1303,9 @@ class _Unmeasured extends StatelessWidget {
           child: Text(
             '未計測',
             style: classicTerminal
-                ? Theme.of(c).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(c).colorScheme.primary,
-                  )
+                ? BaseCampRetroTheme.japaneseControl(
+                    Theme.of(c).textTheme.titleMedium,
+                  ).copyWith(color: Theme.of(c).colorScheme.primary)
                 : const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,

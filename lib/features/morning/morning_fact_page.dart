@@ -312,148 +312,154 @@ class _MorningFactPageState extends State<MorningFactPage> {
             ? const Center(child: Text('Operation Dateを取得できませんでした。'))
             : !_initialValuesLoaded
             ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.cardPadding.left,
-                  viewPadding.top + kToolbarHeight + AppSpacing.cardPadding.top,
-                  AppSpacing.cardPadding.right,
-                  viewPadding.bottom + AppSpacing.cardPadding.bottom,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    BodyCard(
-                      weightController: weightController,
-                      bodyFatController: bodyFatController,
-                      weightUnmeasured: weightUnmeasured,
-                      onWeightUnmeasured: _markBodyUnmeasured,
-                      onWeightMeasured: _restoreMeasuredBody,
-                      initiallyExpanded: !widget.isEdit,
-                    ),
+            : BaseCampTerminalDisplay(
+                key: const ValueKey('status-entry-bounded-lcd-display'),
+                margin: const EdgeInsets.all(8),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.cardPadding.left,
+                    viewPadding.top +
+                        kToolbarHeight +
+                        AppSpacing.cardPadding.top,
+                    AppSpacing.cardPadding.right,
+                    viewPadding.bottom + AppSpacing.cardPadding.bottom,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      BodyCard(
+                        weightController: weightController,
+                        bodyFatController: bodyFatController,
+                        weightUnmeasured: weightUnmeasured,
+                        onWeightUnmeasured: _markBodyUnmeasured,
+                        onWeightMeasured: _restoreMeasuredBody,
+                        initiallyExpanded: !widget.isEdit,
+                      ),
 
-                    AppSpacing.gapMD,
+                      AppSpacing.gapMD,
 
-                    RecoveryCard(
-                      sleepController: sleepController,
-                      sleepScoreController: sleepScoreController,
-                      sleepType: selectedSleepType,
-                      sleepTimeUnmeasured: sleepTimeUnmeasured,
-                      onSleepTimeUnmeasured: _markSleepTimeUnmeasured,
-                      onSleepTimeMeasured: _restoreMeasuredSleepTime,
-                      initiallyExpanded: !widget.isEdit,
-                      onSleepTypeChanged: (value) {
-                        setState(() {
-                          selectedSleepType = value;
-                          if (value == SleepType.nap) {
-                            sleepScoreController.clear();
-                          }
-                        });
-                      },
-                    ),
-
-                    AppSpacing.gapMD,
-
-                    FootCard(
-                      controller: footPainController,
-                      initiallyExpanded: !widget.isEdit,
-                    ),
-
-                    AppSpacing.gapMD,
-
-                    WorkCard(
-                      workType: selectedWorkType,
-                      onChanged: (value) {
-                        setState(() {
-                          selectedWorkType = value;
-                        });
-                      },
-                      startController: workStartController,
-                      endController: workEndController,
-                      breakController: workBreakController,
-                      initiallyExpanded: !widget.isEdit,
-                    ),
-
-                    AppSpacing.gapMD,
-
-                    MemoInputCard(controller: memoController),
-
-                    AppSpacing.gapXL,
-
-                    MorningSubmitButton(
-                      isEdit: widget.isEdit,
-                      onPressed: () async {
-                        if (_submitting) return;
-                        setState(() => _submitting = true);
-                        String? error;
-                        try {
-                          error = await MorningSubmitService.submit(
-                            existingData: widget.data,
-                            workType: selectedWorkType,
-                            weightText: weightController.text,
-                            bodyFatText: bodyFatController.text,
-                            sleepText: sleepController.text,
-                            sleepScoreText: sleepScoreController.text,
-                            sleepType: selectedSleepType,
-                            footPainText: footPainController.text,
-                            workStart: workStartController.text,
-                            workEnd: workEndController.text,
-                            workBreak: workBreakController.text,
-                            memo: memoController.text,
-                            operationLocalDate: _operationLocalDate,
-                          );
-
-                          if (!context.mounted) return;
-
-                          if (error != null) {
-                            if (mounted) {
-                              setState(() => _submitting = false);
+                      RecoveryCard(
+                        sleepController: sleepController,
+                        sleepScoreController: sleepScoreController,
+                        sleepType: selectedSleepType,
+                        sleepTimeUnmeasured: sleepTimeUnmeasured,
+                        onSleepTimeUnmeasured: _markSleepTimeUnmeasured,
+                        onSleepTimeMeasured: _restoreMeasuredSleepTime,
+                        initiallyExpanded: !widget.isEdit,
+                        onSleepTypeChanged: (value) {
+                          setState(() {
+                            selectedSleepType = value;
+                            if (value == SleepType.nap) {
+                              sleepScoreController.clear();
                             }
-                            _showError(error);
-                            return;
-                          }
+                          });
+                        },
+                      ),
 
-                          // Use the established bottom confirmation surface for
-                          // both a new STATUS record and a verified update. The
-                          // messenger survives the following route hand-off.
-                          FoodSavedFloatingHud.showFor(
-                            context,
-                            label: 'STATUS',
-                            successLabel: widget.isEdit ? 'UPDATED' : 'SAVED',
-                          );
+                      AppSpacing.gapMD,
 
-                          if (!widget.isEdit &&
-                              await _confirmDailyBriefCreation()) {
-                            if (!context.mounted) return;
-                            await _openDailyBriefCreation();
-                            return;
-                          }
+                      FootCard(
+                        controller: footPainController,
+                        initiallyExpanded: !widget.isEdit,
+                      ),
 
-                          if (!context.mounted) return;
+                      AppSpacing.gapMD,
 
-                          if (widget.returnAfterSave) {
-                            Navigator.pop(context, true);
-                          } else {
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                              AppRoutes.dashboard,
-                              (route) => false,
+                      WorkCard(
+                        workType: selectedWorkType,
+                        onChanged: (value) {
+                          setState(() {
+                            selectedWorkType = value;
+                          });
+                        },
+                        startController: workStartController,
+                        endController: workEndController,
+                        breakController: workBreakController,
+                        initiallyExpanded: !widget.isEdit,
+                      ),
+
+                      AppSpacing.gapMD,
+
+                      MemoInputCard(controller: memoController),
+
+                      AppSpacing.gapXL,
+
+                      MorningSubmitButton(
+                        isEdit: widget.isEdit,
+                        onPressed: () async {
+                          if (_submitting) return;
+                          setState(() => _submitting = true);
+                          String? error;
+                          try {
+                            error = await MorningSubmitService.submit(
+                              existingData: widget.data,
+                              workType: selectedWorkType,
+                              weightText: weightController.text,
+                              bodyFatText: bodyFatController.text,
+                              sleepText: sleepController.text,
+                              sleepScoreText: sleepScoreController.text,
+                              sleepType: selectedSleepType,
+                              footPainText: footPainController.text,
+                              workStart: workStartController.text,
+                              workEnd: workEndController.text,
+                              workBreak: workBreakController.text,
+                              memo: memoController.text,
+                              operationLocalDate: _operationLocalDate,
                             );
+
+                            if (!context.mounted) return;
+
+                            if (error != null) {
+                              if (mounted) {
+                                setState(() => _submitting = false);
+                              }
+                              _showError(error);
+                              return;
+                            }
+
+                            // Use the established bottom confirmation surface for
+                            // both a new STATUS record and a verified update. The
+                            // messenger survives the following route hand-off.
+                            FoodSavedFloatingHud.showFor(
+                              context,
+                              label: 'STATUS',
+                              successLabel: widget.isEdit ? 'UPDATED' : 'SAVED',
+                            );
+
+                            if (!widget.isEdit &&
+                                await _confirmDailyBriefCreation()) {
+                              if (!context.mounted) return;
+                              await _openDailyBriefCreation();
+                              return;
+                            }
+
+                            if (!context.mounted) return;
+
+                            if (widget.returnAfterSave) {
+                              Navigator.pop(context, true);
+                            } else {
+                              Navigator.of(context).pushNamedAndRemoveUntil(
+                                AppRoutes.dashboard,
+                                (route) => false,
+                              );
+                            }
+                          } on ConfirmedDailyLogException catch (exception) {
+                            if (context.mounted) {
+                              setState(() => _submitting = false);
+                              showConfirmedLogMessage(context, exception);
+                            }
+                            return;
+                          } catch (_) {
+                            if (context.mounted) {
+                              setState(() => _submitting = false);
+                              _showError('Operation Dateを取得できませんでした。');
+                            }
+                            return;
                           }
-                        } on ConfirmedDailyLogException catch (exception) {
-                          if (context.mounted) {
-                            setState(() => _submitting = false);
-                            showConfirmedLogMessage(context, exception);
-                          }
-                          return;
-                        } catch (_) {
-                          if (context.mounted) {
-                            setState(() => _submitting = false);
-                            _showError('Operation Dateを取得できませんでした。');
-                          }
-                          return;
-                        }
-                      },
-                    ),
-                  ],
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
       ),

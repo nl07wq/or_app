@@ -39,6 +39,14 @@ void main() {
         find.byKey(const ValueKey('base-camp-terminal-lcd-grid')),
         findsOneWidget,
       );
+      final housingSize = tester.getSize(
+        find.byKey(const ValueKey('base-camp-terminal-housing')),
+      );
+      final displaySize = tester.getSize(
+        find.byKey(const ValueKey('base-camp-terminal-lcd-surface')),
+      );
+      expect(displaySize.width, lessThan(housingSize.width));
+      expect(displaySize.height, lessThan(housingSize.height));
       expect(tester.takeException(), isNull);
     });
   }
@@ -240,7 +248,32 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(OperationTextField), findsNothing);
+    for (final label in const <String>['未計測', '睡眠', '仮眠']) {
+      final texts = tester
+          .widgetList<Text>(find.text(label))
+          .where((text) => text.style?.fontFamily == 'DotGothic16');
+      expect(texts, isNotEmpty, reason: label);
+    }
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('route housing does not own a full-page LCD grid', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_baseCampHarness());
+    await tester.pump();
+
+    final panel = tester.widget<BaseCampRetroTerminalPanel>(
+      find.byType(BaseCampRetroTerminalPanel),
+    );
+    expect(panel.child, isNot(isA<BaseCampLcdSurface>()));
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('base-camp-terminal-lcd-grid')),
+        matching: find.byType(BaseCampLcdSurface),
+      ),
+      findsOneWidget,
+    );
   });
 
   test('all direct BASE CAMP routes use the shared presentation layer', () {
@@ -392,19 +425,24 @@ Widget _baseCampHarness({Widget? child}) => MaterialApp(
           child ??
           Scaffold(
             appBar: AppBar(title: const Text('STATUS ENTRY')),
-            body: ListView(
-              padding: const EdgeInsets.all(16),
-              children: const <Widget>[
-                Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Text('BODY'),
+            body: BaseCampTerminalDisplay(
+              margin: const EdgeInsets.all(8),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: const <Widget>[
+                  Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('BODY'),
+                    ),
                   ),
-                ),
-                TextField(decoration: InputDecoration(labelText: 'WEIGHT kg')),
-                SizedBox(height: 12),
-                ElevatedButton(onPressed: null, child: Text('SAVE')),
-              ],
+                  TextField(
+                    decoration: InputDecoration(labelText: 'WEIGHT kg'),
+                  ),
+                  SizedBox(height: 12),
+                  ElevatedButton(onPressed: null, child: Text('SAVE')),
+                ],
+              ),
             ),
           ),
     ),

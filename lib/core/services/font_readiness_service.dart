@@ -16,6 +16,11 @@ class FontReadinessService extends ChangeNotifier {
   /// application theme selects. This is a bundled font, never a CDN request.
   static const fontFamily = 'MPlus1Code';
   static const fontAsset = 'assets/fonts/MPLUS1Code[wght].ttf';
+  static const baseCampLatinFontFamily = 'PressStart2P';
+  static const baseCampLatinFontAsset = 'assets/fonts/PressStart2P-Regular.ttf';
+  static const baseCampJapaneseFontFamily = 'DotGothic16';
+  static const baseCampJapaneseFontAsset =
+      'assets/fonts/DotGothic16-Regular.ttf';
 
   /// A narrowly-scoped seam for deterministic readiness/retry tests. The app
   /// always uses [_loadConfiguredFaces].
@@ -55,7 +60,16 @@ class FontReadinessService extends ChangeNotifier {
   }
 
   static Future<void> _loadConfiguredFaces() async {
-    final font = FontLoader(fontFamily)..addFont(rootBundle.load(fontAsset));
-    await font.load();
+    final applicationFont = FontLoader(fontFamily)
+      ..addFont(rootBundle.load(fontAsset));
+    final baseCampLatinFont = FontLoader(baseCampLatinFontFamily)
+      ..addFont(rootBundle.load(baseCampLatinFontAsset));
+    final baseCampJapaneseFont = FontLoader(baseCampJapaneseFontFamily)
+      ..addFont(rootBundle.load(baseCampJapaneseFontAsset));
+    await Future.wait(<Future<void>>[
+      applicationFont.load(),
+      baseCampLatinFont.load(),
+      baseCampJapaneseFont.load(),
+    ]);
   }
 }

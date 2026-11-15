@@ -17,14 +17,22 @@ void main() {
         FontReadinessService.fontAsset,
         'assets/fonts/MPLUS1Code[wght].ttf',
       );
+      expect(FontReadinessService.baseCampLatinFontFamily, 'PressStart2P');
+      expect(FontReadinessService.baseCampJapaneseFontFamily, 'DotGothic16');
     },
   );
 
-  testWidgets('configured M PLUS 1 Code asset loads once without a timer', (
+  testWidgets('configured application and BASE CAMP assets load once', (
     tester,
   ) async {
-    final bytes = await rootBundle.load(FontReadinessService.fontAsset);
-    expect(bytes.lengthInBytes, greaterThan(3000000));
+    for (final asset in <String>[
+      FontReadinessService.fontAsset,
+      FontReadinessService.baseCampLatinFontAsset,
+      FontReadinessService.baseCampJapaneseFontAsset,
+    ]) {
+      final bytes = await rootBundle.load(asset);
+      expect(bytes.lengthInBytes, greaterThan(10000), reason: asset);
+    }
 
     final first = FontReadinessService.instance.ensureReady();
     final duplicate = FontReadinessService.instance.ensureReady();

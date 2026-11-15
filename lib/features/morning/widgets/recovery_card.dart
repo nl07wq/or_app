@@ -6,6 +6,7 @@ import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
+import '../../themes/base_camp/base_camp_retro_theme.dart';
 
 class RecoveryCard extends StatelessWidget {
   final TextEditingController sleepController;
@@ -52,7 +53,19 @@ class RecoveryCard extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          const Text('睡眠タイプ', style: TextStyle(fontWeight: FontWeight.bold)),
+          Builder(
+            builder: (context) {
+              final baseCamp = BaseCampRetroTheme.isApplied(Theme.of(context));
+              return Text(
+                '睡眠タイプ',
+                style: baseCamp
+                    ? BaseCampRetroTheme.japaneseControl(
+                        Theme.of(context).textTheme.bodyMedium,
+                      )
+                    : const TextStyle(fontWeight: FontWeight.bold),
+              );
+            },
+          ),
 
           const SizedBox(height: 12),
 
@@ -62,7 +75,16 @@ class RecoveryCard extends StatelessWidget {
             children: SleepType.values
                 .map(
                   (value) => ChoiceChip(
-                    label: Text(value.displayLabel),
+                    label: Builder(
+                      builder: (context) => Text(
+                        value.displayLabel,
+                        style: BaseCampRetroTheme.isApplied(Theme.of(context))
+                            ? BaseCampRetroTheme.japaneseControl(
+                                Theme.of(context).textTheme.labelLarge,
+                              )
+                            : null,
+                      ),
+                    ),
                     selected: sleepType == value,
                     onSelected: (selected) {
                       if (selected) onSleepTypeChanged(value);
@@ -116,7 +138,9 @@ class RecoveryCard extends StatelessWidget {
                       child: Text(
                         '仮眠',
                         style: classicTerminal
-                            ? null
+                            ? BaseCampRetroTheme.japaneseControl(
+                                Theme.of(context).textTheme.labelLarge,
+                              )
                             : const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w600,
@@ -451,11 +475,21 @@ class _UnmeasuredToggle extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => ChoiceChip(
-    label: const Text('未計測'),
-    selected: selected,
-    onSelected: (_) => onPressed(),
-  ).actionableFeedback(role: ActionableFeedbackRole.cursor);
+  Widget build(BuildContext context) {
+    final baseCamp = BaseCampRetroTheme.isApplied(Theme.of(context));
+    return ChoiceChip(
+      label: Text(
+        '未計測',
+        style: baseCamp
+            ? BaseCampRetroTheme.japaneseControl(
+                Theme.of(context).textTheme.labelLarge,
+              )
+            : null,
+      ),
+      selected: selected,
+      onSelected: (_) => onPressed(),
+    ).actionableFeedback(role: ActionableFeedbackRole.cursor);
+  }
 }
 
 class _UnmeasuredValue extends StatelessWidget {
@@ -483,9 +517,9 @@ class _UnmeasuredValue extends StatelessWidget {
           child: Text(
             '未計測',
             style: classicTerminal
-                ? Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
-                  )
+                ? BaseCampRetroTheme.japaneseControl(
+                    Theme.of(context).textTheme.titleMedium,
+                  ).copyWith(color: Theme.of(context).colorScheme.primary)
                 : const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,

@@ -699,7 +699,7 @@ class _DailyDebriefDetail extends StatelessWidget {
                 ],
         ),
     ];
-    return DashboardGlassCard(
+    return _BriefReportSurface(
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -1085,7 +1085,7 @@ class _MorningBriefCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final analysis = record.situationAnalysisV2;
     final decision = record.strategicResourceDecisionV2;
-    return DashboardGlassCard(
+    return _BriefReportSurface(
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
@@ -1156,6 +1156,24 @@ class _MorningBriefCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _BriefReportSurface extends StatelessWidget {
+  const _BriefReportSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+      return BaseCampTerminalDisplay(
+        key: const ValueKey('command-center-brief-bounded-lcd-display'),
+        padding: const EdgeInsets.all(16),
+        child: child,
+      );
+    }
+    return DashboardGlassCard(child: child);
   }
 }
 

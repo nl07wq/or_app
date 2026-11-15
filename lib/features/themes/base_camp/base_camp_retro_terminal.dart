@@ -101,48 +101,102 @@ class BaseCampRetroTerminalPanel extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Stack(
-    fit: StackFit.expand,
-    children: <Widget>[
-      BaseCampLcdSurface(palette: palette),
-      child,
-      IgnorePointer(
-        child: CustomPaint(
-          key: const ValueKey('base-camp-terminal-frame-decoration'),
-          painter: const _BaseCampTerminalFramePainter(),
+  Widget build(BuildContext context) => ColoredBox(
+    key: const ValueKey('base-camp-terminal-housing'),
+    color: BaseCampTerminalPalette.housing,
+    child: Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        child,
+        IgnorePointer(
+          child: CustomPaint(
+            key: const ValueKey('base-camp-terminal-frame-decoration'),
+            painter: const _BaseCampTerminalFramePainter(),
+          ),
         ),
-      ),
-    ],
+      ],
+    ),
   );
 }
 
-/// Static 4px LCD field shared by every approved screen.
+/// A bounded 4px LCD display embedded inside the physical housing.
+///
+/// This widget deliberately owns the grid. The route-level terminal panel is
+/// only the device housing and must never paint an LCD across the whole page.
 class BaseCampLcdSurface extends StatelessWidget {
-  const BaseCampLcdSurface({super.key, required this.palette});
+  const BaseCampLcdSurface({
+    super.key,
+    required this.palette,
+    required this.child,
+    this.padding = EdgeInsets.zero,
+  });
 
   final BaseCampTerminalPalette palette;
+  final Widget child;
+  final EdgeInsetsGeometry padding;
 
   @override
-  Widget build(BuildContext context) => ColoredBox(
+  Widget build(BuildContext context) => DecoratedBox(
     key: const ValueKey('base-camp-terminal-lcd-surface'),
-    color: BaseCampTerminalPalette.housing,
+    decoration: BoxDecoration(
+      color: BaseCampTerminalPalette.housingShadow,
+      border: Border.all(color: BaseCampTerminalPalette.housingEdge),
+      borderRadius: BorderRadius.circular(8),
+    ),
     child: Padding(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(3),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: ColoredBox(
-          color: palette.background,
-          child: CustomPaint(
-            key: const ValueKey('base-camp-terminal-lcd-grid'),
-            painter: BaseCampLcdGrainPainter(
-              negative: palette.negative,
-              alpha: .08,
+        borderRadius: BorderRadius.circular(5),
+        child: Stack(
+          fit: StackFit.passthrough,
+          children: <Widget>[
+            Positioned.fill(child: ColoredBox(color: palette.background)),
+            Padding(padding: padding, child: child),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  key: const ValueKey('base-camp-terminal-lcd-grid'),
+                  painter: BaseCampLcdGrainPainter(
+                    negative: palette.negative,
+                    alpha: .08,
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     ),
   );
+}
+
+/// Applies a bounded display only when the current route is inside the shared
+/// BASE CAMP terminal scope. STANDARD keeps the original widget unchanged.
+class BaseCampTerminalDisplay extends StatelessWidget {
+  const BaseCampTerminalDisplay({
+    super.key,
+    required this.child,
+    this.padding = EdgeInsets.zero,
+    this.margin = EdgeInsets.zero,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.maybeOf(context);
+    if (palette == null) return child;
+    return Padding(
+      padding: margin,
+      child: BaseCampLcdSurface(
+        palette: palette,
+        padding: padding,
+        child: child,
+      ),
+    );
+  }
 }
 
 /// Shared section-header styling for terminal-specific modules.

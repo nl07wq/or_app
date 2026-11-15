@@ -19,6 +19,16 @@ abstract final class BaseCampRetroTheme {
     );
   }
 
+  /// Explicit Japanese control style for compact widgets whose intrinsic
+  /// measurement must not begin with a platform fallback face.
+  static TextStyle japaneseControl(TextStyle? source) =>
+      (source ?? const TextStyle()).copyWith(
+        fontFamily: baseCampJapaneseFontFallback,
+        fontFamilyFallback: const <String>[baseCampPixelFontFamily],
+        fontWeight: FontWeight.w700,
+        height: 1.2,
+      );
+
   static TextTheme _textTheme(TextTheme source) => TextTheme(
     displayLarge: _pixel(source.displayLarge, size: 24, height: 1.35),
     displayMedium: _pixel(source.displayMedium, size: 22, height: 1.35),
