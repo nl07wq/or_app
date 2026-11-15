@@ -16,11 +16,11 @@ abstract final class MixedScriptTypography {
   /// without changing pure-Latin headings or instrument readouts.
   static const baseCampLatinLetterSpacingEm = -.02;
 
-  /// Press Start 2P's visible ink sits one logical pixel above DotGothic16
+  /// Press Start 2P's visible ink sits above DotGothic16
   /// after the V1 size correction. A zero-blur proxy glyph moves only the
   /// Latin ink; paragraph metrics, the shared baseline, and the Japanese run
   /// remain unchanged.
-  static const baseCampLatinBaselineOffset = 1.0;
+  static const baseCampLatinBaselineOffset = 1.5;
 
   static bool isMixed(String value) {
     var hasJapanese = false;
