@@ -5,6 +5,7 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/operation_text_field.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 
 class MemoInputCard extends StatefulWidget {
   final TextEditingController controller;
@@ -57,9 +58,11 @@ class _MemoInputCardState extends State<MemoInputCard> {
                       : widget.controller.text,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
-                    color: Colors.lightBlueAccent,
+                    color: BaseCampPresentation.isActive(context)
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Colors.lightBlueAccent,
                   ),
                 ),
               ).actionableFeedback(role: ActionableFeedbackRole.cursor),

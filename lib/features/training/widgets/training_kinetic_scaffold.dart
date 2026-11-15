@@ -63,7 +63,8 @@ class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final showAmbient = !BaseCampPresentation.isActive(context);
+    final baseCamp = BaseCampPresentation.isActive(context);
+    final showAmbient = !baseCamp;
     KineticFirstFrameInstrumentation.firstScaffoldBuild();
     if (showAmbient && !_backgroundReady && !_backgroundFailed) {
       return const Scaffold(
@@ -80,8 +81,16 @@ class _TrainingKineticScaffoldState extends State<TrainingKineticScaffold> {
     return Theme(
       data: inheritedTheme.copyWith(
         extensions: [
-          ...inheritedTheme.extensions.values,
-          const OperationSurfaceTheme(useDashboardGlass: true),
+          ...inheritedTheme.extensions.values.where(
+            (extension) => extension is! OperationSurfaceTheme,
+          ),
+          OperationSurfaceTheme(
+            useDashboardGlass: !baseCamp,
+            useClassicTerminal: baseCamp,
+            buttonForegroundColor: baseCamp
+                ? inheritedTheme.colorScheme.onSurface
+                : null,
+          ),
         ],
         scaffoldBackgroundColor: Colors.transparent,
         appBarTheme: inheritedTheme.appBarTheme.copyWith(

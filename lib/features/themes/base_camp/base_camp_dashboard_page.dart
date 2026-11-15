@@ -1992,6 +1992,9 @@ class _CommandPreviewState extends State<_CommandPreview> {
               if (ordered.length > visible.length) _expandButton(),
               if (_expanded && ordered.length > 3)
                 TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: _LcdColors.ink(context),
+                  ),
                   onPressed: () => setState(() => _expanded = false),
                   child: const Text('COLLAPSE'),
                 ),
@@ -2005,6 +2008,7 @@ class _CommandPreviewState extends State<_CommandPreview> {
   Widget _expandButton() => Align(
     alignment: Alignment.centerRight,
     child: TextButton(
+      style: TextButton.styleFrom(foregroundColor: _LcdColors.ink(context)),
       onPressed: () => setState(() => _expanded = true),
       child: const Text('+ MORE'),
     ),

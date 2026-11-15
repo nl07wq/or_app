@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/services/device_settings_controller.dart';
+import '../../../core/widgets/operation_card.dart';
 import 'base_camp_dashboard_page.dart' show BaseCampLcdGrainPainter;
 import 'base_camp_presentation.dart';
 
@@ -197,6 +198,9 @@ class BaseCampLcdField extends StatelessWidget {
   }
 }
 
+/// Opaque content surface for legacy feature widgets that previously painted
+/// their own translucent/glass material. It changes presentation only; the
+/// wrapped widget retains its layout, semantics and input behavior.
 /// Small non-semantic field-terminal lamp.
 class BaseCampTerminalIndicator extends StatelessWidget {
   const BaseCampTerminalIndicator({super.key, this.active = false});
@@ -221,6 +225,17 @@ class BaseCampTerminalIndicator extends StatelessWidget {
 }
 
 ThemeData _terminalTheme(ThemeData base, BaseCampTerminalPalette palette) {
+  final extensions = base.extensions.values.toList(growable: true)
+    ..removeWhere((extension) => extension is OperationSurfaceTheme)
+    ..add(
+      OperationSurfaceTheme(
+        useClassicTerminal: true,
+        buttonForegroundColor: palette.primaryText,
+        buttonDisabledForegroundColor: palette.background.withValues(
+          alpha: .65,
+        ),
+      ),
+    );
   final scheme = base.colorScheme.copyWith(
     primary: palette.primaryText,
     onPrimary: palette.background,
@@ -244,7 +259,7 @@ ThemeData _terminalTheme(ThemeData base, BaseCampTerminalPalette palette) {
     colorScheme: scheme,
     scaffoldBackgroundColor: Colors.transparent,
     canvasColor: palette.background,
-    cardColor: palette.field.withValues(alpha: .92),
+    cardColor: palette.field,
     dividerColor: palette.auxiliaryText,
     textTheme: textTheme,
     primaryTextTheme: base.primaryTextTheme.apply(
@@ -258,9 +273,10 @@ ThemeData _terminalTheme(ThemeData base, BaseCampTerminalPalette palette) {
       shadowColor: BaseCampTerminalPalette.housingShadow,
     ),
     cardTheme: base.cardTheme.copyWith(
-      color: palette.field.withValues(alpha: .9),
+      color: palette.field,
       surfaceTintColor: Colors.transparent,
-      shadowColor: BaseCampTerminalPalette.housingShadow,
+      shadowColor: Colors.transparent,
+      elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(7),
         side: BorderSide(color: palette.auxiliaryText),
@@ -279,8 +295,25 @@ ThemeData _terminalTheme(ThemeData base, BaseCampTerminalPalette palette) {
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: (base.elevatedButtonTheme.style ?? const ButtonStyle()).copyWith(
-        backgroundColor: WidgetStatePropertyAll<Color>(palette.field),
-        foregroundColor: WidgetStatePropertyAll<Color>(palette.primaryText),
+        backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return palette.auxiliaryText;
+          }
+          if (states.contains(WidgetState.pressed) ||
+              states.contains(WidgetState.selected)) {
+            return palette.primaryText;
+          }
+          return palette.field;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.pressed) ||
+              states.contains(WidgetState.selected)) {
+            return palette.background;
+          }
+          return states.contains(WidgetState.disabled)
+              ? palette.background.withValues(alpha: .65)
+              : palette.primaryText;
+        }),
         surfaceTintColor: const WidgetStatePropertyAll<Color>(
           Colors.transparent,
         ),
@@ -291,7 +324,25 @@ ThemeData _terminalTheme(ThemeData base, BaseCampTerminalPalette palette) {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: (base.outlinedButtonTheme.style ?? const ButtonStyle()).copyWith(
-        foregroundColor: WidgetStatePropertyAll<Color>(palette.primaryText),
+        backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return palette.auxiliaryText;
+          }
+          if (states.contains(WidgetState.pressed) ||
+              states.contains(WidgetState.selected)) {
+            return palette.primaryText;
+          }
+          return palette.field;
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.pressed) ||
+              states.contains(WidgetState.selected)) {
+            return palette.background;
+          }
+          return states.contains(WidgetState.disabled)
+              ? palette.background.withValues(alpha: .65)
+              : palette.primaryText;
+        }),
         side: WidgetStatePropertyAll<BorderSide>(
           BorderSide(color: palette.auxiliaryText),
         ),
@@ -300,7 +351,55 @@ ThemeData _terminalTheme(ThemeData base, BaseCampTerminalPalette palette) {
     textButtonTheme: TextButtonThemeData(
       style: (base.textButtonTheme.style ?? const ButtonStyle()).copyWith(
         foregroundColor: WidgetStatePropertyAll<Color>(palette.primaryText),
+        overlayColor: WidgetStatePropertyAll<Color>(
+          palette.primaryText.withValues(alpha: .10),
+        ),
       ),
+    ),
+    dialogTheme: base.dialogTheme.copyWith(
+      backgroundColor: palette.background,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: BaseCampTerminalPalette.housingShadow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(7),
+        side: BorderSide(color: palette.auxiliaryText),
+      ),
+    ),
+    bottomSheetTheme: base.bottomSheetTheme.copyWith(
+      backgroundColor: palette.background,
+      modalBackgroundColor: palette.background,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: BaseCampTerminalPalette.housingShadow,
+    ),
+    popupMenuTheme: base.popupMenuTheme.copyWith(
+      color: palette.background,
+      surfaceTintColor: Colors.transparent,
+      textStyle: TextStyle(color: palette.primaryText),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(4),
+        side: BorderSide(color: palette.auxiliaryText),
+      ),
+    ),
+    listTileTheme: base.listTileTheme.copyWith(
+      textColor: palette.primaryText,
+      iconColor: palette.primaryText,
+      selectedColor: palette.background,
+      selectedTileColor: palette.primaryText,
+    ),
+    dividerTheme: base.dividerTheme.copyWith(
+      color: palette.auxiliaryText,
+      space: 1,
+      thickness: 1,
+    ),
+    chipTheme: base.chipTheme.copyWith(
+      backgroundColor: palette.field,
+      selectedColor: palette.primaryText,
+      disabledColor: palette.auxiliaryText,
+      labelStyle: TextStyle(color: palette.primaryText),
+      secondaryLabelStyle: TextStyle(color: palette.background),
+      side: BorderSide(color: palette.auxiliaryText),
+      shadowColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
     ),
     iconTheme: base.iconTheme.copyWith(color: palette.primaryText),
     sliderTheme: base.sliderTheme.copyWith(
@@ -309,6 +408,7 @@ ThemeData _terminalTheme(ThemeData base, BaseCampTerminalPalette palette) {
       thumbColor: palette.primaryText,
       overlayColor: palette.primaryText.withValues(alpha: .12),
     ),
+    extensions: extensions,
   );
 }
 

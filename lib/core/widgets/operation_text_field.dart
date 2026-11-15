@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'global_touch_ripple.dart';
 import 'mixed_script_text.dart';
+import 'operation_card.dart';
 
 class OperationTextField extends StatelessWidget {
   final TextEditingController controller;
@@ -35,6 +36,12 @@ class OperationTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
+    final scheme = Theme.of(context).colorScheme;
     final themeStyle =
         Theme.of(context).textTheme.bodyMedium ??
         DefaultTextStyle.of(context).style;
@@ -63,14 +70,16 @@ class OperationTextField extends StatelessWidget {
           hint: correctedHint ? MixedScriptText(hint!) : null,
           filled: glass,
           fillColor: glass
-              ? Theme.of(context).colorScheme.surface.withValues(alpha: .22)
+              ? classicTerminal
+                    ? scheme.surfaceContainer
+                    : scheme.surface.withValues(alpha: .22)
               : null,
           enabledBorder: glass
               ? OutlineInputBorder(
                   borderSide: BorderSide(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: .18),
+                    color: classicTerminal
+                        ? scheme.outline
+                        : scheme.primary.withValues(alpha: .18),
                   ),
                 )
               : null,

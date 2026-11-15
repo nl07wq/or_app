@@ -7,6 +7,7 @@ import '../../../core/models/shift_preset.dart';
 import '../../../core/services/shift_preset_preferences.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 import '../../../core/services/work_calculator.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
 
@@ -379,6 +380,7 @@ class _WorkTypeSelector extends StatelessWidget {
   Widget _cell(BuildContext context, WorkType type) {
     final colors = Theme.of(context).colorScheme;
     final selected = value == type;
+    final baseCamp = BaseCampPresentation.isActive(context);
     return Semantics(
       button: true,
       selected: selected,
@@ -391,9 +393,13 @@ class _WorkTypeSelector extends StatelessWidget {
           height: 48,
           decoration: BoxDecoration(
             color: selected
-                ? colors.secondaryContainer.withValues(alpha: .62)
+                ? baseCamp
+                      ? colors.primary
+                      : colors.secondaryContainer.withValues(alpha: .62)
+                : baseCamp
+                ? colors.surfaceContainer
                 : colors.surfaceContainer.withValues(alpha: .20),
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(baseCamp ? 4 : 9),
             border: Border.all(
               color: selected ? colors.primary : colors.outlineVariant,
               width: selected ? 1.2 : .8,
@@ -415,7 +421,9 @@ class _WorkTypeSelector extends StatelessWidget {
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       fontSize: 13,
                       color: selected
-                          ? colors.onSecondaryContainer
+                          ? baseCamp
+                                ? colors.onPrimary
+                                : colors.onSecondaryContainer
                           : colors.onSurfaceVariant,
                     ),
                   ),

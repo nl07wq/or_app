@@ -22,14 +22,18 @@ class FoodFeatureScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showAmbient = !BaseCampPresentation.isActive(context);
+    final baseCamp = BaseCampPresentation.isActive(context);
+    final showAmbient = !baseCamp;
     final appBarHeight =
         appBar.preferredSize.height + MediaQuery.paddingOf(context).top;
     final base = Theme.of(context);
     return Theme(
       data: base.copyWith(
-        extensions: const <ThemeExtension<dynamic>>[
-          OperationSurfaceTheme(useDashboardGlass: true),
+        extensions: <ThemeExtension<dynamic>>[
+          OperationSurfaceTheme(
+            useDashboardGlass: !baseCamp,
+            useClassicTerminal: baseCamp,
+          ),
         ],
       ),
       child: Scaffold(

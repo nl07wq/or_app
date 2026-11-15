@@ -30,6 +30,21 @@ class DashboardGlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
+    if (classicTerminal) {
+      return OperationCard(
+        onTap: onTap,
+        selectable: selectable,
+        padding: padding,
+        margin: margin,
+        borderRadius: borderRadius,
+        child: child,
+      );
+    }
     return Theme(
       data: Theme.of(context).copyWith(
         cardColor: Colors.transparent,

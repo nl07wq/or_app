@@ -12,6 +12,7 @@ class OperationSurfaceTheme extends ThemeExtension<OperationSurfaceTheme> {
   const OperationSurfaceTheme({
     this.useDashboardGlass = false,
     this.flattenSurface = false,
+    this.useClassicTerminal = false,
     this.buttonForegroundColor,
     this.buttonDisabledForegroundColor,
     this.buttonHeight,
@@ -19,6 +20,7 @@ class OperationSurfaceTheme extends ThemeExtension<OperationSurfaceTheme> {
 
   final bool useDashboardGlass;
   final bool flattenSurface;
+  final bool useClassicTerminal;
   final Color? buttonForegroundColor;
   final Color? buttonDisabledForegroundColor;
   final double? buttonHeight;
@@ -27,12 +29,14 @@ class OperationSurfaceTheme extends ThemeExtension<OperationSurfaceTheme> {
   OperationSurfaceTheme copyWith({
     bool? useDashboardGlass,
     bool? flattenSurface,
+    bool? useClassicTerminal,
     Color? buttonForegroundColor,
     Color? buttonDisabledForegroundColor,
     double? buttonHeight,
   }) => OperationSurfaceTheme(
     useDashboardGlass: useDashboardGlass ?? this.useDashboardGlass,
     flattenSurface: flattenSurface ?? this.flattenSurface,
+    useClassicTerminal: useClassicTerminal ?? this.useClassicTerminal,
     buttonForegroundColor: buttonForegroundColor ?? this.buttonForegroundColor,
     buttonDisabledForegroundColor:
         buttonDisabledForegroundColor ?? this.buttonDisabledForegroundColor,
@@ -48,6 +52,9 @@ class OperationSurfaceTheme extends ThemeExtension<OperationSurfaceTheme> {
     return OperationSurfaceTheme(
       useDashboardGlass: t < .5 ? useDashboardGlass : other.useDashboardGlass,
       flattenSurface: t < .5 ? flattenSurface : other.flattenSurface,
+      useClassicTerminal: t < .5
+          ? useClassicTerminal
+          : other.useClassicTerminal,
       buttonForegroundColor: Color.lerp(
         buttonForegroundColor,
         other.buttonForegroundColor,
@@ -108,6 +115,7 @@ class _OperationCardState extends State<OperationCard> {
           : ActionableFeedbackButton(enabled: true, child: widget.child);
     }
     final dashboardGlass = surfaceTheme?.useDashboardGlass ?? false;
+    final classicTerminal = surfaceTheme?.useClassicTerminal ?? false;
     final cardBody = _cardBody();
     return MouseRegion(
       cursor: widget.selectable ? SystemMouseCursors.click : MouseCursor.defer,
@@ -115,22 +123,30 @@ class _OperationCardState extends State<OperationCard> {
       onExit: (_) => setState(() => _hovering = false),
       child: Card(
         margin: widget.margin,
-        elevation: widget.transparentSurface || dashboardGlass ? 0 : 6,
-        color: widget.transparentSurface || dashboardGlass
+        elevation:
+            widget.transparentSurface || dashboardGlass || classicTerminal
+            ? 0
+            : 6,
+        color: classicTerminal
+            ? Theme.of(context).colorScheme.surfaceContainer
+            : widget.transparentSurface || dashboardGlass
             ? Colors.transparent
             : Theme.of(context).cardColor,
-        shadowColor: widget.transparentSurface || dashboardGlass
+        shadowColor:
+            widget.transparentSurface || dashboardGlass || classicTerminal
             ? Colors.transparent
             : null,
         shape: RoundedRectangleBorder(
           borderRadius: borderRadius,
           side: BorderSide(
-            color: widget.selectable && _hovering
+            color: classicTerminal
+                ? Theme.of(context).colorScheme.outline
+                : widget.selectable && _hovering
                 ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.20)
                 : Colors.transparent,
           ),
         ),
-        child: dashboardGlass
+        child: dashboardGlass && !classicTerminal
             ? DecoratedBox(
                 decoration: _dashboardReferenceDecoration(
                   Theme.of(context).colorScheme,

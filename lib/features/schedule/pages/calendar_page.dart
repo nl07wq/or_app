@@ -1202,6 +1202,7 @@ class _CalendarWeatherHud extends StatelessWidget {
   Widget build(BuildContext context) {
     final location = preferences.activeLocation;
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal = BaseCampPresentation.isActive(context);
     final weatherSnapshot = snapshot;
     final selected = weatherSnapshot == null
         ? null
@@ -1213,12 +1214,26 @@ class _CalendarWeatherHud extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(color: scheme.primary.withValues(alpha: .42)),
-          bottom: BorderSide(color: scheme.primary.withValues(alpha: .24)),
+          top: BorderSide(
+            color: classicTerminal
+                ? scheme.outline
+                : scheme.primary.withValues(alpha: .42),
+          ),
+          bottom: BorderSide(
+            color: classicTerminal
+                ? scheme.outline
+                : scheme.primary.withValues(alpha: .24),
+          ),
         ),
-        gradient: LinearGradient(
-          colors: [scheme.primary.withValues(alpha: .07), Colors.transparent],
-        ),
+        color: classicTerminal ? scheme.surfaceContainer : null,
+        gradient: classicTerminal
+            ? null
+            : LinearGradient(
+                colors: [
+                  scheme.primary.withValues(alpha: .07),
+                  Colors.transparent,
+                ],
+              ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3868,6 +3883,7 @@ class _TelemetryModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal = BaseCampPresentation.isActive(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -3877,17 +3893,25 @@ class _TelemetryModule extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 88),
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-            color: scheme.surface.withValues(alpha: .46),
-            border: Border.all(color: scheme.primary.withValues(alpha: .25)),
-            borderRadius: BorderRadius.circular(8),
-            gradient: LinearGradient(
-              colors: [
-                scheme.primary.withValues(alpha: .07),
-                Colors.transparent,
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+            color: classicTerminal
+                ? scheme.surfaceContainerHighest
+                : scheme.surface.withValues(alpha: .46),
+            border: Border.all(
+              color: classicTerminal
+                  ? scheme.outline
+                  : scheme.primary.withValues(alpha: .25),
             ),
+            borderRadius: BorderRadius.circular(classicTerminal ? 4 : 8),
+            gradient: classicTerminal
+                ? null
+                : LinearGradient(
+                    colors: [
+                      scheme.primary.withValues(alpha: .07),
+                      Colors.transparent,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -4034,6 +4058,7 @@ class _WindTelemetryModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal = BaseCampPresentation.isActive(context);
     final direction = value?.windDirection;
     return Material(
       color: Colors.transparent,
@@ -4044,9 +4069,15 @@ class _WindTelemetryModule extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 112),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: scheme.surface.withValues(alpha: .46),
-            border: Border.all(color: scheme.primary.withValues(alpha: .32)),
-            borderRadius: BorderRadius.circular(8),
+            color: classicTerminal
+                ? scheme.surfaceContainerHighest
+                : scheme.surface.withValues(alpha: .46),
+            border: Border.all(
+              color: classicTerminal
+                  ? scheme.outline
+                  : scheme.primary.withValues(alpha: .32),
+            ),
+            borderRadius: BorderRadius.circular(classicTerminal ? 4 : 8),
           ),
           child: Row(
             children: [
@@ -4197,6 +4228,7 @@ class _SunTelemetryModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal = BaseCampPresentation.isActive(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -4206,15 +4238,23 @@ class _SunTelemetryModule extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 104),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: scheme.surface.withValues(alpha: .46),
-            border: Border.all(color: scheme.primary.withValues(alpha: .25)),
-            borderRadius: BorderRadius.circular(8),
-            gradient: LinearGradient(
-              colors: [
-                scheme.primary.withValues(alpha: .07),
-                Colors.transparent,
-              ],
+            color: classicTerminal
+                ? scheme.surfaceContainerHighest
+                : scheme.surface.withValues(alpha: .46),
+            border: Border.all(
+              color: classicTerminal
+                  ? scheme.outline
+                  : scheme.primary.withValues(alpha: .25),
             ),
+            borderRadius: BorderRadius.circular(classicTerminal ? 4 : 8),
+            gradient: classicTerminal
+                ? null
+                : LinearGradient(
+                    colors: [
+                      scheme.primary.withValues(alpha: .07),
+                      Colors.transparent,
+                    ],
+                  ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -4275,6 +4315,7 @@ class _PressureTelemetryModule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal = BaseCampPresentation.isActive(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -4284,9 +4325,15 @@ class _PressureTelemetryModule extends StatelessWidget {
           constraints: const BoxConstraints(minHeight: 104),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: scheme.surface.withValues(alpha: .46),
-            border: Border.all(color: scheme.primary.withValues(alpha: .3)),
-            borderRadius: BorderRadius.circular(8),
+            color: classicTerminal
+                ? scheme.surfaceContainerHighest
+                : scheme.surface.withValues(alpha: .46),
+            border: Border.all(
+              color: classicTerminal
+                  ? scheme.outline
+                  : scheme.primary.withValues(alpha: .3),
+            ),
+            borderRadius: BorderRadius.circular(classicTerminal ? 4 : 8),
           ),
           child: Row(
             children: [
@@ -4514,15 +4561,22 @@ class _WeatherHourlyTimeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal = BaseCampPresentation.isActive(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
         child: Container(
           decoration: BoxDecoration(
-            color: scheme.surface.withValues(alpha: .26),
-            border: Border.all(color: scheme.primary.withValues(alpha: .20)),
-            borderRadius: BorderRadius.circular(8),
+            color: classicTerminal
+                ? scheme.surfaceContainerHighest
+                : scheme.surface.withValues(alpha: .26),
+            border: Border.all(
+              color: classicTerminal
+                  ? scheme.outline
+                  : scheme.primary.withValues(alpha: .20),
+            ),
+            borderRadius: BorderRadius.circular(classicTerminal ? 4 : 8),
           ),
           child: SingleChildScrollView(
             key: ValueKey(
@@ -4988,6 +5042,7 @@ class _WeatherHourlyCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final value = values[index];
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal = BaseCampPresentation.isActive(context);
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: () {
@@ -5026,9 +5081,15 @@ class _WeatherHourlyCell extends StatelessWidget {
         margin: const EdgeInsets.only(right: 6),
         padding: const EdgeInsets.fromLTRB(10, 9, 10, 8),
         decoration: BoxDecoration(
-          color: scheme.surface.withValues(alpha: .4),
-          border: Border.all(color: scheme.primary.withValues(alpha: .2)),
-          borderRadius: BorderRadius.circular(10),
+          color: classicTerminal
+              ? scheme.surfaceContainerHighest
+              : scheme.surface.withValues(alpha: .4),
+          border: Border.all(
+            color: classicTerminal
+                ? scheme.outline
+                : scheme.primary.withValues(alpha: .2),
+          ),
+          borderRadius: BorderRadius.circular(classicTerminal ? 4 : 10),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -5497,38 +5558,48 @@ class _CalendarTimelineAddControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal = BaseCampPresentation.isActive(context);
     return Semantics(
       button: true,
       label: '予定を追加',
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 44),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(classicTerminal ? 4 : 8),
           child: Stack(
             fit: StackFit.passthrough,
             children: [
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        scheme.primary.withValues(alpha: .12),
-                        scheme.surfaceContainerHigh.withValues(alpha: .14),
-                        scheme.primary.withValues(alpha: .10),
-                      ],
-                    ),
+                    color: classicTerminal ? scheme.surfaceContainer : null,
+                    border: classicTerminal
+                        ? Border.all(color: scheme.outline)
+                        : null,
+                    gradient: classicTerminal
+                        ? null
+                        : LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              scheme.primary.withValues(alpha: .12),
+                              scheme.surfaceContainerHigh.withValues(
+                                alpha: .14,
+                              ),
+                              scheme.primary.withValues(alpha: .10),
+                            ],
+                          ),
                   ),
                 ),
               ),
-              const Positioned.fill(
-                child: HolographicScanlineOverlay(
-                  key: ValueKey('calendar-timeline-add-scanlines'),
-                  lineSpacing: 3,
-                  opacity: .014,
+              if (!classicTerminal)
+                const Positioned.fill(
+                  child: HolographicScanlineOverlay(
+                    key: ValueKey('calendar-timeline-add-scanlines'),
+                    lineSpacing: 3,
+                    opacity: .014,
+                  ),
                 ),
-              ),
               Material(
                 color: Colors.transparent,
                 child: InkWell(
@@ -5578,61 +5649,73 @@ class _CalendarFloatingSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal = BaseCampPresentation.isActive(context);
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            scheme.primary.withValues(alpha: .10),
-            scheme.surfaceContainerHigh.withValues(alpha: .18),
-            scheme.surface.withValues(alpha: .055),
-            scheme.surfaceContainerLow.withValues(alpha: .145),
-          ],
-        ),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(5),
-          bottomLeft: Radius.circular(5),
-          bottomRight: Radius.circular(16),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: scheme.primary.withValues(alpha: .10),
-            blurRadius: 34,
-            offset: const Offset(-5, -4),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .46),
-            blurRadius: 36,
-            offset: const Offset(5, 16),
-          ),
-        ],
+        color: classicTerminal ? scheme.surfaceContainer : null,
+        gradient: classicTerminal
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  scheme.primary.withValues(alpha: .10),
+                  scheme.surfaceContainerHigh.withValues(alpha: .18),
+                  scheme.surface.withValues(alpha: .055),
+                  scheme.surfaceContainerLow.withValues(alpha: .145),
+                ],
+              ),
+        borderRadius: classicTerminal
+            ? BorderRadius.circular(4)
+            : const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(5),
+                bottomLeft: Radius.circular(5),
+                bottomRight: Radius.circular(16),
+              ),
+        border: classicTerminal ? Border.all(color: scheme.outline) : null,
+        boxShadow: classicTerminal
+            ? const <BoxShadow>[]
+            : [
+                BoxShadow(
+                  color: scheme.primary.withValues(alpha: .10),
+                  blurRadius: 34,
+                  offset: const Offset(-5, -4),
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .46),
+                  blurRadius: 36,
+                  offset: const Offset(5, 16),
+                ),
+              ],
       ),
-      foregroundDecoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: const [0, .18, .76, 1],
-          colors: [
-            scheme.primary.withValues(alpha: .055),
-            Colors.transparent,
-            Colors.transparent,
-            Colors.black.withValues(alpha: .045),
-          ],
-        ),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(5),
-          bottomLeft: Radius.circular(5),
-          bottomRight: Radius.circular(16),
-        ),
-      ),
+      foregroundDecoration: classicTerminal
+          ? null
+          : BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                stops: const [0, .18, .76, 1],
+                colors: [
+                  scheme.primary.withValues(alpha: .055),
+                  Colors.transparent,
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: .045),
+                ],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(5),
+                bottomLeft: Radius.circular(5),
+                bottomRight: Radius.circular(16),
+              ),
+            ),
       child: Stack(
         fit: StackFit.passthrough,
         children: [
-          const Positioned.fill(child: HolographicScanlineOverlay()),
+          if (!classicTerminal)
+            const Positioned.fill(child: HolographicScanlineOverlay()),
           Padding(
             key: const ValueKey('calendar-floating-surface-content-padding'),
             padding: padding,

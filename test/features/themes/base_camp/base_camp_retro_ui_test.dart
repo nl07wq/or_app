@@ -8,6 +8,8 @@ import 'package:or_app/features/body_history/widgets/history_data_vault_backgrou
 import 'package:or_app/features/body_history/widgets/history_feature_scaffold.dart';
 import 'package:or_app/features/food/widgets/food_ambient_comparison.dart';
 import 'package:or_app/features/food/widgets/food_feature_chrome.dart';
+import 'package:or_app/features/food/widgets/food_saved_floating_hud.dart';
+import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
 
@@ -158,14 +160,44 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: BaseCampScreenEntry(screen: BaseCampScreen.food, child: page()),
+        home: BaseCampScreenEntry(
+          screen: BaseCampScreen.food,
+          child: FoodFeatureScaffold(
+            appBar: AppBar(title: const Text('FOOD RECORD')),
+            body: Builder(
+              builder: (context) => Text(
+                'CLASSIC=${Theme.of(context).extension<OperationSurfaceTheme>()?.useClassicTerminal}',
+              ),
+            ),
+          ),
+        ),
       ),
     );
     expect(find.byType(FoodAmbientComparison), findsNothing);
+    expect(find.text('CLASSIC=true'), findsOneWidget);
 
     await tester.pumpWidget(MaterialApp(home: page()));
     await tester.pump();
     expect(find.byType(FoodAmbientComparison), findsOneWidget);
+  });
+
+  testWidgets('BASE CAMP FOOD feedback removes the glass blur', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BaseCampScreenEntry(
+          screen: BaseCampScreen.food,
+          child: Scaffold(body: FoodSavedFloatingHud.surfaceForTesting()),
+        ),
+      ),
+    );
+
+    expect(find.byType(BackdropFilter), findsNothing);
+    final surface = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('food-saved-floating-hud-glass')),
+    );
+    final decoration = surface.decoration as BoxDecoration;
+    expect(decoration.color?.a, 1);
+    expect(decoration.gradient, isNull);
   });
 
   testWidgets('history ambient ticker is absent only from BASE CAMP', (

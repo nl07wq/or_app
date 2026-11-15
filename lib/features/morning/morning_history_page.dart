@@ -317,33 +317,41 @@ class _PlateValue extends StatelessWidget {
   final String label;
   final String value;
   @override
-  Widget build(BuildContext context) => Container(
-    key: Key('status-record-field-${label.toLowerCase().replaceAll(' ', '-')}'),
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: .28),
-      border: Border.all(
-        color: Theme.of(
-          context,
-        ).colorScheme.outlineVariant.withValues(alpha: .55),
+  Widget build(BuildContext context) {
+    final baseCamp = BaseCampPresentation.isActive(context);
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      key: Key(
+        'status-record-field-${label.toLowerCase().replaceAll(' ', '-')}',
       ),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(letterSpacing: .55),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: baseCamp
+            ? scheme.surfaceContainerHighest
+            : scheme.surface.withValues(alpha: .28),
+        border: Border.all(
+          color: baseCamp
+              ? scheme.outline
+              : scheme.outlineVariant.withValues(alpha: .55),
         ),
-        const SizedBox(height: 2),
-        MixedScriptText(value, style: Theme.of(context).textTheme.titleSmall),
-      ],
-    ),
-  );
+        borderRadius: BorderRadius.circular(baseCamp ? 4 : 10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(letterSpacing: .55),
+          ),
+          const SizedBox(height: 2),
+          MixedScriptText(value, style: Theme.of(context).textTheme.titleSmall),
+        ],
+      ),
+    );
+  }
 }
 
 class _PlateSecondary extends StatelessWidget {

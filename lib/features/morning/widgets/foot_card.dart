@@ -6,6 +6,7 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 
 class FootCard extends StatefulWidget {
   final TextEditingController controller;
@@ -65,6 +66,7 @@ class _FootCardState extends State<FootCard> {
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.primary;
+    final baseCamp = BaseCampPresentation.isActive(context);
     return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,11 +87,13 @@ class _FootCardState extends State<FootCard> {
                   height: 52,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainer.withValues(alpha: .22),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: color.withValues(alpha: .35)),
+                    color: Theme.of(context).colorScheme.surfaceContainer,
+                    borderRadius: BorderRadius.circular(baseCamp ? 4 : 12),
+                    border: Border.all(
+                      color: baseCamp
+                          ? Theme.of(context).colorScheme.outline
+                          : color.withValues(alpha: .35),
+                    ),
                   ),
                   child: Row(
                     children: [

@@ -774,9 +774,17 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
             ],
             AppSpacing.gapMD,
             DecoratedBox(
-              decoration: DashboardGlassCard.decoration(
-                Theme.of(context).colorScheme,
-              ),
+              decoration: BaseCampPresentation.isActive(context)
+                  ? BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainer,
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    )
+                  : DashboardGlassCard.decoration(
+                      Theme.of(context).colorScheme,
+                    ),
               child: ListTile(
                 title: const Text('Date'),
                 trailing: Text(_formatDate(_date)),
@@ -1091,19 +1099,21 @@ class _QuickStepRow extends StatelessWidget {
           child: OutlinedButton(
             key: ValueKey('activity-quick-steps-${values[index]}'),
             onPressed: enabled ? () => onPressed(values[index]) : null,
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(0, 40),
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              backgroundColor: Theme.of(
-                context,
-              ).colorScheme.surface.withValues(alpha: .18),
-              side: BorderSide(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: .18),
-              ),
-            ),
+            style: BaseCampPresentation.isActive(context)
+                ? null
+                : OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.surface.withValues(alpha: .18),
+                    side: BorderSide(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: .18),
+                    ),
+                  ),
             child: FittedBox(child: Text('+${values[index]}')),
           ).actionableFeedback(),
         ),
@@ -1153,12 +1163,20 @@ InputDecoration _activityGlassInputDecoration(
   String label,
 ) {
   final scheme = Theme.of(context).colorScheme;
+  final classicTerminal = BaseCampPresentation.isActive(context);
   return InputDecoration(
     labelText: label,
     filled: true,
-    fillColor: scheme.surface.withValues(alpha: .22),
+    fillColor: classicTerminal
+        ? scheme.surfaceContainer
+        : scheme.surface.withValues(alpha: .22),
     enabledBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: scheme.primary.withValues(alpha: .18)),
+      borderRadius: BorderRadius.circular(classicTerminal ? 4 : 4),
+      borderSide: BorderSide(
+        color: classicTerminal
+            ? scheme.outline
+            : scheme.primary.withValues(alpha: .18),
+      ),
     ),
   );
 }

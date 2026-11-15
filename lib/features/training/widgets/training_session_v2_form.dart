@@ -37,6 +37,12 @@ class TrainingSessionV2Form extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
+    final colorScheme = Theme.of(context).colorScheme;
     final state = trainingPresentationState(
       startTime: controller.startTime,
       endTime: controller.endTime,
@@ -63,23 +69,30 @@ class TrainingSessionV2Form extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: state == TrainingPresentationState.active
+                      color: classicTerminal
+                          ? colorScheme.outline
+                          : state == TrainingPresentationState.active
                           ? AppColors.success
                           : AppColors.warning,
                     ),
-                    borderRadius: BorderRadius.circular(999),
-                    color:
-                        (state == TrainingPresentationState.active
-                                ? AppColors.success
-                                : AppColors.warning)
-                            .withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(
+                      classicTerminal ? 4 : 999,
+                    ),
+                    color: classicTerminal
+                        ? colorScheme.surfaceContainerHighest
+                        : (state == TrainingPresentationState.active
+                                  ? AppColors.success
+                                  : AppColors.warning)
+                              .withValues(alpha: 0.12),
                   ),
                   child: Text(
                     state == TrainingPresentationState.active
                         ? 'ACTIVE'
                         : 'PAUSED',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: state == TrainingPresentationState.active
+                      color: classicTerminal
+                          ? colorScheme.onSurface
+                          : state == TrainingPresentationState.active
                           ? AppColors.success
                           : AppColors.warning,
                       fontWeight: FontWeight.w800,

@@ -551,125 +551,139 @@ class _FoodNutritionPanel extends StatelessWidget {
   final FocusNode? carbohydrateFocusNode;
 
   @override
-  Widget build(BuildContext context) => Container(
-    key: const ValueKey('food-entry-nutrition-panel'),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: FoodFormMetrics.nutritionSurface,
-      border: Border.all(color: FoodFormMetrics.separator),
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          basisLabel,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: FoodFormMetrics.caption,
-            letterSpacing: .6,
+  Widget build(BuildContext context) {
+    final classicTerminal = BaseCampRetroTheme.isApplied(Theme.of(context));
+    final scheme = Theme.of(context).colorScheme;
+    final panelColor = classicTerminal
+        ? scheme.surfaceContainer
+        : FoodFormMetrics.nutritionSurface;
+    final borderColor = classicTerminal
+        ? scheme.outline
+        : FoodFormMetrics.separator;
+    final captionColor = classicTerminal
+        ? scheme.onSurfaceVariant
+        : FoodFormMetrics.caption;
+    final macroColor = classicTerminal ? scheme.onSurface : null;
+    return Container(
+      key: const ValueKey('food-entry-nutrition-panel'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: panelColor,
+        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            basisLabel,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: captionColor,
+              letterSpacing: .6,
+            ),
           ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Row(
-          children: [
-            Expanded(
-              child: Theme(
-                // CALORIES deliberately uses the pre-existing PFC value size.
-                data: FoodFormMetrics.numericValueTheme(
-                  Theme.of(context),
-                  FoodFormMetrics.pfcNumericFontSize,
-                ),
-                child: _NutritionFocusField(
-                  focusNode: calorieFocusNode,
-                  nextFocusNode: proteinFocusNode,
-                  child: OperationTextField(
-                    controller: calorieController,
-                    label: 'CALORIES',
-                    keyboardType: TextInputType.number,
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              Expanded(
+                child: Theme(
+                  // CALORIES deliberately uses the pre-existing PFC value size.
+                  data: FoodFormMetrics.numericValueTheme(
+                    Theme.of(context),
+                    FoodFormMetrics.pfcNumericFontSize,
+                  ),
+                  child: _NutritionFocusField(
                     focusNode: calorieFocusNode,
-                    onChanged: onCaloriesChanged,
+                    nextFocusNode: proteinFocusNode,
+                    child: OperationTextField(
+                      controller: calorieController,
+                      label: 'CALORIES',
+                      keyboardType: TextInputType.number,
+                      focusNode: calorieFocusNode,
+                      onChanged: onCaloriesChanged,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Text('kcal', style: Theme.of(context).textTheme.labelLarge),
-          ],
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
-          child: Divider(height: 1, color: FoodFormMetrics.separator),
-        ),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final fields = [
-              _macroField(
-                context,
-                controller: proteinController,
-                label: 'PROTEIN',
-                color: FoodFormMetrics.protein,
-                onChanged: onProteinChanged,
-                focusNode: proteinFocusNode,
-                previousFocusNode: calorieFocusNode,
-                nextFocusNode: fatFocusNode,
-              ),
-              _macroField(
-                context,
-                controller: fatController,
-                label: 'FAT',
-                color: FoodFormMetrics.fat,
-                onChanged: onFatChanged,
-                focusNode: fatFocusNode,
-                previousFocusNode: proteinFocusNode,
-                nextFocusNode: carbohydrateFocusNode,
-              ),
-              _macroField(
-                context,
-                controller: carbohydrateController,
-                label: 'CARBOHYDRATE',
-                color: FoodFormMetrics.carbohydrate,
-                onChanged: onCarbohydrateChanged,
-                focusNode: carbohydrateFocusNode,
-                previousFocusNode: fatFocusNode,
-              ),
-            ];
-            if (constraints.maxWidth >= 250) {
-              return Row(
-                children: [
-                  for (var index = 0; index < fields.length; index++) ...[
-                    Expanded(child: fields[index]),
-                    if (index != fields.length - 1)
-                      const SizedBox(width: AppSpacing.xs),
-                  ],
-                ],
-              );
-            }
-            final width = (constraints.maxWidth - AppSpacing.xs) / 2;
-            return Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final field in fields)
-                  SizedBox(width: width, child: field),
-              ],
-            );
-          },
-        ),
-        if (calorieFocusNode != null &&
-            proteinFocusNode != null &&
-            fatFocusNode != null &&
-            carbohydrateFocusNode != null)
-          FoodNutritionFocusToolbar(
-            nodes: [
-              calorieFocusNode!,
-              proteinFocusNode!,
-              fatFocusNode!,
-              carbohydrateFocusNode!,
+              const SizedBox(width: AppSpacing.sm),
+              Text('kcal', style: Theme.of(context).textTheme.labelLarge),
             ],
           ),
-      ],
-    ),
-  );
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, color: borderColor),
+          ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final fields = [
+                _macroField(
+                  context,
+                  controller: proteinController,
+                  label: 'PROTEIN',
+                  color: macroColor ?? FoodFormMetrics.protein,
+                  onChanged: onProteinChanged,
+                  focusNode: proteinFocusNode,
+                  previousFocusNode: calorieFocusNode,
+                  nextFocusNode: fatFocusNode,
+                ),
+                _macroField(
+                  context,
+                  controller: fatController,
+                  label: 'FAT',
+                  color: macroColor ?? FoodFormMetrics.fat,
+                  onChanged: onFatChanged,
+                  focusNode: fatFocusNode,
+                  previousFocusNode: proteinFocusNode,
+                  nextFocusNode: carbohydrateFocusNode,
+                ),
+                _macroField(
+                  context,
+                  controller: carbohydrateController,
+                  label: 'CARBOHYDRATE',
+                  color: macroColor ?? FoodFormMetrics.carbohydrate,
+                  onChanged: onCarbohydrateChanged,
+                  focusNode: carbohydrateFocusNode,
+                  previousFocusNode: fatFocusNode,
+                ),
+              ];
+              if (constraints.maxWidth >= 250) {
+                return Row(
+                  children: [
+                    for (var index = 0; index < fields.length; index++) ...[
+                      Expanded(child: fields[index]),
+                      if (index != fields.length - 1)
+                        const SizedBox(width: AppSpacing.xs),
+                    ],
+                  ],
+                );
+              }
+              final width = (constraints.maxWidth - AppSpacing.xs) / 2;
+              return Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  for (final field in fields)
+                    SizedBox(width: width, child: field),
+                ],
+              );
+            },
+          ),
+          if (calorieFocusNode != null &&
+              proteinFocusNode != null &&
+              fatFocusNode != null &&
+              carbohydrateFocusNode != null)
+            FoodNutritionFocusToolbar(
+              nodes: [
+                calorieFocusNode!,
+                proteinFocusNode!,
+                fatFocusNode!,
+                carbohydrateFocusNode!,
+              ],
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _macroField(
     BuildContext context, {
@@ -909,13 +923,27 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final classicTerminal = BaseCampRetroTheme.isApplied(Theme.of(context));
+    final scheme = Theme.of(context).colorScheme;
+    final fieldColor = classicTerminal
+        ? scheme.surfaceContainer
+        : FoodFormMetrics.fieldSurface;
+    final borderColor = classicTerminal
+        ? scheme.outline
+        : FoodFormMetrics.separator;
+    final captionColor = classicTerminal
+        ? scheme.onSurfaceVariant
+        : FoodFormMetrics.caption;
+    final labelColor = classicTerminal
+        ? scheme.onSurfaceVariant
+        : FoodFormMetrics.fieldLabel;
     return Container(
       key: ValueKey('food-entry-$group-quantity-module'),
       height: 76,
       decoration: BoxDecoration(
-        color: FoodFormMetrics.fieldSurface,
-        border: Border.all(color: FoodFormMetrics.separator),
-        borderRadius: BorderRadius.circular(12),
+        color: fieldColor,
+        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 12),
       ),
       child: Column(
         children: [
@@ -933,7 +961,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           fontSize: 10.5,
                           letterSpacing: .55,
-                          color: FoodFormMetrics.caption,
+                          color: captionColor,
                         ),
                       ),
                     ),
@@ -942,7 +970,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         fontSize: 10,
                         letterSpacing: .45,
-                        color: FoodFormMetrics.fieldLabel,
+                        color: labelColor,
                       ),
                     ),
                   ],
@@ -953,7 +981,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
           Container(
             key: ValueKey('food-entry-$group-horizontal-divider'),
             height: 1,
-            color: FoodFormMetrics.separator,
+            color: borderColor,
           ),
           Expanded(
             child: Row(
@@ -989,7 +1017,7 @@ class _QuantityUnitGroup<T> extends StatelessWidget {
                 Container(
                   key: ValueKey('food-entry-$group-vertical-divider'),
                   width: 1,
-                  color: FoodFormMetrics.separator,
+                  color: borderColor,
                 ),
                 Expanded(
                   flex: 6,

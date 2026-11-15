@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../themes/base_camp/base_camp_retro_theme.dart';
 
 /// Route-local, immutable presentation tokens shared by FOOD ENTRY and FOOD
 /// DATABASE add/edit forms. Domain data and controllers stay owned by each
@@ -33,10 +34,23 @@ abstract final class FoodFormMetrics {
   static const barcodeButtonPadding = EdgeInsets.symmetric(horizontal: 10);
 
   static ThemeData applyTo(ThemeData theme) {
-    final labelStyle = labelTextStyle.copyWith(color: fieldLabel);
+    final classicTerminal = BaseCampRetroTheme.isApplied(theme);
+    final effectiveField = classicTerminal
+        ? theme.colorScheme.surfaceContainer
+        : fieldSurface;
+    final effectiveSeparator = classicTerminal
+        ? theme.colorScheme.outline
+        : separator;
+    final effectiveLabel = classicTerminal
+        ? theme.colorScheme.onSurfaceVariant
+        : fieldLabel;
+    final effectiveValue = classicTerminal
+        ? theme.colorScheme.onSurface
+        : fieldValue;
+    final labelStyle = labelTextStyle.copyWith(color: effectiveLabel);
     final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: separator),
+      borderRadius: BorderRadius.circular(classicTerminal ? 4 : 12),
+      borderSide: BorderSide(color: effectiveSeparator),
     );
     return theme.copyWith(
       inputDecorationTheme: theme.inputDecorationTheme.copyWith(
@@ -45,24 +59,26 @@ abstract final class FoodFormMetrics {
         labelStyle: labelStyle,
         floatingLabelStyle: labelStyle,
         filled: true,
-        fillColor: fieldSurface,
+        fillColor: effectiveField,
         border: border,
         enabledBorder: border,
         focusedBorder: border.copyWith(
           borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.4),
         ),
         hintStyle: theme.inputDecorationTheme.hintStyle?.copyWith(
-          color: fieldLabel.withValues(alpha: .72),
+          color: classicTerminal
+              ? effectiveLabel
+              : effectiveLabel.withValues(alpha: .72),
         ),
       ),
       textTheme: theme.textTheme.copyWith(
         bodyLarge: theme.textTheme.bodyLarge?.copyWith(
           fontSize: valueFontSize,
-          color: fieldValue,
+          color: effectiveValue,
         ),
         bodyMedium: theme.textTheme.bodyMedium?.copyWith(
           fontSize: valueFontSize,
-          color: fieldValue,
+          color: effectiveValue,
         ),
       ),
     );

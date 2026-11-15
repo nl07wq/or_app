@@ -4,6 +4,8 @@ import '../../../core/models/morning_data.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/operation_text_field.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
 
 class RecoveryCard extends StatelessWidget {
@@ -75,6 +77,13 @@ class RecoveryCard extends StatelessWidget {
 
           if (sleepTimeUnmeasured)
             const _UnmeasuredValue(title: 'Sleep Time')
+          else if (BaseCampPresentation.isActive(context))
+            OperationTextField(
+              controller: sleepController,
+              label: 'SLEEP TIME H:MM',
+              keyboardType: TextInputType.datetime,
+              glass: true,
+            )
           else ...[
             _SleepDurationOrbitalInput(
               title: "Sleep Time",
@@ -87,6 +96,14 @@ class RecoveryCard extends StatelessWidget {
 
           if (sleepTimeUnmeasured)
             const _UnmeasuredValue(title: 'Sleep Score')
+          else if (BaseCampPresentation.isActive(context) &&
+              sleepType == SleepType.sleep)
+            OperationTextField(
+              controller: sleepScoreController,
+              label: 'SLEEP SCORE',
+              keyboardType: TextInputType.number,
+              glass: true,
+            )
           else if (sleepType == SleepType.sleep)
             _SleepScoreGauge(
               key: ValueKey('status-sleep-score-hud-${sleepType.name}'),

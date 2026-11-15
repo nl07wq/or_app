@@ -77,6 +77,7 @@ class OperationButton extends StatelessWidget {
     final surfaceTheme = Theme.of(context).extension<OperationSurfaceTheme>();
     final dashboardReferenceGlass = surfaceTheme?.useDashboardGlass ?? false;
     final flattenSurface = surfaceTheme?.flattenSurface ?? false;
+    final classicTerminal = surfaceTheme?.useClassicTerminal ?? false;
     final foregroundColor = onPressed == null
         ? surfaceTheme?.buttonDisabledForegroundColor ??
               Theme.of(context).disabledColor
@@ -87,12 +88,28 @@ class OperationButton extends StatelessWidget {
                 OperationActionRole.danger => colorScheme.error,
               };
     final usesTransparentButtonMaterial =
-        flattenSurface ||
-        transparentSurface ||
-        dashboardGlass ||
-        frostedGlass ||
-        frostedGradient ||
-        dashboardReferenceGlass;
+        !classicTerminal &&
+        (flattenSurface ||
+            transparentSurface ||
+            dashboardGlass ||
+            frostedGlass ||
+            frostedGradient ||
+            dashboardReferenceGlass);
+    final terminalBackground = switch (role) {
+      OperationActionRole.primary => colorScheme.primary,
+      OperationActionRole.secondary => colorScheme.surfaceContainer,
+      OperationActionRole.danger => colorScheme.errorContainer,
+    };
+    final terminalForeground = switch (role) {
+      OperationActionRole.primary => colorScheme.onPrimary,
+      OperationActionRole.secondary => colorScheme.onSurface,
+      OperationActionRole.danger => colorScheme.onErrorContainer,
+    };
+    final effectiveForeground = classicTerminal
+        ? onPressed == null
+              ? colorScheme.onSurface.withValues(alpha: .55)
+              : terminalForeground
+        : foregroundColor;
     final button = SizedBox(
       width: double.infinity,
       height: surfaceTheme?.buttonHeight ?? 52,
@@ -102,6 +119,8 @@ class OperationButton extends StatelessWidget {
           elevation: usesTransparentButtonMaterial ? 0 : 4,
           backgroundColor: usesTransparentButtonMaterial
               ? Colors.transparent
+              : classicTerminal
+              ? terminalBackground
               : null,
           shadowColor: usesTransparentButtonMaterial
               ? Colors.transparent
@@ -109,15 +128,21 @@ class OperationButton extends StatelessWidget {
           surfaceTintColor: usesTransparentButtonMaterial
               ? Colors.transparent
               : null,
-          foregroundColor: foregroundColor,
-          disabledForegroundColor: Theme.of(context).disabledColor,
+          foregroundColor: effectiveForeground,
+          disabledBackgroundColor: classicTerminal
+              ? colorScheme.surfaceContainerHighest
+              : null,
+          disabledForegroundColor: classicTerminal
+              ? colorScheme.onSurface.withValues(alpha: .55)
+              : Theme.of(context).disabledColor,
+          side: classicTerminal ? BorderSide(color: colorScheme.outline) : null,
           shape: RoundedRectangleBorder(borderRadius: AppRadius.medium),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 20, color: foregroundColor),
+              Icon(icon, size: 20, color: effectiveForeground),
               SizedBox(width: AppSpacing.sm),
             ],
             Flexible(
@@ -125,7 +150,9 @@ class OperationButton extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 child: MixedScriptText(
                   text,
-                  style: AppTextStyles.label.copyWith(color: foregroundColor),
+                  style: AppTextStyles.label.copyWith(
+                    color: effectiveForeground,
+                  ),
                 ),
               ),
             ),
@@ -133,7 +160,9 @@ class OperationButton extends StatelessWidget {
         ),
       ),
     );
-    final surfaced = flattenSurface
+    final surfaced = classicTerminal
+        ? button
+        : flattenSurface
         ? button
         : frostedGradient || frostedGlass || dashboardReferenceGlass
         ? _OperationSafeGlassSurface(

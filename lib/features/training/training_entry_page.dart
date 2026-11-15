@@ -27,6 +27,7 @@ import 'services/training_v2_form_mapper.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../training_analysis/pages/training_analysis_page.dart';
 import '../food/widgets/food_saved_floating_hud.dart';
+import '../themes/base_camp/base_camp_presentation.dart';
 import '../themes/base_camp/base_camp_retro_terminal.dart';
 import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
@@ -533,17 +534,20 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       isPaused: _form.isPaused,
       isEditing: _isEditing,
     );
+    final baseCamp = BaseCampPresentation.isActive(context);
     return BaseCampRetroTerminalScreen(
       screenKey: 'training',
       child: TrainingKineticScaffold(
         appBar: AppBar(
           leading: Navigator.canPop(context)
               ? TrainingLedBackButton(
-                  activeColor: switch (presentationState) {
-                    TrainingPresentationState.active => AppColors.success,
-                    TrainingPresentationState.paused => AppColors.warning,
-                    _ => AppColors.primary,
-                  },
+                  activeColor: baseCamp
+                      ? Theme.of(context).colorScheme.onSurface
+                      : switch (presentationState) {
+                          TrainingPresentationState.active => AppColors.success,
+                          TrainingPresentationState.paused => AppColors.warning,
+                          _ => AppColors.primary,
+                        },
                 )
               : null,
           // The title is deliberately in the full-width flexible space instead
@@ -555,12 +559,15 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
             bottom: false,
             child: IgnorePointer(
               child: Center(
-                child: _TrainingAppBarTitle(
-                  state: presentationState,
-                  animateArrival:
-                      presentationState == TrainingPresentationState.active &&
-                      !_confirmationOpen,
-                ),
+                child: baseCamp
+                    ? const Text('TRAINING')
+                    : _TrainingAppBarTitle(
+                        state: presentationState,
+                        animateArrival:
+                            presentationState ==
+                                TrainingPresentationState.active &&
+                            !_confirmationOpen,
+                      ),
               ),
             ),
           ),
@@ -1002,6 +1009,7 @@ class _TrainingAppBarStateBadge extends StatelessWidget {
     final active = state == TrainingPresentationState.active;
     final color = active ? AppColors.success : AppColors.warning;
     final label = active ? 'ACTIVE' : 'PAUSED';
+    final baseCamp = BaseCampPresentation.isActive(context);
     return Semantics(
       label: 'Training session ${active ? 'active' : 'paused'}',
       child: Container(
@@ -1009,19 +1017,29 @@ class _TrainingAppBarStateBadge extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 10),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: .12),
-          border: Border.all(color: color),
-          borderRadius: BorderRadius.circular(999),
+          color: baseCamp
+              ? Theme.of(context).colorScheme.surfaceContainer
+              : color.withValues(alpha: .12),
+          border: Border.all(
+            color: baseCamp ? Theme.of(context).colorScheme.outline : color,
+          ),
+          borderRadius: BorderRadius.circular(baseCamp ? 4 : 999),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.circle, size: 7, color: color),
+            Icon(
+              Icons.circle,
+              size: 7,
+              color: baseCamp ? Theme.of(context).colorScheme.onSurface : color,
+            ),
             const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
-                color: color,
+                color: baseCamp
+                    ? Theme.of(context).colorScheme.onSurface
+                    : color,
                 fontWeight: FontWeight.w800,
                 fontSize: 11,
               ),
@@ -1038,6 +1056,22 @@ ThemeData _trainingEntryTheme(
   required TrainingPresentationState state,
 }) {
   final theme = Theme.of(context);
+  if (BaseCampPresentation.isActive(context)) {
+    return theme.copyWith(
+      inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 10,
+        ),
+        labelStyle: const TextStyle(fontSize: 12),
+        floatingLabelStyle: const TextStyle(fontSize: 12),
+      ),
+      textTheme: theme.textTheme.copyWith(
+        bodyLarge: theme.textTheme.bodyLarge?.copyWith(fontSize: 14),
+      ),
+    );
+  }
   final colors = theme.colorScheme;
   final stateTint =
       state == TrainingPresentationState.active ||

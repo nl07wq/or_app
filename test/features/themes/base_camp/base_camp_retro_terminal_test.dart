@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
+import 'package:or_app/core/widgets/dashboard_glass_card.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
+import 'package:or_app/core/widgets/operation_card.dart';
+import 'package:or_app/core/widgets/operation_text_field.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart'
     show BaseCampLcdGrainPainter;
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
@@ -73,6 +77,85 @@ void main() {
     expect((grain.painter! as BaseCampLcdGrainPainter).negative, isTrue);
   });
 
+  for (final negative in <bool>[false, true]) {
+    testWidgets(
+      'shared controls are opaque classic terminal surfaces when INV=$negative',
+      (tester) async {
+        DeviceSettingsController.instance.update(
+          DeviceSettingsController.instance.value.copyWith(
+            baseCampLcdNegative: negative,
+          ),
+        );
+        final controller = TextEditingController(text: '500 / 2900 ml');
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          _baseCampHarness(
+            child: Scaffold(
+              body: ListView(
+                children: [
+                  const DashboardGlassCard(
+                    child: Text('OPAQUE TERMINAL PANEL'),
+                  ),
+                  OperationTextField(
+                    key: const ValueKey('terminal-input'),
+                    controller: controller,
+                    label: 'WATER',
+                    glass: true,
+                  ),
+                  const OperationButton(
+                    key: ValueKey('terminal-disabled-button'),
+                    text: 'DISABLED',
+                    onPressed: null,
+                    dashboardGlass: true,
+                    frostedGradient: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final context = tester.element(find.text('OPAQUE TERMINAL PANEL'));
+        final theme = Theme.of(context);
+        final surface = theme.extension<OperationSurfaceTheme>();
+        expect(surface?.useClassicTerminal, isTrue);
+        expect(theme.cardColor.a, 1);
+
+        final card = tester.widget<Card>(find.byType(Card).first);
+        expect(card.color?.a, 1);
+        expect(card.elevation, 0);
+        expect(card.shadowColor, Colors.transparent);
+
+        final field = tester.widget<TextField>(
+          find.descendant(
+            of: find.byKey(const ValueKey('terminal-input')),
+            matching: find.byType(TextField),
+          ),
+        );
+        expect(field.decoration?.filled, isTrue);
+        expect(field.decoration?.fillColor?.a, 1);
+
+        final button = tester.widget<ElevatedButton>(
+          find.descendant(
+            of: find.byKey(const ValueKey('terminal-disabled-button')),
+            matching: find.byType(ElevatedButton),
+          ),
+        );
+        expect(button.style?.backgroundColor?.resolve(<WidgetState>{})?.a, 1);
+        expect(
+          button.style?.backgroundColor?.resolve(<WidgetState>{
+            WidgetState.disabled,
+          })?.a,
+          1,
+        );
+        expect(find.byType(DashboardGlassCard), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('STANDARD retains its original widget tree and Theme', (
     tester,
   ) async {
@@ -122,26 +205,31 @@ void main() {
   });
 }
 
-Widget _baseCampHarness() => MaterialApp(
+Widget _baseCampHarness({Widget? child}) => MaterialApp(
   theme: BaseCampRetroTheme.apply(ThemeData.light()),
   home: BaseCampPresentation(
     screen: BaseCampScreen.system,
     child: BaseCampRetroTerminalScreen(
       screenKey: 'contract-test',
-      child: Scaffold(
-        appBar: AppBar(title: const Text('STATUS ENTRY')),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: const <Widget>[
-            Card(
-              child: Padding(padding: EdgeInsets.all(12), child: Text('BODY')),
+      child:
+          child ??
+          Scaffold(
+            appBar: AppBar(title: const Text('STATUS ENTRY')),
+            body: ListView(
+              padding: const EdgeInsets.all(16),
+              children: const <Widget>[
+                Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text('BODY'),
+                  ),
+                ),
+                TextField(decoration: InputDecoration(labelText: 'WEIGHT kg')),
+                SizedBox(height: 12),
+                ElevatedButton(onPressed: null, child: Text('SAVE')),
+              ],
             ),
-            TextField(decoration: InputDecoration(labelText: 'WEIGHT kg')),
-            SizedBox(height: 12),
-            ElevatedButton(onPressed: null, child: Text('SAVE')),
-          ],
-        ),
-      ),
+          ),
     ),
   ),
 );

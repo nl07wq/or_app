@@ -5,6 +5,7 @@ import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import '../../../core/models/digestive_event.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
+import '../../../core/widgets/operation_card.dart';
 import '../models/activity_draft.dart';
 
 class DigestiveEventCard extends StatelessWidget {
@@ -270,9 +271,18 @@ class _ReliefChoiceButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
     final textScale = MediaQuery.textScalerOf(context).scale(1);
     final labelSize = textScale > 1.15 ? 12.0 : 13.0;
-    final foreground = selected ? scheme.onPrimaryContainer : scheme.onSurface;
+    final foreground = selected
+        ? classicTerminal
+              ? scheme.onPrimary
+              : scheme.onPrimaryContainer
+        : scheme.onSurface;
     return Semantics(
       label: label,
       button: true,
@@ -280,18 +290,24 @@ class _ReliefChoiceButton extends StatelessWidget {
       enabled: enabled,
       child: Material(
         color: selected
-            ? scheme.primaryContainer.withValues(alpha: .82)
+            ? classicTerminal
+                  ? scheme.primary
+                  : scheme.primaryContainer.withValues(alpha: .82)
+            : classicTerminal
+            ? scheme.surfaceContainerHighest
             : scheme.surfaceContainerHighest.withValues(alpha: .36),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(classicTerminal ? 4 : 10),
           side: BorderSide(
-            color: selected
+            color: classicTerminal
+                ? scheme.outline
+                : selected
                 ? scheme.primary.withValues(alpha: .88)
                 : scheme.outline.withValues(alpha: .34),
           ),
         ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(classicTerminal ? 4 : 10),
           onTap: enabled ? onSelected : null,
           child: Center(
             child: Padding(

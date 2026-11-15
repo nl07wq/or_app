@@ -7,6 +7,7 @@ import '../../../core/models/training_set_v2.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
+import '../../../core/widgets/operation_card.dart';
 import '../models/training_v2_form_controller.dart';
 
 class TrainingSetV2Editor extends StatelessWidget {
@@ -109,11 +110,18 @@ class _SetEditor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final classicTerminal =
+        Theme.of(
+          context,
+        ).extension<OperationSurfaceTheme>()?.useClassicTerminal ??
+        false;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: activeBase.withValues(alpha: 0.04),
+        color: classicTerminal
+            ? Theme.of(context).colorScheme.surfaceContainerHighest
+            : activeBase.withValues(alpha: 0.04),
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 12),
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),
