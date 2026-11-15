@@ -127,15 +127,22 @@ void main() {
       await tester.tap(find.text('APPLY REPORT'));
       await tester.pump();
       expect(find.text(entry.$3), findsOneWidget);
-      expect(find.text('RECEIVING...'), findsOneWidget);
+      expect(find.text('CONNECTING...'), findsOneWidget);
       expect(find.text('RECEIVED'), findsNothing);
       expect(calls, 1);
+      await tester.pump(baseCampCommunicationConnectingDuration);
+      expect(find.text('RECEIVING...'), findsOneWidget);
 
       task.complete('saved');
-      await tester.pump();
+      await tester.pump(
+        baseCampCommunicationTransferFloor -
+            baseCampCommunicationConnectingDuration,
+      );
       expect(find.text('RECEIVED'), findsOneWidget);
       expect(result, isNull);
-      await tester.pump(const Duration(milliseconds: 399));
+      await tester.pump(
+        baseCampCommunicationCompletionHold - const Duration(milliseconds: 1),
+      );
       expect(find.text('RECEIVED'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 1));
       expect(result, 'saved');

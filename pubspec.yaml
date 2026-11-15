@@ -38,6 +38,7 @@ dependencies:
   fl_chart: ^1.2.0
   material_symbols_icons: 4.2960.0
   qr_flutter: ^4.1.0
+  flutter_svg: ^2.4.0
   web: ^1.1.1
 
 dev_dependencies:
@@ -107,6 +108,7 @@ flutter:
     - assets/images/themes/base_camp/breathing_soldier/
     - assets/images/themes/base_camp/breathing_soldier/rifle_regrip/
     - assets/images/themes/base_camp/entry/
+    - assets/images/themes/base_camp/communication/
     - assets/data/
     - assets/body_map/
     - assets/animations/activity/reference_motion/activity_reference_motion_activity_h264.mp4

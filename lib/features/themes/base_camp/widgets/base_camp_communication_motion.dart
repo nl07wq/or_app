@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../base_camp_dashboard_page.dart' show BaseCampLcdGrainPainter;
 
@@ -18,13 +19,75 @@ enum BaseCampCommunicationPhase { running, success }
 enum BaseCampCommunicationEndpoint { documentToComputer, folderToServer }
 
 const baseCampCommunicationFrameDuration = Duration(milliseconds: 200);
-const baseCampCommunicationCompletionHold = Duration(milliseconds: 400);
+const baseCampCommunicationConnectingDuration = Duration(milliseconds: 500);
+const baseCampCommunicationTransferFloor = Duration(milliseconds: 3000);
+const baseCampCommunicationCompletionHold = Duration(milliseconds: 1000);
+const baseCampCommunicationMinimumDisplay = Duration(milliseconds: 4000);
+
+const baseCampCommunicationAssetRoot =
+    'assets/images/themes/base_camp/communication';
+const baseCampCommunicationDocumentAsset =
+    '$baseCampCommunicationAssetRoot/document.svg';
+const baseCampCommunicationComputerIdleAsset =
+    '$baseCampCommunicationAssetRoot/computer_idle.svg';
+const baseCampCommunicationComputerCompleteAsset =
+    '$baseCampCommunicationAssetRoot/computer_complete.svg';
+const baseCampCommunicationFolderAsset =
+    '$baseCampCommunicationAssetRoot/folder.svg';
+const baseCampCommunicationServerIdleAsset =
+    '$baseCampCommunicationAssetRoot/server_idle.svg';
+const baseCampCommunicationServerCompleteAsset =
+    '$baseCampCommunicationAssetRoot/server_complete.svg';
+const baseCampCommunicationArrowIdleAsset =
+    '$baseCampCommunicationAssetRoot/arrow_idle.svg';
+const baseCampCommunicationArrowActiveAsset =
+    '$baseCampCommunicationAssetRoot/arrow_active.svg';
+const baseCampCommunicationStatusRunningAsset =
+    '$baseCampCommunicationAssetRoot/status_strip_running.svg';
+const baseCampCommunicationStatusCompleteAsset =
+    '$baseCampCommunicationAssetRoot/status_strip_complete.svg';
+
+const baseCampCommunicationAssets = <String>[
+  baseCampCommunicationDocumentAsset,
+  baseCampCommunicationComputerIdleAsset,
+  baseCampCommunicationComputerCompleteAsset,
+  baseCampCommunicationFolderAsset,
+  baseCampCommunicationServerIdleAsset,
+  baseCampCommunicationServerCompleteAsset,
+  baseCampCommunicationArrowIdleAsset,
+  baseCampCommunicationArrowActiveAsset,
+  baseCampCommunicationStatusRunningAsset,
+  baseCampCommunicationStatusCompleteAsset,
+];
+
+Future<void> prepareBaseCampCommunicationAssets(BuildContext context) =>
+    Future.wait<void>([
+      for (final asset in baseCampCommunicationAssets)
+        SvgAssetLoader(asset).loadBytes(context).then<void>((_) {}),
+    ]);
 
 BaseCampCommunicationEndpoint baseCampCommunicationEndpoint(
   BaseCampCommunicationKind kind,
 ) => kind == BaseCampCommunicationKind.backup
     ? BaseCampCommunicationEndpoint.folderToServer
     : BaseCampCommunicationEndpoint.documentToComputer;
+
+String baseCampCommunicationSourceAsset(BaseCampCommunicationKind kind) =>
+    kind == BaseCampCommunicationKind.backup
+    ? baseCampCommunicationFolderAsset
+    : baseCampCommunicationDocumentAsset;
+
+String baseCampCommunicationDestinationIdleAsset(
+  BaseCampCommunicationKind kind,
+) => kind == BaseCampCommunicationKind.backup
+    ? baseCampCommunicationServerIdleAsset
+    : baseCampCommunicationComputerIdleAsset;
+
+String baseCampCommunicationDestinationCompleteAsset(
+  BaseCampCommunicationKind kind,
+) => kind == BaseCampCommunicationKind.backup
+    ? baseCampCommunicationServerCompleteAsset
+    : baseCampCommunicationComputerCompleteAsset;
 
 String baseCampCommunicationTitle(BaseCampCommunicationKind kind) =>
     switch (kind) {
@@ -93,6 +156,7 @@ abstract final class BaseCampCommunicationOverlay {
     bool Function(T result)? isSuccess,
   }) async {
     final overlay = Overlay.of(context, rootOverlay: true);
+    await prepareBaseCampCommunicationAssets(context);
     final phase = ValueNotifier(BaseCampCommunicationPhase.running);
     final entry = OverlayEntry(
       builder: (_) => ValueListenableBuilder<BaseCampCommunicationPhase>(
@@ -102,6 +166,10 @@ abstract final class BaseCampCommunicationOverlay {
       ),
     );
     overlay.insert(entry);
+    final transferFloorReached = Completer<void>();
+    final transferFloorTimer = Timer(baseCampCommunicationTransferFloor, () {
+      transferFloorReached.complete();
+    });
 
     T? result;
     Object? taskError;
@@ -120,10 +188,12 @@ abstract final class BaseCampCommunicationOverlay {
       final value = result as T;
       if (!(isSuccess?.call(value) ?? true)) return value;
 
+      await transferFloorReached.future;
       phase.value = BaseCampCommunicationPhase.success;
       await Future<void>.delayed(baseCampCommunicationCompletionHold);
       return value;
     } finally {
+      transferFloorTimer.cancel();
       entry.remove();
       phase.dispose();
     }
@@ -147,8 +217,10 @@ class BaseCampCommunicationMotion extends StatefulWidget {
 
 class _BaseCampCommunicationMotionState
     extends State<BaseCampCommunicationMotion> {
-  Timer? _timer;
+  Timer? _connectingTimer;
+  Timer? _transferTimer;
   int _frame = 0;
+  bool _connecting = true;
 
   @override
   void initState() {
@@ -159,45 +231,66 @@ class _BaseCampCommunicationMotionState
   @override
   void didUpdateWidget(BaseCampCommunicationMotion oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.phase != widget.phase) _syncTimer();
+    if (oldWidget.phase != widget.phase || oldWidget.kind != widget.kind) {
+      _syncTimer();
+    }
   }
 
   void _syncTimer() {
-    _timer?.cancel();
+    _connectingTimer?.cancel();
+    _transferTimer?.cancel();
     if (widget.phase == BaseCampCommunicationPhase.success) {
+      _connecting = false;
       _frame = 4;
       return;
     }
+    _connecting = true;
     _frame = 0;
-    _timer = Timer.periodic(baseCampCommunicationFrameDuration, (_) {
-      if (!mounted) return;
-      setState(() => _frame = (_frame + 1) % 4);
+    _connectingTimer = Timer(baseCampCommunicationConnectingDuration, () {
+      if (!mounted || widget.phase == BaseCampCommunicationPhase.success) {
+        return;
+      }
+      setState(() {
+        _connecting = false;
+        _frame = 0;
+      });
+      _transferTimer = Timer.periodic(baseCampCommunicationFrameDuration, (_) {
+        if (!mounted || widget.phase == BaseCampCommunicationPhase.success) {
+          return;
+        }
+        setState(() => _frame = (_frame + 1) % 4);
+      });
     });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _connectingTimer?.cancel();
+    _transferTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     const phosphor = Color(0xffb8cf72);
-    const dimPhosphor = Color(0xff4e5f37);
     const housing = Color(0xff171d13);
     const frame = Color(0xff6e7b4c);
     const lcd = Color(0xff232d1b);
+    final complete = widget.phase == BaseCampCommunicationPhase.success;
+    final status = _connecting && !complete
+        ? 'CONNECTING...'
+        : baseCampCommunicationStatus(widget.kind, widget.phase);
 
     return Material(
       color: const Color(0xe6080b07),
       child: SafeArea(
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+          child: FractionallySizedBox(
+            widthFactor: .9,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: DecoratedBox(
+                key: const ValueKey('base-camp-communication-housing'),
                 decoration: BoxDecoration(
                   color: housing,
                   border: Border.all(color: frame, width: 2),
@@ -227,10 +320,10 @@ class _BaseCampCommunicationMotionState
                             children: [
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(
-                                  16,
+                                  14,
                                   18,
-                                  16,
-                                  16,
+                                  14,
+                                  14,
                                 ),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
@@ -249,56 +342,30 @@ class _BaseCampCommunicationMotionState
                                         letterSpacing: -.4,
                                       ),
                                     ),
-                                    const SizedBox(height: 16),
+                                    const SizedBox(height: 18),
                                     SizedBox(
-                                      height: 92,
+                                      key: ValueKey(
+                                        'base-camp-communication-frame-$_frame',
+                                      ),
+                                      height: 64,
                                       width: double.infinity,
-                                      child: CustomPaint(
-                                        key: ValueKey(
-                                          'base-camp-communication-frame-$_frame',
-                                        ),
-                                        painter: BaseCampCommunicationPainter(
-                                          kind: widget.kind,
-                                          frame: _frame,
-                                          activeColor: phosphor,
-                                          idleColor: dimPhosphor,
-                                        ),
+                                      child: _CommunicationTransferDisplay(
+                                        kind: widget.kind,
+                                        activeArrowCount: complete
+                                            ? 3
+                                            : _connecting
+                                            ? 0
+                                            : _frame,
+                                        complete: complete,
                                       ),
                                     ),
-                                    const SizedBox(height: 14),
-                                    AnimatedDefaultTextStyle(
-                                      duration:
-                                          baseCampCommunicationFrameDuration,
-                                      style: TextStyle(
-                                        color: phosphor,
-                                        fontFamily: 'PressStart2P',
-                                        fontSize: 11,
-                                        height: 1.25,
-                                        letterSpacing: -.4,
-                                        shadows:
-                                            widget.phase ==
-                                                BaseCampCommunicationPhase
-                                                    .success
-                                            ? const [
-                                                Shadow(
-                                                  color: phosphor,
-                                                  blurRadius: 5,
-                                                ),
-                                              ]
-                                            : const [],
-                                      ),
-                                      child: Text(
-                                        baseCampCommunicationStatus(
-                                          widget.kind,
-                                          widget.phase,
-                                        ),
-                                        key: const ValueKey(
-                                          'base-camp-communication-status',
-                                        ),
-                                      ),
+                                    const SizedBox(height: 16),
+                                    _CommunicationStatusStrip(
+                                      complete: complete,
+                                      status: status,
                                     ),
                                     const SizedBox(height: 12),
-                                    const SizedBox(
+                                    SizedBox(
                                       key: ValueKey(
                                         'base-camp-communication-vent',
                                       ),
@@ -307,7 +374,7 @@ class _BaseCampCommunicationMotionState
                                       child: CustomPaint(
                                         painter:
                                             BaseCampCommunicationVentPainter(
-                                              color: dimPhosphor,
+                                              color: Color(0xff4e5f37),
                                             ),
                                       ),
                                     ),
@@ -342,190 +409,156 @@ class _BaseCampCommunicationMotionState
   }
 }
 
-@visibleForTesting
-class BaseCampCommunicationPainter extends CustomPainter {
-  const BaseCampCommunicationPainter({
+class _CommunicationTransferDisplay extends StatelessWidget {
+  const _CommunicationTransferDisplay({
     required this.kind,
-    required this.frame,
-    required this.activeColor,
-    required this.idleColor,
+    required this.activeArrowCount,
+    required this.complete,
   });
 
   final BaseCampCommunicationKind kind;
-  final int frame;
-  final Color activeColor;
-  final Color idleColor;
+  final int activeArrowCount;
+  final bool complete;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final scale = (size.height / 46).clamp(1.0, 2.0);
-    final centerY = size.height / 2;
-    final sourceCenter = Offset(size.width * .16, centerY);
-    final destinationCenter = Offset(size.width * .84, centerY);
-    final pixel = scale * 2;
-
-    switch (baseCampCommunicationEndpoint(kind)) {
-      case BaseCampCommunicationEndpoint.documentToComputer:
-        _paintDocument(canvas, sourceCenter, pixel);
-        _paintComputer(canvas, destinationCenter, pixel, frame == 4);
-      case BaseCampCommunicationEndpoint.folderToServer:
-        _paintFolder(canvas, sourceCenter, pixel);
-        _paintServer(canvas, destinationCenter, pixel, frame == 4);
-    }
-
-    for (var index = 0; index < 3; index++) {
-      final lit = frame == 4 || index < frame;
-      _paintArrow(
-        canvas,
-        Offset(size.width * (.36 + index * .14), centerY),
-        pixel,
-        lit ? activeColor : idleColor,
-      );
-    }
-  }
-
-  Paint _paint(Color color) => Paint()
-    ..color = color
-    ..style = PaintingStyle.fill
-    ..isAntiAlias = false;
-
-  void _pixelRect(
-    Canvas canvas,
-    Offset center,
-    double pixel,
-    Rect units,
-    Color color,
-  ) {
-    canvas.drawRect(
-      Rect.fromLTWH(
-        center.dx + units.left * pixel,
-        center.dy + units.top * pixel,
-        units.width * pixel,
-        units.height * pixel,
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      _CommunicationSvg(
+        key: const ValueKey('base-camp-communication-source'),
+        asset: baseCampCommunicationSourceAsset(kind),
+        size: 64,
       ),
-      _paint(color),
-    );
-  }
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var index = 0; index < 3; index++) ...[
+            if (index > 0) const SizedBox(width: 6),
+            _CommunicationSvgSwitch(
+              switchKey: 'base-camp-communication-arrow-$index',
+              idleAsset: baseCampCommunicationArrowIdleAsset,
+              activeAsset: baseCampCommunicationArrowActiveAsset,
+              active: index < activeArrowCount,
+              size: 20,
+            ),
+          ],
+        ],
+      ),
+      _CommunicationSvgSwitch(
+        switchKey: 'base-camp-communication-destination',
+        idleAsset: baseCampCommunicationDestinationIdleAsset(kind),
+        activeAsset: baseCampCommunicationDestinationCompleteAsset(kind),
+        active: complete,
+        size: 64,
+      ),
+    ],
+  );
+}
 
-  void _paintDocument(Canvas canvas, Offset center, double pixel) {
-    _pixelRect(
-      canvas,
-      center,
-      pixel,
-      const Rect.fromLTWH(-4, -6, 7, 12),
-      activeColor,
-    );
-    _pixelRect(
-      canvas,
-      center,
-      pixel,
-      const Rect.fromLTWH(-2, -4, 3, 1),
-      idleColor,
-    );
-    _pixelRect(
-      canvas,
-      center,
-      pixel,
-      const Rect.fromLTWH(-2, -1, 3, 1),
-      idleColor,
-    );
-    _pixelRect(
-      canvas,
-      center,
-      pixel,
-      const Rect.fromLTWH(-2, 2, 3, 1),
-      idleColor,
-    );
-    _pixelRect(
-      canvas,
-      center,
-      pixel,
-      const Rect.fromLTWH(3, -4, 1, 10),
-      idleColor,
-    );
-  }
+class _CommunicationStatusStrip extends StatelessWidget {
+  const _CommunicationStatusStrip({
+    required this.complete,
+    required this.status,
+  });
 
-  void _paintFolder(Canvas canvas, Offset center, double pixel) {
-    _pixelRect(
-      canvas,
-      center,
-      pixel,
-      const Rect.fromLTWH(-5, -4, 4, 2),
-      activeColor,
-    );
-    _pixelRect(
-      canvas,
-      center,
-      pixel,
-      const Rect.fromLTWH(-5, -2, 10, 7),
-      activeColor,
-    );
-    _pixelRect(
-      canvas,
-      center,
-      pixel,
-      const Rect.fromLTWH(-3, 0, 6, 3),
-      idleColor,
-    );
-  }
-
-  void _paintComputer(Canvas canvas, Offset center, double pixel, bool glow) {
-    final color = glow ? activeColor : idleColor;
-    if (glow) {
-      canvas.drawRect(
-        Rect.fromCenter(center: center, width: pixel * 13, height: pixel * 13),
-        _paint(activeColor.withValues(alpha: .18)),
-      );
-    }
-    _pixelRect(
-      canvas,
-      center,
-      pixel,
-      const Rect.fromLTWH(-5, -6, 10, 9),
-      color,
-    );
-    _pixelRect(
-      canvas,
-      center,
-      pixel,
-      const Rect.fromLTWH(-3, -4, 6, 5),
-      const Color(0xff171d13),
-    );
-    _pixelRect(canvas, center, pixel, const Rect.fromLTWH(-1, 3, 2, 2), color);
-    _pixelRect(canvas, center, pixel, const Rect.fromLTWH(-3, 5, 6, 1), color);
-  }
-
-  void _paintServer(Canvas canvas, Offset center, double pixel, bool glow) {
-    final color = glow ? activeColor : idleColor;
-    if (glow) {
-      canvas.drawRect(
-        Rect.fromCenter(center: center, width: pixel * 13, height: pixel * 15),
-        _paint(activeColor.withValues(alpha: .18)),
-      );
-    }
-    for (final y in [-6.0, -1.5, 3.0]) {
-      _pixelRect(canvas, center, pixel, Rect.fromLTWH(-5, y, 10, 3.5), color);
-      _pixelRect(
-        canvas,
-        center,
-        pixel,
-        Rect.fromLTWH(2, y + 1, 1, 1),
-        activeColor,
-      );
-    }
-  }
-
-  void _paintArrow(Canvas canvas, Offset center, double pixel, Color color) {
-    _pixelRect(canvas, center, pixel, const Rect.fromLTWH(-3, -1, 5, 2), color);
-    _pixelRect(canvas, center, pixel, const Rect.fromLTWH(1, -3, 2, 6), color);
-  }
+  final bool complete;
+  final String status;
 
   @override
-  bool shouldRepaint(covariant BaseCampCommunicationPainter oldDelegate) =>
-      oldDelegate.kind != kind ||
-      oldDelegate.frame != frame ||
-      oldDelegate.activeColor != activeColor ||
-      oldDelegate.idleColor != idleColor;
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.maxWidth.clamp(0.0, 256.0);
+      return Align(
+        child: SizedBox(
+          key: const ValueKey('base-camp-communication-status-strip-surface'),
+          width: width,
+          height: width * 30 / 256,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _CommunicationSvgSwitch(
+                switchKey: 'base-camp-communication-status-strip',
+                idleAsset: baseCampCommunicationStatusRunningAsset,
+                activeAsset: baseCampCommunicationStatusCompleteAsset,
+                active: complete,
+              ),
+              Center(
+                child: Text(
+                  status,
+                  key: const ValueKey('base-camp-communication-status'),
+                  style: TextStyle(
+                    color: complete
+                        ? const Color(0xff17251a)
+                        : const Color(0xffb8cf72),
+                    fontFamily: 'PressStart2P',
+                    fontSize: 10,
+                    height: 1.2,
+                    letterSpacing: -.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _CommunicationSvgSwitch extends StatelessWidget {
+  const _CommunicationSvgSwitch({
+    required this.switchKey,
+    required this.idleAsset,
+    required this.activeAsset,
+    required this.active,
+    this.size,
+  });
+
+  final String switchKey;
+  final String idleAsset;
+  final String activeAsset;
+  final bool active;
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: size,
+    height: size,
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        Opacity(
+          key: ValueKey('$switchKey-idle'),
+          opacity: active ? 0 : 1,
+          child: _CommunicationSvg(asset: idleAsset),
+        ),
+        Opacity(
+          key: ValueKey('$switchKey-active'),
+          opacity: active ? 1 : 0,
+          child: _CommunicationSvg(asset: activeAsset),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CommunicationSvg extends StatelessWidget {
+  const _CommunicationSvg({super.key, required this.asset, this.size});
+
+  final String asset;
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: size,
+    height: size,
+    child: SvgPicture.asset(
+      asset,
+      key: ValueKey('base-camp-communication-svg-$asset'),
+      fit: BoxFit.contain,
+      excludeFromSemantics: true,
+    ),
+  );
 }
 
 @visibleForTesting

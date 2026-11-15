@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/system/widgets/operation_sequence_overlay.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
+import 'package:or_app/features/themes/base_camp/widgets/base_camp_communication_motion.dart';
 
 void main() {
   testWidgets('fast operation exposes skip and never shows Sandbox controls', (
@@ -117,14 +118,19 @@ void main() {
     await tester.tap(find.text('START'));
     await tester.pump();
     expect(find.text('DAILY BRIEF'), findsOneWidget);
-    expect(find.text('RECEIVING...'), findsOneWidget);
+    expect(find.text('CONNECTING...'), findsOneWidget);
     expect(find.text('PROCESSING'), findsNothing);
+    await tester.pump(baseCampCommunicationConnectingDuration);
+    expect(find.text('RECEIVING...'), findsOneWidget);
 
     task.complete();
-    await tester.pump();
+    await tester.pump(
+      baseCampCommunicationTransferFloor -
+          baseCampCommunicationConnectingDuration,
+    );
     expect(find.text('RECEIVED'), findsOneWidget);
     expect(returned, isFalse);
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(baseCampCommunicationCompletionHold);
     expect(returned, isTrue);
   });
 
@@ -146,13 +152,18 @@ void main() {
     await tester.tap(find.text('START'));
     await tester.pump();
     expect(find.text('DAILY DEBRIEF'), findsOneWidget);
-    expect(find.text('RECEIVING...'), findsOneWidget);
+    expect(find.text('CONNECTING...'), findsOneWidget);
     expect(find.text('PROCESSING'), findsNothing);
+    await tester.pump(baseCampCommunicationConnectingDuration);
+    expect(find.text('RECEIVING...'), findsOneWidget);
 
     task.complete();
-    await tester.pump();
+    await tester.pump(
+      baseCampCommunicationTransferFloor -
+          baseCampCommunicationConnectingDuration,
+    );
     expect(find.text('RECEIVED'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(baseCampCommunicationCompletionHold);
   });
 
   testWidgets('BASE CAMP restore opt-out retains the existing Voxel shell', (

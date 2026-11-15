@@ -1,104 +1,171 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart'
     show BaseCampLcdGrainPainter;
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_communication_motion.dart';
 
 void main() {
-  test('communication copy is fixed for every operation kind', () {
-    expect(
-      baseCampCommunicationTitle(BaseCampCommunicationKind.dailyBrief),
-      'DAILY BRIEF',
-    );
-    expect(
-      baseCampCommunicationTitle(BaseCampCommunicationKind.dailyDebrief),
-      'DAILY DEBRIEF',
-    );
-    expect(
-      baseCampCommunicationTitle(BaseCampCommunicationKind.weeklyReport),
-      'WEEKLY REPORT',
-    );
-    expect(
-      baseCampCommunicationTitle(BaseCampCommunicationKind.monthlyReport),
-      'MONTHLY REPORT',
-    );
-    expect(
-      baseCampCommunicationTitle(BaseCampCommunicationKind.yearlyReport),
-      'YEARLY REPORT',
-    );
-    expect(
-      baseCampCommunicationTitle(BaseCampCommunicationKind.backup),
-      'ARK BACKUP',
-    );
-    expect(
-      baseCampCommunicationStatus(
-        BaseCampCommunicationKind.dailyBrief,
-        BaseCampCommunicationPhase.running,
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(svg.cache.clear);
+
+  testWidgets('all ten approved SVG assets load and compile', (tester) async {
+    late BuildContext context;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (value) {
+            context = value;
+            return const SizedBox.shrink();
+          },
+        ),
       ),
-      'RECEIVING...',
     );
-    expect(
-      baseCampCommunicationStatus(
-        BaseCampCommunicationKind.dailyDebrief,
-        BaseCampCommunicationPhase.success,
-      ),
-      'RECEIVED',
+
+    expect(baseCampCommunicationAssets, hasLength(10));
+    expect(baseCampCommunicationAssets.toSet(), hasLength(10));
+    await tester.runAsync(() => prepareBaseCampCommunicationAssets(context));
+    expect(svg.cache.count, 10);
+    for (final asset in baseCampCommunicationAssets) {
+      final source = await rootBundle.loadString(asset);
+      expect(source, startsWith('<svg '), reason: asset);
+      expect(source, contains('shape-rendering="crispEdges"'), reason: asset);
+    }
+    final idleArrow = await rootBundle.loadString(
+      baseCampCommunicationArrowIdleAsset,
     );
-    expect(
-      baseCampCommunicationStatus(
-        BaseCampCommunicationKind.backup,
-        BaseCampCommunicationPhase.running,
-      ),
-      'ARCHIVING...',
+    final activeArrow = await rootBundle.loadString(
+      baseCampCommunicationArrowActiveAsset,
     );
-    expect(
-      baseCampCommunicationStatus(
-        BaseCampCommunicationKind.backup,
-        BaseCampCommunicationPhase.success,
-      ),
-      'COMPLETE',
-    );
+    for (final arrow in [idleArrow, activeArrow]) {
+      expect(arrow, contains('<polygon points="4,2 4,18 17,10"'));
+    }
+  });
+
+  test('six operations retain approved titles and SVG endpoint mapping', () {
+    const expectedTitles = <BaseCampCommunicationKind, String>{
+      BaseCampCommunicationKind.dailyBrief: 'DAILY BRIEF',
+      BaseCampCommunicationKind.dailyDebrief: 'DAILY DEBRIEF',
+      BaseCampCommunicationKind.weeklyReport: 'WEEKLY REPORT',
+      BaseCampCommunicationKind.monthlyReport: 'MONTHLY REPORT',
+      BaseCampCommunicationKind.yearlyReport: 'YEARLY REPORT',
+      BaseCampCommunicationKind.backup: 'ARK BACKUP',
+    };
+    for (final entry in expectedTitles.entries) {
+      expect(baseCampCommunicationTitle(entry.key), entry.value);
+    }
     for (final kind in BaseCampCommunicationKind.values.where(
       (kind) => kind != BaseCampCommunicationKind.backup,
     )) {
       expect(
         baseCampCommunicationEndpoint(kind),
         BaseCampCommunicationEndpoint.documentToComputer,
-        reason: kind.name,
+      );
+      expect(
+        baseCampCommunicationSourceAsset(kind),
+        baseCampCommunicationDocumentAsset,
+      );
+      expect(
+        baseCampCommunicationDestinationIdleAsset(kind),
+        baseCampCommunicationComputerIdleAsset,
+      );
+      expect(
+        baseCampCommunicationDestinationCompleteAsset(kind),
+        baseCampCommunicationComputerCompleteAsset,
       );
     }
     expect(
-      baseCampCommunicationEndpoint(BaseCampCommunicationKind.backup),
-      BaseCampCommunicationEndpoint.folderToServer,
+      baseCampCommunicationSourceAsset(BaseCampCommunicationKind.backup),
+      baseCampCommunicationFolderAsset,
+    );
+    expect(
+      baseCampCommunicationDestinationIdleAsset(
+        BaseCampCommunicationKind.backup,
+      ),
+      baseCampCommunicationServerIdleAsset,
+    );
+    expect(
+      baseCampCommunicationDestinationCompleteAsset(
+        BaseCampCommunicationKind.backup,
+      ),
+      baseCampCommunicationServerCompleteAsset,
     );
   });
 
-  testWidgets('running transfer advances F0-F3 every 200ms and loops', (
+  testWidgets('BRIEF uses document to computer and BACKUP folder to server', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: BaseCampCommunicationMotion(
-          kind: BaseCampCommunicationKind.dailyBrief,
-          phase: BaseCampCommunicationPhase.running,
+    for (final kind in const [
+      BaseCampCommunicationKind.dailyBrief,
+      BaseCampCommunicationKind.backup,
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BaseCampCommunicationMotion(
+            kind: kind,
+            phase: BaseCampCommunicationPhase.running,
+          ),
         ),
-      ),
-    );
-
-    expect(_frame(0), findsOneWidget);
-    for (var frame = 1; frame <= 3; frame++) {
-      await tester.pump(baseCampCommunicationFrameDuration);
-      expect(_frame(frame), findsOneWidget);
+      );
+      await _settleSvg(tester);
+      final assets = _renderedSvgAssets(tester);
+      expect(assets, contains(baseCampCommunicationSourceAsset(kind)));
+      expect(assets, contains(baseCampCommunicationDestinationIdleAsset(kind)));
+      expect(
+        assets,
+        contains(baseCampCommunicationDestinationCompleteAsset(kind)),
+      );
+      expect(tester.takeException(), isNull);
     }
-    await tester.pump(baseCampCommunicationFrameDuration);
-    expect(_frame(0), findsOneWidget);
-    expect(find.text('RECEIVING...'), findsOneWidget);
-    expect(find.text('RECEIVED'), findsNothing);
   });
 
-  testWidgets('success alone selects F4 and the destination glow', (
+  testWidgets(
+    'CONNECTING holds idle arrows then transfer advances every 200ms',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: BaseCampCommunicationMotion(
+            kind: BaseCampCommunicationKind.dailyBrief,
+            phase: BaseCampCommunicationPhase.running,
+          ),
+        ),
+      );
+      await _settleSvg(tester);
+
+      expect(_frame(0), findsOneWidget);
+      expect(find.text('CONNECTING...'), findsOneWidget);
+      for (var index = 0; index < 3; index++) {
+        expect(_switchOpacity(tester, 'arrow-$index', active: true), 0);
+      }
+      await tester.pump(
+        baseCampCommunicationConnectingDuration -
+            const Duration(milliseconds: 1),
+      );
+      expect(find.text('CONNECTING...'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(find.text('RECEIVING...'), findsOneWidget);
+      expect(_frame(0), findsOneWidget);
+
+      for (var frame = 1; frame <= 3; frame++) {
+        await tester.pump(baseCampCommunicationFrameDuration);
+        expect(_frame(frame), findsOneWidget);
+        for (var index = 0; index < 3; index++) {
+          expect(
+            _switchOpacity(tester, 'arrow-$index', active: true),
+            index < frame ? 1 : 0,
+          );
+        }
+      }
+      await tester.pump(baseCampCommunicationFrameDuration);
+      expect(_frame(0), findsOneWidget);
+    },
+  );
+
+  testWidgets('success swaps idle SVGs and lights all approved arrows', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -109,18 +176,26 @@ void main() {
         ),
       ),
     );
+    await _settleSvg(tester);
 
     expect(_frame(4), findsOneWidget);
     expect(find.text('COMPLETE'), findsOneWidget);
-    final paint = tester.widget<CustomPaint>(_frame(4));
-    final painter = paint.painter! as BaseCampCommunicationPainter;
-    expect(painter.kind, BaseCampCommunicationKind.backup);
-    expect(painter.frame, 4);
+    expect(_switchOpacity(tester, 'destination', active: false), 0);
+    expect(_switchOpacity(tester, 'destination', active: true), 1);
+    expect(_switchOpacity(tester, 'status-strip', active: false), 0);
+    expect(_switchOpacity(tester, 'status-strip', active: true), 1);
+    for (var index = 0; index < 3; index++) {
+      expect(_switchOpacity(tester, 'arrow-$index', active: true), 1);
+    }
   });
 
-  testWidgets('fast success enters F4 immediately and holds it for 400ms', (
+  testWidgets('fast success keeps transfer floor and one-second completion', (
     tester,
   ) async {
+    expect(
+      baseCampCommunicationTransferFloor + baseCampCommunicationCompletionHold,
+      baseCampCommunicationMinimumDisplay,
+    );
     final task = Completer<String>();
     String? result;
     await tester.pumpWidget(
@@ -136,23 +211,33 @@ void main() {
     );
 
     await tester.tap(find.text('START'));
-    await tester.pump();
+    await _pumpUntilMotion(tester);
     task.complete('saved');
     await tester.pump();
-    expect(result, isNull);
-    expect(_frame(4), findsOneWidget);
-    expect(find.text('RECEIVED'), findsOneWidget);
+    await tester.pump();
+    expect(find.text('RECEIVED'), findsNothing);
     expect(result, isNull);
 
-    await tester.pump(const Duration(milliseconds: 399));
+    var transferElapsed = Duration.zero;
+    while (find.text('RECEIVED').evaluate().isEmpty &&
+        transferElapsed < const Duration(milliseconds: 3200)) {
+      await tester.pump(const Duration(milliseconds: 10));
+      transferElapsed += const Duration(milliseconds: 10);
+    }
+    expect(
+      transferElapsed,
+      greaterThanOrEqualTo(const Duration(milliseconds: 2950)),
+    );
     expect(find.text('RECEIVED'), findsOneWidget);
     expect(result, isNull);
-    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(result, isNull);
+    await tester.pump(const Duration(milliseconds: 200));
     expect(result, 'saved');
     expect(find.text('DAILY DEBRIEF'), findsNothing);
   });
 
-  testWidgets('long operation keeps looping without success copy', (
+  testWidgets('long operation stays in transfer until actual success', (
     tester,
   ) async {
     final task = Completer<void>();
@@ -167,23 +252,28 @@ void main() {
     );
 
     await tester.tap(find.text('START'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1800));
+    await _pumpUntilMotion(tester);
+    await tester.pump(const Duration(milliseconds: 3500));
     expect(find.text('ARCHIVING...'), findsOneWidget);
     expect(find.text('COMPLETE'), findsNothing);
-    expect(find.byType(BaseCampCommunicationMotion), findsOneWidget);
 
-    task.complete();
-    await tester.pump();
-    await tester.pump();
+    await tester.runAsync(() async {
+      task.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    });
+    for (var attempt = 0; attempt < 10; attempt++) {
+      await tester.pump(const Duration(milliseconds: 10));
+      if (find.text('COMPLETE').evaluate().isNotEmpty) break;
+    }
     expect(find.text('COMPLETE'), findsOneWidget);
     await tester.pump(baseCampCommunicationCompletionHold);
+    expect(find.byType(BaseCampCommunicationMotion), findsNothing);
   });
 
-  testWidgets('failure never displays success and returns to existing caller', (
+  testWidgets('failure and rejected result never display success', (
     tester,
   ) async {
-    final task = Completer<void>();
+    final failedTask = Completer<void>();
     Object? caught;
     await tester.pumpWidget(
       _runnerHost(
@@ -192,7 +282,7 @@ void main() {
             await BaseCampCommunicationOverlay.run<void>(
               context,
               kind: BaseCampCommunicationKind.dailyBrief,
-              task: () => task.future,
+              task: () => failedTask.future,
             );
           } catch (error) {
             caught = error;
@@ -200,20 +290,14 @@ void main() {
         },
       ),
     );
-
     await tester.tap(find.text('START'));
-    await tester.pump();
-    task.completeError(StateError('save failed'));
+    await _pumpUntilMotion(tester);
+    failedTask.completeError(StateError('save failed'));
     await tester.pump();
     expect(caught, isA<StateError>());
     expect(find.text('RECEIVED'), findsNothing);
-    expect(find.text('DAILY BRIEF'), findsNothing);
-  });
+    expect(find.byType(BaseCampCommunicationMotion), findsNothing);
 
-  testWidgets('false success predicate never displays completion', (
-    tester,
-  ) async {
-    final task = Completer<bool>();
     bool? result;
     await tester.pumpWidget(
       _runnerHost(
@@ -221,24 +305,45 @@ void main() {
           result = await BaseCampCommunicationOverlay.run<bool>(
             context,
             kind: BaseCampCommunicationKind.backup,
-            task: () => task.future,
+            task: () async => false,
             isSuccess: (value) => value,
           );
         },
       ),
     );
-
     await tester.tap(find.text('START'));
-    await tester.pump();
-    task.complete(false);
-    await tester.pump();
+    await _pumpUntilResult(tester, () => result != null);
     expect(result, isFalse);
     expect(find.text('COMPLETE'), findsNothing);
-    expect(find.text('ARK BACKUP'), findsNothing);
+    expect(find.byType(BaseCampCommunicationMotion), findsNothing);
+  });
+
+  testWidgets('idle and complete SVGs remain mounted without switch gaps', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BaseCampCommunicationMotion(
+          kind: BaseCampCommunicationKind.dailyDebrief,
+          phase: BaseCampCommunicationPhase.running,
+        ),
+      ),
+    );
+    await _settleSvg(tester);
+    final assets = _renderedSvgAssets(tester);
+    expect(assets, contains(baseCampCommunicationComputerIdleAsset));
+    expect(assets, contains(baseCampCommunicationComputerCompleteAsset));
+    expect(assets, contains(baseCampCommunicationArrowIdleAsset));
+    expect(assets, contains(baseCampCommunicationArrowActiveAsset));
+    expect(assets, contains(baseCampCommunicationStatusRunningAsset));
+    expect(assets, contains(baseCampCommunicationStatusCompleteAsset));
+    await tester.pump(baseCampCommunicationConnectingDuration);
+    await tester.pump(baseCampCommunicationFrameDuration);
+    expect(tester.takeException(), isNull);
   });
 
   for (final size in const [Size(320, 480), Size(375, 667), Size(390, 844)]) {
-    testWidgets('${size.width.toInt()}px fits without overflow', (
+    testWidgets('${size.width.toInt()}px keeps the enlarged panel bounded', (
       tester,
     ) async {
       tester.view.physicalSize = size;
@@ -254,17 +359,33 @@ void main() {
           ),
         ),
       );
+      await _settleSvg(tester);
 
       expect(tester.takeException(), isNull);
-      final motionRect = tester.getRect(
-        find.byType(BaseCampCommunicationMotion),
+      final housing = tester.getRect(
+        find.byKey(const ValueKey('base-camp-communication-housing')),
       );
-      final titleRect = tester.getRect(find.text('DAILY DEBRIEF'));
-      final statusRect = tester.getRect(find.text('RECEIVING...'));
-      expect(titleRect.left, greaterThanOrEqualTo(motionRect.left));
-      expect(titleRect.right, lessThanOrEqualTo(motionRect.right));
-      expect(statusRect.left, greaterThanOrEqualTo(motionRect.left));
-      expect(statusRect.right, lessThanOrEqualTo(motionRect.right));
+      expect(housing.width, closeTo(size.width * .9, .01));
+      expect(housing.width, lessThanOrEqualTo(420));
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('base-camp-communication-source')),
+        ),
+        const Size.square(64),
+      );
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('base-camp-communication-arrow-0-idle')),
+        ),
+        const Size.square(20),
+      );
+      final strip = tester.getRect(
+        find.byKey(
+          const ValueKey('base-camp-communication-status-strip-surface'),
+        ),
+      );
+      expect(strip.width, lessThanOrEqualTo(256));
+      expect(strip.right, lessThanOrEqualTo(housing.right));
 
       final grid = tester.widget<IgnorePointer>(
         find.byKey(const ValueKey('base-camp-communication-lcd-grid')),
@@ -292,6 +413,60 @@ void main() {
 
 Finder _frame(int frame) =>
     find.byKey(ValueKey('base-camp-communication-frame-$frame'));
+
+double _switchOpacity(
+  WidgetTester tester,
+  String switchKey, {
+  required bool active,
+}) => tester
+    .widget<Opacity>(
+      find.byKey(
+        ValueKey(
+          'base-camp-communication-$switchKey-${active ? 'active' : 'idle'}',
+        ),
+      ),
+    )
+    .opacity;
+
+Set<String> _renderedSvgAssets(WidgetTester tester) => tester
+    .widgetList<SvgPicture>(find.byType(SvgPicture))
+    .map((picture) => picture.bytesLoader)
+    .whereType<SvgAssetLoader>()
+    .map((loader) => loader.assetName)
+    .toSet();
+
+Future<void> _settleSvg(WidgetTester tester) async {
+  await tester.runAsync(vg.waitForPendingDecodes);
+  await tester.pump();
+}
+
+Future<void> _pumpUntilMotion(WidgetTester tester) async {
+  for (var attempt = 0; attempt < 80; attempt++) {
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 1)),
+    );
+    if (find.byType(BaseCampCommunicationMotion).evaluate().isNotEmpty) {
+      await _settleSvg(tester);
+      return;
+    }
+  }
+  fail('Communication overlay did not appear.');
+}
+
+Future<void> _pumpUntilResult(
+  WidgetTester tester,
+  bool Function() completed,
+) async {
+  for (var attempt = 0; attempt < 80; attempt++) {
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 1)),
+    );
+    if (completed()) return;
+  }
+  fail('Communication operation did not complete.');
+}
 
 Widget _runnerHost({
   required FutureOr<void> Function(BuildContext context) onStart,
