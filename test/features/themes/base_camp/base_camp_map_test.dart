@@ -205,10 +205,12 @@ void main() {
       'FACILITY_OBJECTS_ATOMIC_PREPARE_COMPLETE',
     );
     final displayComplete = trace.indexOf('FACILITY_OBJECTS_DISPLAY_COMPLETE');
+    final interactive = trace.indexOf('DASHBOARD_INTERACTIVE');
     expect(mapDisplayed, greaterThanOrEqualTo(0));
     expect(prepareStart, greaterThan(mapDisplayed));
     expect(prepareComplete, greaterThan(prepareStart));
     expect(displayComplete, greaterThan(prepareComplete));
+    expect(interactive, greaterThan(displayComplete));
     expect(trace, contains('"atomicReveal": true'));
   });
 

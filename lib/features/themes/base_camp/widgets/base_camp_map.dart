@@ -567,6 +567,7 @@ class _BaseCampMapState extends State<BaseCampMap>
   bool _mapDisplayed = false;
   int _entryPreloadGeneration = 0;
   bool _facilityBatchRecorded = false;
+  bool _dashboardInteractiveRecorded = false;
   bool _walkerWarmupStarted = false;
   bool _walkerFirstFramesReady = false;
   bool _walkerFramesReady = false;
@@ -866,6 +867,10 @@ class _BaseCampMapState extends State<BaseCampMap>
       if (!baseCampMapConfigurationController.value.objects.values.any(
         (object) => object.visible,
       )) {
+        _recordDashboardInteractive(
+          visibleFacilityCount: 0,
+          displayedFacilityCount: 0,
+        );
         unawaited(_warmWalkerFrames());
       }
     });
@@ -1023,8 +1028,32 @@ class _BaseCampMapState extends State<BaseCampMap>
         'atomicReveal': true,
       },
     );
+    _recordDashboardInteractive(
+      visibleFacilityCount: visibleIdentities.length,
+      displayedFacilityCount: visibleIdentities
+          .where(_displayedFacilityObjects.contains)
+          .length,
+    );
     unawaited(_initializeWaterFx());
     unawaited(_warmWalkerFrames());
+  }
+
+  void _recordDashboardInteractive({
+    required int visibleFacilityCount,
+    required int displayedFacilityCount,
+  }) {
+    if (_dashboardInteractiveRecorded) return;
+    _dashboardInteractiveRecorded = true;
+    SystemDiagnostics.instance.record(
+      'BASE_CAMP',
+      'DASHBOARD_INTERACTIVE',
+      fields: <String, Object?>{
+        'mapDisplayed': _mapDisplayed,
+        'visibleFacilityCount': visibleFacilityCount,
+        'displayedFacilityCount': displayedFacilityCount,
+        'facilityTargetsReady': true,
+      },
+    );
   }
 
   Future<void> _warmWalkerFrames() async {

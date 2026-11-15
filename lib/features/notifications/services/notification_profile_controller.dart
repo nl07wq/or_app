@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/device_settings_controller.dart';
+import '../../../core/services/system_diagnostics.dart';
 import '../../../core/state/app_initialization_state.dart';
 import '../../reminders/models/reminder_occurrence.dart';
 import '../../reminders/services/reminder_occurrence_service.dart';
@@ -288,7 +289,29 @@ class NotificationProfileController
     if (!configured || !AppRepositoryRegistry.hasContainer || _disposed) return;
     while (_reconcileRequested && !_disposed) {
       _reconcileRequested = false;
-      await _reconcileFromRepositoriesOnce();
+      try {
+        await _reconcileFromRepositoriesOnce();
+      } catch (error) {
+        // IndexedDB transaction failures surface as DOM Event objects on web.
+        // Repository reconciliation is a recoverable background operation, so
+        // keep its retry request durable in controller state instead of
+        // allowing the Event to escape an unawaited startup Future and become
+        // a window.onerror. Foreground/online recovery requests another pass.
+        value = value.copyWith(
+          reconciliation: NotificationReconciliationState.failed,
+          pendingSync: true,
+          error: 'Notification schedule recovery is pending.',
+        );
+        SystemDiagnostics.instance.record(
+          'NOTIFICATION',
+          'NOTIFICATION_REPOSITORY_RECOVERY_FAILED',
+          fields: <String, Object?>{
+            'errorType': error.runtimeType.toString(),
+            'retryPending': true,
+          },
+        );
+        return;
+      }
     }
   }
 

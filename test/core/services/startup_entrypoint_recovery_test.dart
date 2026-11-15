@@ -7,7 +7,7 @@ void main() {
     'first Flutter frame is not gated by notification profile initialization',
     () {
       final source = File('lib/main.dart').readAsStringSync();
-      final runApp = source.indexOf('runApp(const OperationRebootApp());');
+      final runApp = source.indexOf('runApp(');
       final notificationStart = source.indexOf(
         'unawaited(_initializeNotificationProfile(diagnostic));',
       );
@@ -25,6 +25,22 @@ void main() {
         source,
         contains('startBackgroundRecovery()'),
         reason: 'configured profiles must reconcile after repository startup',
+      );
+      expect(
+        source.indexOf(
+          'final initialization = initializationService.initialize();',
+        ),
+        lessThan(
+          source.indexOf(
+            'await DeviceSettingsController.instance.initialize();',
+          ),
+        ),
+        reason: 'database and device settings startup must overlap',
+      );
+      expect(
+        source,
+        contains('initializationService: initializationService'),
+        reason: 'the prestarted single-flight service must own StartupGate',
       );
     },
   );

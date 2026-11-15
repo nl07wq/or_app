@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 import 'core/services/active_session_heartbeat.dart';
 import 'core/services/device_settings_controller.dart';
+import 'core/services/font_readiness_service.dart';
 import 'core/services/startup_diagnostic.dart';
+import 'core/services/startup_initialization_service.dart';
 import 'core/services/system_diagnostics.dart';
 import 'features/notifications/services/notification_profile_controller.dart';
 
@@ -16,8 +18,15 @@ Future<void> main() async {
   systemDiagnostics
     ..beginSession()
     ..installGlobalErrorHandlers()
+    ..recordBrowserStartupTiming()
     ..record('APPLICATION', 'DART_MAIN_ENTER');
   _installFlutterErrorDiagnostics(systemDiagnostics);
+  // Device preferences and canonical IndexedDB verification are independent.
+  // Starting both before the first await removes their former serial wait,
+  // while StartupGate still owns the exact same readiness and failure UI.
+  final initializationService = StartupInitializationService();
+  final initialization = initializationService.initialize();
+  final fontReadiness = FontReadinessService.instance.ensureReady();
   await DeviceSettingsController.instance.initialize();
   final diagnostic = StartupDiagnostic.instance;
   diagnostic.beginRun();
@@ -41,7 +50,11 @@ Future<void> main() async {
   activeSession.start();
   diagnostic.record('DART', 'RUN_APP_REQUESTED');
 
-  runApp(const OperationRebootApp());
+  runApp(OperationRebootApp(initializationService: initializationService));
+  // Both services are single-flight. OperationRebootApp observes the same
+  // instances, so these references only make their intentional overlap clear.
+  unawaited(initialization);
+  unawaited(fontReadiness);
   unawaited(_initializeNotificationProfile(diagnostic));
 }
 

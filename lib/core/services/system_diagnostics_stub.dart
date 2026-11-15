@@ -115,6 +115,8 @@ class SystemDiagnostics {
 
   void installGlobalErrorHandlers() {}
 
+  void recordBrowserStartupTiming() {}
+
   @visibleForTesting
   void recordWindowErrorDetailsForTesting(Map<String, Object?> fields) {
     record(

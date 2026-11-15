@@ -157,6 +157,32 @@ class SystemDiagnostics {
     });
   }
 
+  void recordBrowserStartupTiming() {
+    try {
+      final timing = globalContext.getProperty<JSObject?>(
+        '__orAppStartupTiming'.toJS,
+      );
+      if (timing == null) return;
+      final dartMainMs = html.window.performance.now();
+      record(
+        'BROWSER',
+        'BROWSER_STARTUP_TIMING',
+        fields: <String, Object?>{
+          'documentStartMs': _jsNumber(timing, 'documentStartMs') ?? 0,
+          'bootstrapRequestedMs': _jsNumber(timing, 'bootstrapRequestedMs'),
+          'bootstrapScriptLoadedMs': _jsNumber(
+            timing,
+            'bootstrapScriptLoadedMs',
+          ),
+          'dartMainMs': dartMainMs,
+          'documentToDartMainMs': dartMainMs,
+        },
+      );
+    } catch (_) {
+      // Browser timing is optional evidence and never gates application boot.
+    }
+  }
+
   void _recordWindowError(html.Event event) {
     final error = event is html.ErrorEvent ? event : null;
     final errorObject = error?.error;
@@ -215,6 +241,12 @@ class SystemDiagnostics {
     } catch (_) {
       return null;
     }
+  }
+
+  double? _jsNumber(JSObject object, String property) {
+    if (!object.has(property)) return null;
+    final value = object[property]?.dartify();
+    return value is num ? value.toDouble() : null;
   }
 
   String? _nonEmpty(String? value) {

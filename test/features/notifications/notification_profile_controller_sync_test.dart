@@ -1,9 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/notifications/services/notification_profile_controller.dart';
 import 'package:or_app/features/notifications/services/push_bridge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 
 const _profileId = 'profile-12345678901234567890';
 const _profileSecret = 'profile-secret-12345678901234567890';
@@ -12,7 +15,10 @@ const _outboxKey = 'or_app_notification_outbox_v1';
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    AppRepositoryRegistry.resetForTesting();
   });
+
+  tearDown(AppRepositoryRegistry.resetForTesting);
 
   test(
     'newer outbox generation survives an older in-flight reconciliation',
@@ -78,6 +84,60 @@ void main() {
       controller.dispose();
     },
   );
+
+  test(
+    'startup repository event failure is retained for foreground retry',
+    () async {
+      final bridge = _RecordingPushBridge();
+      final controller = await _configuredController(bridge);
+      final database = _EventFailingDatabase();
+      AppRepositoryRegistry.install(AppRepositoryContainer.indexedDb(database));
+
+      await controller.reconcileFromRepositories();
+
+      expect(
+        controller.value.reconciliation,
+        NotificationReconciliationState.failed,
+      );
+      expect(controller.value.pendingSync, isTrue);
+      expect(
+        controller.value.error,
+        'Notification schedule recovery is pending.',
+      );
+
+      await controller.reconcileFromRepositories();
+
+      expect(
+        controller.value.reconciliation,
+        NotificationReconciliationState.synchronized,
+      );
+      expect(controller.value.pendingSync, isFalse);
+      controller.dispose();
+    },
+  );
+}
+
+/// Mirrors the opaque DOM Event delivered by Safari when an IndexedDB
+/// transaction aborts. The controller must not require an Error/Exception
+/// subtype in order to keep this background failure off window.onerror.
+final class _BrowserTransactionEvent {
+  @override
+  String toString() => "Instance of 'minified:cd'";
+}
+
+final class _EventFailingDatabase extends FakeIndexedDbDatabase {
+  bool _failNextRead = true;
+
+  @override
+  Future<List<Map<String, Object?>>> findAll(String storeName) {
+    if (_failNextRead) {
+      _failNextRead = false;
+      return Future<List<Map<String, Object?>>>.error(
+        _BrowserTransactionEvent(),
+      );
+    }
+    return super.findAll(storeName);
+  }
 }
 
 Future<NotificationProfileController> _configuredController(

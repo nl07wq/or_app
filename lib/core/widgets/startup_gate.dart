@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/startup_initialization_service.dart';
 import '../services/font_readiness_service.dart';
 import '../services/startup_diagnostic.dart';
+import '../services/system_diagnostics.dart';
 import '../state/app_initialization_state.dart';
 import 'boot_sequence.dart';
 import 'operation_button.dart';
@@ -57,6 +58,12 @@ class _StartupGateState extends State<StartupGate> {
         widget.showBootSequence &&
         widget.service.controller.claimInitialBootPresentation();
     _bootPresentationMounted = _isInitialBootPresentation;
+    SystemDiagnostics.instance.record(
+      'STARTUP',
+      _bootPresentationMounted
+          ? 'BOOT_SEQUENCE_START'
+          : 'BOOT_SEQUENCE_SKIPPED',
+    );
     diagnostic.record(
       'STARTUP_GATE',
       'STARTUP_GATE_INITIAL_CLAIM',
@@ -123,6 +130,7 @@ class _StartupGateState extends State<StartupGate> {
 
   void _releaseBootPresentation() {
     if (!mounted || !_bootPresentationMounted) return;
+    SystemDiagnostics.instance.record('STARTUP', 'BOOT_SEQUENCE_COMPLETE');
     StartupDiagnostic.instance.record(
       'FLUTTER',
       'STARTUP_GATE_BOOT_RELEASED',
