@@ -27,6 +27,7 @@ import '../system/widgets/system_menu_button.dart';
 import '../../core/widgets/operation_text_field.dart';
 import '../../core/services/daily_log_mutation_guard.dart';
 import '../../core/services/device_settings_controller.dart';
+import '../../core/services/system_diagnostics.dart';
 import '../../core/services/touch_ripple_audio.dart';
 import '../../core/widgets/confirmed_log_message.dart';
 import '../../core/widgets/holographic_ambient_background.dart';
@@ -885,12 +886,26 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+    SystemDiagnostics.instance.record('STANDARD', 'DASHBOARD_GENERATION_START');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        SystemDiagnostics.instance.record('STANDARD', 'DASHBOARD_FIRST_FRAME');
+      }
+    });
     final finalizeTransition = FinalizeDateTransitionStore.take();
     _dashboardFinalizeTransition = finalizeTransition;
-    _operationDateFuture = finalizeTransition == null
-        ? const OperationDateService().current()
-        : Future.value(finalizeTransition.fromDate);
-    _planInformationFuture = _loadPlanInformation();
+    _operationDateFuture = SystemDiagnostics.instance.traceStage(
+      'initial_dashboard_operation_date_load',
+      () => finalizeTransition == null
+          ? const OperationDateService().current()
+          : Future.value(finalizeTransition.fromDate),
+      fields: const <String, Object?>{'presentation': 'standard'},
+    );
+    _planInformationFuture = SystemDiagnostics.instance.traceStage(
+      'initial_dashboard_plan_load',
+      _loadPlanInformation,
+      fields: const <String, Object?>{'presentation': 'standard'},
+    );
     schedulePlanRevisionNotifier.addListener(_refreshPlanInformation);
     _scrollController.addListener(_scheduleWildlifeMeasurement);
     if (finalizeTransition != null) {

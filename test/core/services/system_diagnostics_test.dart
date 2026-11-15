@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/services/diagnostic_sanitizer.dart';
 import 'package:or_app/core/services/system_diagnostics.dart';
 
 void main() {
@@ -89,4 +92,155 @@ void main() {
       expect(trace, isNot(contains('health')));
     },
   );
+
+  test('navigation evidence sanitizes valid and invalid URI inputs', () {
+    const invalidRoute = 'http://or-app.invalid:bad/path?password=hidden';
+    expect(() => Uri.parse(invalidRoute), throwsFormatException);
+    final diagnostics = SystemDiagnostics.testing()
+      ..recordNavigation(
+        action: 'push',
+        previousRoute: '/dashboard',
+        requestedRoute: '/calendar?token=secret&day=16#private',
+        routeType: 'MaterialPageRoute<void>',
+      )
+      ..recordNavigation(
+        action: 'push',
+        previousRoute: '/calendar',
+        requestedRoute: invalidRoute,
+      )
+      ..recordWindowErrorDetailsForTesting(<String, Object?>{
+        'errorName': 'FormatException',
+      });
+
+    final trace = diagnostics.copyText();
+    expect(trace, contains('calendar'));
+    expect(trace, contains('queryKeys'));
+    expect(trace, contains('day'));
+    expect(trace, contains('http://or-app.invalid:bad/path'));
+    expect(trace, contains('"valid": false'));
+    expect(trace, contains('recentNavigation'));
+    expect(trace, isNot(contains('secret')));
+    expect(trace, isNot(contains('hidden')));
+  });
+
+  test('URI sanitizer never retains query values or fragments', () {
+    final sanitized = sanitizeDiagnosticUri(
+      'https://example.test/path?access_token=abc&date=2026-11-16#memo',
+    );
+    expect(sanitized['path'], '/path');
+    expect(sanitized['queryKeys'], <String>['date']);
+    expect(sanitized['hasFragment'], isTrue);
+    expect('$sanitized', isNot(contains('abc')));
+    expect('$sanitized', isNot(contains('memo')));
+  });
+
+  test(
+    'startup stages record success, failure, and monotonic duration',
+    () async {
+      final diagnostics = SystemDiagnostics.testing();
+      final value = await diagnostics.traceStage<int>(
+        'successful_stage',
+        () async {
+          await Future<void>.delayed(const Duration(milliseconds: 2));
+          return 7;
+        },
+      );
+      expect(value, 7);
+
+      await expectLater(
+        diagnostics.traceStage<void>(
+          'failed_stage',
+          () async => throw StateError('expected'),
+        ),
+        throwsStateError,
+      );
+
+      final events = diagnostics.sessions.single['events']! as List;
+      final completed = events.cast<Map>().firstWhere(
+        (event) => event['event'] == 'STAGE_COMPLETE',
+      );
+      final completedFields = completed['fields']! as Map;
+      expect(completedFields['elapsedMs'] as num, greaterThanOrEqualTo(1));
+      expect(completedFields['durationClock'], 'monotonic');
+      expect(
+        events.cast<Map>().any(
+          (event) =>
+              event['event'] == 'STAGE_FAILED' &&
+              (event['fields'] as Map)['errorType'] == 'StateError',
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'startup stage records lifecycle changes during async waiting',
+    () async {
+      final diagnostics = SystemDiagnostics.testing()
+        ..recordLifecycleState('resumed');
+      final release = Completer<void>();
+      final stage = diagnostics.traceStage<void>(
+        'backgrounded_stage',
+        () => release.future,
+      );
+      diagnostics.recordLifecycleState('paused');
+      diagnostics.recordLifecycleState('resumed');
+      release.complete();
+      await stage;
+
+      final events = diagnostics.sessions.single['events']! as List;
+      final completed = events.cast<Map>().firstWhere(
+        (event) =>
+            event['event'] == 'STAGE_COMPLETE' &&
+            (event['fields'] as Map)['stage'] == 'backgrounded_stage',
+      );
+      final fields = completed['fields']! as Map;
+      expect(fields['startLifecycle'], 'resumed');
+      expect(fields['endLifecycle'], 'resumed');
+      expect(fields['lifecycleChanged'], isTrue);
+    },
+  );
+
+  test('critical evidence survives the per-session retention limit', () {
+    final diagnostics = SystemDiagnostics.testing(eventLimit: 4)
+      ..recordNavigation(action: 'push', requestedRoute: '/calendar')
+      ..record('ASSET', 'ROUTINE_1')
+      ..record('ASSET', 'ROUTINE_2')
+      ..record('ASSET', 'ROUTINE_3')
+      ..recordWindowErrorDetailsForTesting(<String, Object?>{
+        'errorName': 'FormatException',
+      })
+      ..record('ASSET', 'ROUTINE_4');
+
+    final events = diagnostics.sessions.single['events']! as List;
+    expect(events, hasLength(4));
+    expect(
+      events.cast<Map>().any((event) => event['event'] == 'ROUTE_REQUEST'),
+      isTrue,
+    );
+    expect(
+      events.cast<Map>().any((event) => event['event'] == 'WINDOW_ERROR'),
+      isTrue,
+    );
+    expect(diagnostics.copyText(), contains('FormatException'));
+  });
+
+  test('diagnostic collection overhead remains bounded', () {
+    final diagnostics = SystemDiagnostics.testing(eventLimit: 200)
+      ..beginSession();
+    final stopwatch = Stopwatch()..start();
+    for (var index = 0; index < 1000; index++) {
+      diagnostics.record(
+        'TEST',
+        'ROUTINE_EVENT',
+        fields: <String, Object?>{'sequence': index},
+      );
+    }
+    stopwatch.stop();
+    // This guards against accidental expensive serialization on every event.
+    // Production Web persistence remains batched by the existing 500ms timer.
+    expect(stopwatch.elapsedMilliseconds, lessThan(500));
+    // ignore: avoid_print
+    print('DIAGNOSTIC_1000_EVENT_OVERHEAD_US=${stopwatch.elapsedMicroseconds}');
+  });
 }

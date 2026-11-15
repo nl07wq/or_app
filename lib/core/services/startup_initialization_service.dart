@@ -29,6 +29,7 @@ import '../../features/training/migration/custom_training_exercise_migration_ser
 import '../../features/training/repository/indexed_db_custom_training_exercise_repository.dart';
 import '../state/app_initialization_state.dart';
 import 'daily_state_restore_service.dart';
+import 'system_diagnostics.dart';
 
 typedef DatabaseOpener = Future<IndexedDbDatabase> Function();
 typedef RestoreDailyState = Future<void> Function();
@@ -109,7 +110,8 @@ class StartupInitializationService {
       message: 'Legacy data is available in read-only mode.',
     );
     try {
-      final invalidRecordCount = await _legacyInvalidRecordCount();
+      final invalidRecordCount = await SystemDiagnostics.instance
+          .traceStage<int>('legacy_quarantine_scan', _legacyInvalidRecordCount);
       if (invalidRecordCount > 0) {
         controller.markLegacyReadOnly(
           message:
@@ -154,12 +156,19 @@ class StartupInitializationService {
     controller.updateStage(InitializationStage.openingDatabase);
 
     if (!_isWeb) {
-      await openLegacyReadOnly();
+      await SystemDiagnostics.instance.traceStage<void>(
+        'legacy_storage_open',
+        openLegacyReadOnly,
+      );
       return;
     }
 
     try {
-      final database = await _openDatabase();
+      final diagnostics = SystemDiagnostics.instance;
+      final database = await diagnostics.traceStage<IndexedDbDatabase>(
+        'canonical_database_open',
+        _openDatabase,
+      );
       controller.updateStage(InitializationStage.upgradingSchema);
       if (database.schemaVersion != IndexedDbSchema.databaseVersion) {
         throw RepositoryException(
@@ -229,24 +238,43 @@ class StartupInitializationService {
       );
 
       controller.updateStage(InitializationStage.verifyingRepositories);
-      await _verifyMetadata(database);
+      await diagnostics.traceStage<void>(
+        'completed_migration_metadata_verification',
+        () => _verifyMetadata(database),
+      );
       final container = AppRepositoryContainer.indexedDb(database);
-      await _verifyRepositories(container);
-      final operationSyncState = await container.operationSyncState
-          .initializeIfAbsent();
-      await container.operationSyncHistory.list();
-      final operationState = await OperationStateBootstrapService(
-        container.operationState,
-        container.confirmation,
-      ).bootstrap();
+      await diagnostics.traceStage<void>(
+        'repository_verification',
+        () => _verifyRepositories(container),
+      );
+      final operationSyncState = await diagnostics.traceStage(
+        'operation_sync_state_restoration',
+        container.operationSyncState.initializeIfAbsent,
+      );
+      await diagnostics.traceStage<void>(
+        'operation_sync_history_verification',
+        () async {
+          await container.operationSyncHistory.list();
+        },
+      );
+      final operationState = await diagnostics.traceStage(
+        'operation_state_restoration',
+        () => OperationStateBootstrapService(
+          container.operationState,
+          container.confirmation,
+        ).bootstrap(),
+      );
       _canonicalReadOnlyContainer = container;
       AppRepositoryRegistry.install(container);
 
       controller.updateStage(InitializationStage.restoringDailyState);
       if (operationState.state.phase == OperationPhase.awaitingDebrief) {
-        await DailyFinalizeCoordinatorFactory.production()
-            .validateAwaitingState(operationState.state);
-        await _restore();
+        await diagnostics.traceStage<void>(
+          'daily_finalize_awaiting_state_verification',
+          () => DailyFinalizeCoordinatorFactory.production()
+              .validateAwaitingState(operationState.state),
+        );
+        await diagnostics.traceStage<void>('daily_state_restoration', _restore);
       } else if (operationState.recoveryRequired) {
         controller.markReady(
           operationRecoveryRequired: true,
@@ -263,14 +291,18 @@ class StartupInitializationService {
                 coordinator,
               ).recoverIfRequired().then((_) {});
             };
-        await recover();
+        await diagnostics.traceStage<void>('daily_finalize_recovery', recover);
       } else {
-        await _restore();
+        await diagnostics.traceStage<void>('daily_state_restoration', _restore);
       }
-      final finalOperationState = await container.operationState
-          .requireCurrent();
-      final finalOperationSyncState = await container.operationSyncState
-          .requireCurrent();
+      final finalOperationState = await diagnostics.traceStage(
+        'operation_state_final_verification',
+        container.operationState.requireCurrent,
+      );
+      final finalOperationSyncState = await diagnostics.traceStage(
+        'operation_sync_state_final_verification',
+        container.operationSyncState.requireCurrent,
+      );
       controller.markReady(
         operationRecoveryRequired: finalOperationState.requiresRecovery,
         operationPhase: finalOperationState.phase.name,
@@ -319,32 +351,56 @@ class StartupInitializationService {
   ) async {
     _failedMigrationId = migrationId;
     controller.updateStage(stage);
-
-    while (true) {
-      final metadata = await _readMetadata(database, migrationId);
-      final now = DateTime.now().toUtc();
-      if (metadata != null &&
-          metadata.status != IndexedDbMigrationStatus.completed &&
-          metadata.leaseExpiresAt?.isAfter(now) == true) {
-        await _delay(const Duration(milliseconds: 250));
-        continue;
-      }
-      try {
-        await run();
-        _failedMigrationId = null;
-        return;
-      } on RepositoryException {
-        final latest = await _readMetadata(database, migrationId);
-        if (latest != null &&
-            latest.status != IndexedDbMigrationStatus.failed &&
-            latest.status != IndexedDbMigrationStatus.completed &&
-            latest.leaseExpiresAt?.isAfter(DateTime.now().toUtc()) == true) {
-          await _delay(const Duration(milliseconds: 250));
-          continue;
+    var leaseWaitCount = 0;
+    await SystemDiagnostics.instance.traceStage<void>(
+      'migration_check',
+      () async {
+        while (true) {
+          final metadata = await _readMetadata(database, migrationId);
+          final now = DateTime.now().toUtc();
+          if (metadata != null &&
+              metadata.status != IndexedDbMigrationStatus.completed &&
+              metadata.leaseExpiresAt?.isAfter(now) == true) {
+            leaseWaitCount++;
+            await _delay(const Duration(milliseconds: 250));
+            continue;
+          }
+          try {
+            await run();
+            final completed = await _readMetadata(database, migrationId);
+            SystemDiagnostics.instance.record(
+              'STARTUP_STAGE',
+              'MIGRATION_CHECK_SUMMARY',
+              fields: <String, Object?>{
+                'migrationId': migrationId,
+                'status': completed?.status.name ?? 'missing',
+                'leaseWaitCount': leaseWaitCount,
+                'leaseWaitMs': leaseWaitCount * 250,
+                'quarantinedCounts': completed?.quarantinedCounts ?? const {},
+              },
+            );
+            _failedMigrationId = null;
+            return;
+          } on RepositoryException {
+            final latest = await _readMetadata(database, migrationId);
+            if (latest != null &&
+                latest.status != IndexedDbMigrationStatus.failed &&
+                latest.status != IndexedDbMigrationStatus.completed &&
+                latest.leaseExpiresAt?.isAfter(DateTime.now().toUtc()) ==
+                    true) {
+              leaseWaitCount++;
+              await _delay(const Duration(milliseconds: 250));
+              continue;
+            }
+            rethrow;
+          }
         }
-        rethrow;
-      }
-    }
+      },
+      fields: <String, Object?>{
+        'migrationId': migrationId,
+        'initializationStage': stage.name,
+      },
+    );
   }
 
   Future<IndexedDbMigrationMetadata?> _readMetadata(
