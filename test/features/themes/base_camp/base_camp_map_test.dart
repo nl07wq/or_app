@@ -43,6 +43,77 @@ void main() {
     codec.dispose();
   });
 
+  test('day and night boundaries use local wall-clock time', () {
+    expect(baseCampMapUsesNightFilter(DateTime(2026, 11, 15, 5, 59)), isTrue);
+    expect(baseCampMapUsesNightFilter(DateTime(2026, 11, 15, 6)), isFalse);
+    expect(baseCampMapUsesNightFilter(DateTime(2026, 11, 15, 17, 59)), isFalse);
+    expect(baseCampMapUsesNightFilter(DateTime(2026, 11, 15, 18)), isTrue);
+    expect(
+      baseCampNextDayNightBoundary(DateTime(2026, 11, 15, 5, 30)),
+      DateTime(2026, 11, 15, 6),
+    );
+    expect(
+      baseCampNextDayNightBoundary(DateTime(2026, 11, 15, 12)),
+      DateTime(2026, 11, 15, 18),
+    );
+    expect(
+      baseCampNextDayNightBoundary(DateTime(2026, 11, 15, 23)),
+      DateTime(2026, 11, 16, 6),
+    );
+  });
+
+  testWidgets('night filter re-evaluates on resume without covering map UI', (
+    tester,
+  ) async {
+    var now = DateTime(2026, 11, 15, 17, 59);
+    SystemDiagnostics.instance.clear();
+    addTearDown(SystemDiagnostics.instance.clear);
+    addTearDown(
+      () => tester.binding.handleAppLifecycleStateChanged(
+        AppLifecycleState.resumed,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: BaseCampMap(
+              onFacilityPressed: _ignoreFacility,
+              now: () => now,
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(const ValueKey('base-camp-night-filter')), findsNothing);
+
+    now = DateTime(2026, 11, 15, 18);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    final night = find.byKey(const ValueKey('base-camp-night-filter'));
+    expect(night, findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('base-camp-map')),
+        matching: night,
+      ),
+      findsOneWidget,
+    );
+    final nightColor = tester.widget<ColoredBox>(
+      find.descendant(of: night, matching: find.byType(ColoredBox)),
+    );
+    expect(nightColor.color, baseCampMapNightOverlayColor);
+    expect(find.byKey(const ValueKey('base-camp-reset')), findsOneWidget);
+    final trace = SystemDiagnostics.instance.copyText();
+    expect(trace, contains('NIGHT_FILTER_STATE_APPLIED'));
+    expect(trace, contains('"state": "day"'));
+    expect(trace, contains('"state": "night"'));
+    expect(trace, contains('"reason": "resume"'));
+  });
+
   testWidgets('square map starts unpanned with no internal scroll viewport', (
     tester,
   ) async {
@@ -139,6 +210,86 @@ void main() {
     expect(prepareComplete, greaterThan(prepareStart));
     expect(displayComplete, greaterThan(prepareComplete));
     expect(trace, contains('"atomicReveal": true'));
+  });
+
+  testWidgets('water motion is clipped to masks and excludes protected land', (
+    tester,
+  ) async {
+    final original = baseCampMapConfigurationController.value;
+    addTearDown(() => baseCampMapConfigurationController.value = original);
+    baseCampMapConfigurationController.value =
+        BaseCampMapConfiguration.defaults();
+    SystemDiagnostics.instance.clear();
+    addTearDown(SystemDiagnostics.instance.clear);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: BaseCampMap(
+              onFacilityPressed: _ignoreFacility,
+              now: () => DateTime(2026, 11, 15, 12),
+            ),
+          ),
+        ),
+      ),
+    );
+    await _pumpUntilFacilityLayer(tester);
+    await _pumpUntilWaterFx(tester);
+
+    final water = find.byKey(const ValueKey('base-camp-water-fx'));
+    final clipFinder = find.byKey(const ValueKey('base-camp-water-mask-clip'));
+    expect(water, findsOneWidget);
+    expect(clipFinder, findsOneWidget);
+    expect(
+      find.descendant(of: water, matching: find.byType(CustomPaint)),
+      findsNothing,
+    );
+    final clip = tester.widget<ClipPath>(clipFinder);
+    final clipSize = tester.getSize(clipFinder);
+    final path = clip.clipper!.getClip(clipSize);
+    final geometry = BaseCampMapGeometry.contain(clipSize);
+    expect(
+      path.contains(geometry.artworkToViewport(const Offset(10, 200))),
+      isTrue,
+    );
+    expect(
+      path.contains(geometry.artworkToViewport(const Offset(50, 50))),
+      isFalse,
+    );
+    expect(
+      path.contains(geometry.artworkToViewport(const Offset(600, 600))),
+      isFalse,
+    );
+
+    final primary = find.byKey(
+      const ValueKey('base-camp-water-pattern-primary'),
+    );
+    final secondary = find.byKey(
+      const ValueKey('base-camp-water-pattern-secondary'),
+    );
+    final before = tester.widget<Transform>(primary).transform.getTranslation();
+    final secondaryBefore = tester
+        .widget<Transform>(secondary)
+        .transform
+        .getTranslation();
+    await tester.pump(const Duration(milliseconds: 950));
+    final after = tester.widget<Transform>(primary).transform.getTranslation();
+    final secondaryAfter = tester
+        .widget<Transform>(secondary)
+        .transform
+        .getTranslation();
+    expect(after.y, greaterThan(before.y));
+    expect(secondaryAfter.y, lessThan(secondaryBefore.y));
+    expect(after.y - before.y, isNot(secondaryBefore.y - secondaryAfter.y));
+    expect(tester.takeException(), isNull);
+
+    final trace = SystemDiagnostics.instance.copyText();
+    expect(trace, contains('WATER_FX_INIT_START'));
+    expect(trace, contains('WATER_FX_INIT_COMPLETE'));
+    expect(trace, contains('WATER_FX_ACTIVE_STATE'));
+    expect(trace, contains('"patternLayers": 2'));
+    expect(trace, contains('"motionStepMs": 900'));
   });
 
   testWidgets('one failed facility does not block the atomic reveal', (
@@ -1408,4 +1559,13 @@ Future<void> _pumpUntilFacilityLayer(WidgetTester tester) async {
     }
   }
   fail('Facility object layer was not revealed.');
+}
+
+Future<void> _pumpUntilWaterFx(WidgetTester tester) async {
+  final finder = find.byKey(const ValueKey('base-camp-water-fx'));
+  for (var attempt = 0; attempt < 20; attempt++) {
+    await tester.pump(const Duration(milliseconds: 20));
+    if (finder.evaluate().isNotEmpty) return;
+  }
+  fail('Water FX did not initialize after the facility layer.');
 }

@@ -135,6 +135,25 @@ const baseCampMapSourceSize = Size(1280, 720);
 /// coordinate space and must remain stable for existing installations.
 const baseCampMapArtworkSize = Size(1254, 1254);
 
+/// A single translucent compositing layer keeps the night treatment cheap on
+/// WebKit while preserving the original full-colour map underneath it.
+const baseCampMapNightOverlayColor = Color(0x4A0A2230);
+const baseCampWaterMotionStep = Duration(milliseconds: 900);
+
+bool baseCampMapUsesNightFilter(DateTime localTime) =>
+    localTime.hour >= 18 || localTime.hour < 6;
+
+DateTime baseCampNextDayNightBoundary(DateTime localTime) {
+  if (localTime.hour < 6) {
+    return DateTime(localTime.year, localTime.month, localTime.day, 6);
+  }
+  if (localTime.hour < 18) {
+    return DateTime(localTime.year, localTime.month, localTime.day, 18);
+  }
+  final tomorrow = localTime.add(const Duration(days: 1));
+  return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 6);
+}
+
 /// The legacy playable scene calibrated inside the new artwork.  Only this
 /// affine display mapping changes; persisted routes, facilities, object
 /// anchors and FX points all remain expressed in the original coordinate
@@ -516,16 +535,17 @@ bool baseCampFacilityOutlineContains(
 ) => (Path()..addPolygon(normalizedOutline, true)).contains(normalizedPosition);
 
 class BaseCampMap extends StatefulWidget {
-  const BaseCampMap({super.key, required this.onFacilityPressed});
+  const BaseCampMap({super.key, required this.onFacilityPressed, this.now});
 
   final ValueChanged<BaseCampFacility> onFacilityPressed;
+  final DateTime Function()? now;
 
   @override
   State<BaseCampMap> createState() => _BaseCampMapState();
 }
 
 class _BaseCampMapState extends State<BaseCampMap>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final TransformationController _transform = TransformationController();
   bool _isNavigating = false;
   BaseCampFacility? _selectedFacility;
@@ -535,6 +555,7 @@ class _BaseCampMapState extends State<BaseCampMap>
   late final AnimationController _walkerTimeline;
   final Stopwatch _mapLoadWatch = Stopwatch();
   final BaseCampMapAssetResolver _assetResolver = BaseCampMapAssetResolver();
+  final ValueNotifier<int> _waterMotionPhase = ValueNotifier<int>(0);
   final Set<String> _resolvedFacilityObjects = <String>{};
   final Set<String> _displayedFacilityObjects = <String>{};
   bool _configurationReady = false;
@@ -549,10 +570,24 @@ class _BaseCampMapState extends State<BaseCampMap>
   bool _walkerWarmupStarted = false;
   bool _walkerFirstFramesReady = false;
   bool _walkerFramesReady = false;
+  bool _nightFilterInitialized = false;
+  bool _nightFilterActive = false;
+  bool _waterFxInitStarted = false;
+  bool _waterFxInitialized = false;
+  bool _waterMotionAllowed = true;
+  bool _waterMotionActive = false;
+  bool _appResumed = true;
+  bool? _lastReportedWaterActive;
+  int _lastWaterMotionPhase = -1;
+  int _lastNightCheckSlot = -1;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _appResumed = lifecycle == null || lifecycle == AppLifecycleState.resumed;
+    _applyNightFilter(reason: 'initial', forceRecord: true, notify: false);
     _selectionPulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
@@ -570,12 +605,15 @@ class _BaseCampMapState extends State<BaseCampMap>
             setState(() => _glowingFacility = null);
           }
         });
-    _walkerTimeline = AnimationController(
-      vsync: this,
-      // The sampler is time based. A long controller avoids a visible reset
-      // while keeping its ticker scoped to the dashboard's TickerMode.
-      duration: const Duration(hours: 24),
-    )..repeat();
+    _walkerTimeline =
+        AnimationController(
+            vsync: this,
+            // The sampler is time based. A long controller avoids a visible reset
+            // while keeping its ticker scoped to the dashboard's TickerMode.
+            duration: const Duration(hours: 24),
+          )
+          ..addListener(_handleMapTimelineTick)
+          ..repeat();
     unawaited(_loadConfiguration());
     baseCampMapConfigurationController.addListener(_configurationChanged);
   }
@@ -590,6 +628,13 @@ class _BaseCampMapState extends State<BaseCampMap>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final motionAllowed =
+        TickerMode.valuesOf(context).enabled &&
+        !MediaQuery.disableAnimationsOf(context);
+    if (_waterMotionAllowed != motionAllowed) {
+      _waterMotionAllowed = motionAllowed;
+      _recordWaterFxActive(reason: 'tickerMode');
+    }
     if (_mapPrecacheStarted) return;
     _mapPrecacheStarted = true;
     unawaited(_precacheMapBackground());
@@ -658,13 +703,138 @@ class _BaseCampMapState extends State<BaseCampMap>
   void _configurationChanged() {
     if (!mounted) return;
     setState(() {});
+    _recordWaterFxActive(reason: 'configuration');
+  }
+
+  DateTime get _localNow => widget.now?.call() ?? DateTime.now();
+
+  bool get _waterConfigured {
+    final water = baseCampMapConfigurationController.value.waterFx['water'];
+    return water != null && water.visible && water.effectiveAreas.isNotEmpty;
+  }
+
+  void _handleMapTimelineTick() {
+    if (!_appResumed) return;
+    final elapsedMilliseconds =
+        (_walkerTimeline.value * Duration.millisecondsPerDay).floor();
+    final nightCheckSlot = elapsedMilliseconds ~/ 30000;
+    if (nightCheckSlot != _lastNightCheckSlot) {
+      _lastNightCheckSlot = nightCheckSlot;
+      _applyNightFilter(reason: 'visibleRecheck');
+    }
+    if (!_waterFxInitialized || !_waterMotionActive) {
+      return;
+    }
+    final phase = elapsedMilliseconds ~/ baseCampWaterMotionStep.inMilliseconds;
+    if (phase == _lastWaterMotionPhase) return;
+    _lastWaterMotionPhase = phase;
+    _waterMotionPhase.value = phase;
+  }
+
+  void _applyNightFilter({
+    required String reason,
+    bool forceRecord = false,
+    bool notify = true,
+  }) {
+    final now = _localNow;
+    final active = baseCampMapUsesNightFilter(now);
+    final changed = !_nightFilterInitialized || active != _nightFilterActive;
+    _nightFilterInitialized = true;
+    _nightFilterActive = active;
+    if (changed && notify && mounted) setState(() {});
+    if (!changed && !forceRecord) return;
+    SystemDiagnostics.instance.record(
+      'BASE_CAMP',
+      'NIGHT_FILTER_STATE_APPLIED',
+      fields: <String, Object?>{
+        'state': active ? 'night' : 'day',
+        'reason': reason,
+        'localTimestamp': now.toIso8601String(),
+        'nextBoundary': baseCampNextDayNightBoundary(now).toIso8601String(),
+        'overlayArgb': active
+            ? '0x${baseCampMapNightOverlayColor.toARGB32().toRadixString(16).padLeft(8, '0')}'
+            : null,
+      },
+    );
+  }
+
+  Future<void> _initializeWaterFx() async {
+    if (_waterFxInitStarted) return;
+    _waterFxInitStarted = true;
+    final diagnostics = SystemDiagnostics.instance;
+    final watch = Stopwatch()..start();
+    final water = baseCampMapConfigurationController.value.waterFx['water'];
+    diagnostics.record(
+      'BASE_CAMP',
+      'WATER_FX_INIT_START',
+      fields: <String, Object?>{
+        'areaCount': water?.effectiveAreas.length ?? 0,
+        'configuredVisible': water?.visible ?? false,
+        'implementation': 'clippedStaticBands',
+      },
+    );
+    await SchedulerBinding.instance.endOfFrame;
+    if (!mounted) return;
+    setState(() => _waterFxInitialized = true);
+    diagnostics.record(
+      'BASE_CAMP',
+      'WATER_FX_INIT_COMPLETE',
+      fields: <String, Object?>{
+        'areaCount': water?.effectiveAreas.length ?? 0,
+        'exclusionCount':
+            water?.effectiveAreas.fold<int>(
+              0,
+              (count, area) => count + area.exclusionMasks.length,
+            ) ??
+            0,
+        'patternLayers': 2,
+        'motionStepMs': baseCampWaterMotionStep.inMilliseconds,
+        'durationMs': watch.elapsedMilliseconds,
+      },
+    );
+    _recordWaterFxActive(reason: 'initialized', force: true);
+  }
+
+  void _recordWaterFxActive({required String reason, bool force = false}) {
+    if (!_waterFxInitialized) return;
+    final active = _appResumed && _waterMotionAllowed && _waterConfigured;
+    _waterMotionActive = active;
+    if (!force && active == _lastReportedWaterActive) return;
+    _lastReportedWaterActive = active;
+    SystemDiagnostics.instance.record(
+      'BASE_CAMP',
+      'WATER_FX_ACTIVE_STATE',
+      fields: <String, Object?>{
+        'active': active,
+        'reason': reason,
+        'motionStepMs': baseCampWaterMotionStep.inMilliseconds,
+      },
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final resumed = state == AppLifecycleState.resumed;
+    if (_appResumed == resumed) {
+      if (resumed) {
+        _applyNightFilter(reason: 'resume', forceRecord: true);
+      }
+      return;
+    }
+    _appResumed = resumed;
+    if (resumed) {
+      _applyNightFilter(reason: 'resume', forceRecord: true);
+    }
+    _recordWaterFxActive(reason: 'lifecycle');
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _selectionPulse.dispose();
     _selectionVisibility.dispose();
     _walkerTimeline.dispose();
+    _waterMotionPhase.dispose();
     baseCampMapConfigurationController.removeListener(_configurationChanged);
     _transform.dispose();
     super.dispose();
@@ -807,7 +977,10 @@ class _BaseCampMapState extends State<BaseCampMap>
       },
     );
     setState(() => _facilityLayerRevealed = true);
-    if (readyCount + failedCount == 0) unawaited(_warmWalkerFrames());
+    if (readyCount + failedCount == 0) {
+      unawaited(_initializeWaterFx());
+      unawaited(_warmWalkerFrames());
+    }
   }
 
   void _recordFacilityObjectResolved(BaseCampMapObject object, bool displayed) {
@@ -850,6 +1023,7 @@ class _BaseCampMapState extends State<BaseCampMap>
         'atomicReveal': true,
       },
     );
+    unawaited(_initializeWaterFx());
     unawaited(_warmWalkerFrames());
   }
 
@@ -1081,6 +1255,21 @@ class _BaseCampMapState extends State<BaseCampMap>
                             return const SizedBox.expand();
                           },
                         ),
+                        if (_waterFxInitialized && _waterConfigured)
+                          IgnorePointer(
+                            key: const ValueKey('base-camp-water-fx'),
+                            child: RepaintBoundary(
+                              child: ValueListenableBuilder<int>(
+                                valueListenable: _waterMotionPhase,
+                                builder: (context, phase, _) =>
+                                    _BaseCampWaterMotionLayer(
+                                      configuration: configuration,
+                                      geometry: geometry,
+                                      phase: phase,
+                                    ),
+                              ),
+                            ),
+                          ),
                         IgnorePointer(
                           child: RepaintBoundary(
                             child: AnimatedBuilder(
@@ -1173,6 +1362,13 @@ class _BaseCampMapState extends State<BaseCampMap>
                             geometry: geometry,
                           ),
                         ),
+                        if (_nightFilterActive)
+                          const IgnorePointer(
+                            key: ValueKey('base-camp-night-filter'),
+                            child: ColoredBox(
+                              color: baseCampMapNightOverlayColor,
+                            ),
+                          ),
                       ],
                     );
                   },
@@ -1258,6 +1454,134 @@ class _BaseCampMapState extends State<BaseCampMap>
       ),
     );
   }
+}
+
+class _BaseCampWaterMotionLayer extends StatelessWidget {
+  const _BaseCampWaterMotionLayer({
+    required this.configuration,
+    required this.geometry,
+    required this.phase,
+  });
+
+  final BaseCampMapConfiguration configuration;
+  final BaseCampMapGeometry geometry;
+  final int phase;
+
+  @override
+  Widget build(BuildContext context) {
+    final water = configuration.waterFx['water'];
+    if (water == null || !water.visible || water.effectiveAreas.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final primaryOffset = (phase % 84) * .5;
+    final secondaryOffset = (phase % 153) * .4;
+    return ClipPath(
+      key: const ValueKey('base-camp-water-mask-clip'),
+      clipper: _BaseCampWaterMaskClipper(water: water, geometry: geometry),
+      clipBehavior: Clip.hardEdge,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Transform.translate(
+            key: const ValueKey('base-camp-water-pattern-primary'),
+            offset: Offset(0, primaryOffset),
+            child: const RepaintBoundary(
+              child: _BaseCampWaterBandField(
+                spacing: 42,
+                bandHeight: 6,
+                angle: .018,
+                color: Color(0x0B4E9A9A),
+              ),
+            ),
+          ),
+          Transform.translate(
+            key: const ValueKey('base-camp-water-pattern-secondary'),
+            offset: Offset(0, -secondaryOffset),
+            child: const RepaintBoundary(
+              child: _BaseCampWaterBandField(
+                spacing: 61,
+                bandHeight: 4,
+                angle: -.026,
+                color: Color(0x0876A9A1),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BaseCampWaterBandField extends StatelessWidget {
+  const _BaseCampWaterBandField({
+    required this.spacing,
+    required this.bandHeight,
+    required this.angle,
+    required this.color,
+  });
+
+  final double spacing;
+  final double bandHeight;
+  final double angle;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final count = (constraints.maxHeight / spacing).ceil() + 6;
+      return Transform.rotate(
+        angle: angle,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            for (var index = 0; index < count; index++)
+              Positioned(
+                left: -constraints.maxWidth * .12,
+                right: -constraints.maxWidth * .12,
+                top: (index - 3) * spacing,
+                height: bandHeight,
+                child: ColoredBox(color: color),
+              ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class _BaseCampWaterMaskClipper extends CustomClipper<Path> {
+  const _BaseCampWaterMaskClipper({
+    required this.water,
+    required this.geometry,
+  });
+
+  final BaseCampWaterFx water;
+  final BaseCampMapGeometry geometry;
+
+  @override
+  Path getClip(Size size) {
+    final path = Path()..fillType = PathFillType.evenOdd;
+    for (final area in water.effectiveAreas) {
+      if (area.mask.length < 3) continue;
+      path.addPolygon(
+        area.mask.map(geometry.artworkToViewport).toList(growable: false),
+        true,
+      );
+      for (final exclusion in area.exclusionMasks) {
+        if (exclusion.length < 3) continue;
+        path.addPolygon(
+          exclusion.map(geometry.artworkToViewport).toList(growable: false),
+          true,
+        );
+      }
+    }
+    return path;
+  }
+
+  @override
+  bool shouldReclip(_BaseCampWaterMaskClipper oldClipper) =>
+      oldClipper.water != water ||
+      oldClipper.geometry.imageRect != geometry.imageRect;
 }
 
 class _FacilityConfirmation extends StatelessWidget {
