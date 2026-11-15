@@ -116,19 +116,19 @@ void main() {
 
     await tester.tap(find.text('START'));
     await tester.pump();
-    expect(find.text('MISSION BRIEF'), findsOneWidget);
+    expect(find.text('DAILY BRIEF'), findsOneWidget);
     expect(find.text('RECEIVING...'), findsOneWidget);
     expect(find.text('PROCESSING'), findsNothing);
 
     task.complete();
-    await tester.pump(const Duration(milliseconds: 1000));
+    await tester.pump();
     expect(find.text('RECEIVED'), findsOneWidget);
     expect(returned, isFalse);
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 400));
     expect(returned, isTrue);
   });
 
-  testWidgets('BASE CAMP debrief selects MISSION DEBRIEF communication copy', (
+  testWidgets('BASE CAMP debrief selects DAILY DEBRIEF communication copy', (
     tester,
   ) async {
     final task = Completer<void>();
@@ -145,14 +145,14 @@ void main() {
 
     await tester.tap(find.text('START'));
     await tester.pump();
-    expect(find.text('MISSION DEBRIEF'), findsOneWidget);
+    expect(find.text('DAILY DEBRIEF'), findsOneWidget);
     expect(find.text('RECEIVING...'), findsOneWidget);
     expect(find.text('PROCESSING'), findsNothing);
 
     task.complete();
-    await tester.pump(const Duration(milliseconds: 1000));
+    await tester.pump();
     expect(find.text('RECEIVED'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 400));
   });
 
   testWidgets('BASE CAMP restore opt-out retains the existing Voxel shell', (

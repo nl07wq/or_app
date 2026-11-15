@@ -48,8 +48,9 @@ class OperationSequenceOverlay extends StatefulWidget {
       return BaseCampCommunicationOverlay.run<T>(
         context,
         kind: switch (operationMode) {
-          OperationSequenceMode.brief => BaseCampCommunicationKind.brief,
-          OperationSequenceMode.debrief => BaseCampCommunicationKind.debrief,
+          OperationSequenceMode.brief => BaseCampCommunicationKind.dailyBrief,
+          OperationSequenceMode.debrief =>
+            BaseCampCommunicationKind.dailyDebrief,
           OperationSequenceMode.backup => BaseCampCommunicationKind.backup,
         },
         task: task,

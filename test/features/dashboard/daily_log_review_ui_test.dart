@@ -1299,7 +1299,8 @@ void main() {
   testWidgets('BASE CAMP Backup prompt uses ARK communication motion once', (
     tester,
   ) async {
-    final gateway = _RecordingBackupGateway();
+    final delivery = Completer<BackupFileDelivery>();
+    final gateway = _RecordingBackupGateway(pendingDelivery: delivery);
     await tester.pumpWidget(
       MaterialApp(
         builder: (context, child) => BaseCampScreenEntry(
@@ -1328,12 +1329,12 @@ void main() {
     expect(find.text('COMPLETE'), findsNothing);
     expect(gateway.exportCount, 1);
 
-    await tester.pump(const Duration(milliseconds: 999));
-    expect(find.text('ARCHIVING...'), findsOneWidget);
-    expect(find.text('COMPLETE'), findsNothing);
-    await tester.pump(const Duration(milliseconds: 1));
+    delivery.complete(BackupFileDelivery.shared);
+    await tester.pump();
     expect(find.text('COMPLETE'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 399));
+    expect(find.text('COMPLETE'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1));
     expect(find.text('ARK BACKUP'), findsNothing);
     expect(find.text('Backup exported'), findsOneWidget);
     expect(gateway.exportCount, 1);
@@ -1832,10 +1833,12 @@ class _RecordingBackupGateway implements BackupFileGateway {
   _RecordingBackupGateway({
     this.delivery = BackupFileDelivery.shared,
     this.failure,
+    this.pendingDelivery,
   });
 
   BackupFileDelivery delivery;
   Object? failure;
+  Completer<BackupFileDelivery>? pendingDelivery;
   int exportCount = 0;
 
   @override
@@ -1849,6 +1852,8 @@ class _RecordingBackupGateway implements BackupFileGateway {
     exportCount++;
     final failure = this.failure;
     if (failure != null) throw failure;
+    final pendingDelivery = this.pendingDelivery;
+    if (pendingDelivery != null) return pendingDelivery.future;
     return delivery;
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +18,8 @@ import 'package:or_app/features/periodic_report/services/periodic_report_present
 import 'package:or_app/features/periodic_report/services/periodic_report_fact_service.dart';
 import 'package:or_app/features/periodic_report/widgets/periodic_report_chart.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
+import 'package:or_app/features/themes/base_camp/widgets/base_camp_communication_motion.dart';
 import 'package:or_app/features/training/services/exercise_name_localization.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -70,6 +74,106 @@ void main() {
     );
 
     expect(opened, isFalse);
+  });
+
+  for (final entry in const [
+    (
+      PeriodicReportType.weekly,
+      BaseCampCommunicationKind.weeklyReport,
+      'WEEKLY REPORT',
+    ),
+    (
+      PeriodicReportType.monthly,
+      BaseCampCommunicationKind.monthlyReport,
+      'MONTHLY REPORT',
+    ),
+    (
+      PeriodicReportType.yearly,
+      BaseCampCommunicationKind.yearlyReport,
+      'YEARLY REPORT',
+    ),
+  ]) {
+    testWidgets('BASE CAMP ${entry.$1.name} apply uses ${entry.$3} motion', (
+      tester,
+    ) async {
+      final task = Completer<String>();
+      String? result;
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => BaseCampScreenEntry(
+            screen: BaseCampScreen.commandCenter,
+            child: child!,
+          ),
+          home: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () async {
+                result = await runPeriodicReportApplyPresentation(
+                  context,
+                  reportType: entry.$1,
+                  task: () {
+                    calls++;
+                    return task.future;
+                  },
+                );
+              },
+              child: const Text('APPLY REPORT'),
+            ),
+          ),
+        ),
+      );
+
+      expect(baseCampCommunicationKindForPeriodicReport(entry.$1), entry.$2);
+      await tester.tap(find.text('APPLY REPORT'));
+      await tester.pump();
+      expect(find.text(entry.$3), findsOneWidget);
+      expect(find.text('RECEIVING...'), findsOneWidget);
+      expect(find.text('RECEIVED'), findsNothing);
+      expect(calls, 1);
+
+      task.complete('saved');
+      await tester.pump();
+      expect(find.text('RECEIVED'), findsOneWidget);
+      expect(result, isNull);
+      await tester.pump(const Duration(milliseconds: 399));
+      expect(find.text('RECEIVED'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(result, 'saved');
+      expect(calls, 1);
+    });
+  }
+
+  testWidgets('STANDARD periodic apply remains direct and motion-free', (
+    tester,
+  ) async {
+    var calls = 0;
+    String? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => FilledButton(
+            onPressed: () async {
+              result = await runPeriodicReportApplyPresentation(
+                context,
+                reportType: PeriodicReportType.weekly,
+                task: () async {
+                  calls++;
+                  return 'saved';
+                },
+              );
+            },
+            child: const Text('APPLY REPORT'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('APPLY REPORT'));
+    await tester.pump();
+    expect(result, 'saved');
+    expect(calls, 1);
+    expect(find.byType(BaseCampCommunicationMotion), findsNothing);
+    expect(find.text('RECEIVING...'), findsNothing);
   });
 
   testWidgets(

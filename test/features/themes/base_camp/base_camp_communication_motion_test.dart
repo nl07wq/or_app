@@ -9,12 +9,24 @@ import 'package:or_app/features/themes/base_camp/widgets/base_camp_communication
 void main() {
   test('communication copy is fixed for every operation kind', () {
     expect(
-      baseCampCommunicationTitle(BaseCampCommunicationKind.brief),
-      'MISSION BRIEF',
+      baseCampCommunicationTitle(BaseCampCommunicationKind.dailyBrief),
+      'DAILY BRIEF',
     );
     expect(
-      baseCampCommunicationTitle(BaseCampCommunicationKind.debrief),
-      'MISSION DEBRIEF',
+      baseCampCommunicationTitle(BaseCampCommunicationKind.dailyDebrief),
+      'DAILY DEBRIEF',
+    );
+    expect(
+      baseCampCommunicationTitle(BaseCampCommunicationKind.weeklyReport),
+      'WEEKLY REPORT',
+    );
+    expect(
+      baseCampCommunicationTitle(BaseCampCommunicationKind.monthlyReport),
+      'MONTHLY REPORT',
+    );
+    expect(
+      baseCampCommunicationTitle(BaseCampCommunicationKind.yearlyReport),
+      'YEARLY REPORT',
     );
     expect(
       baseCampCommunicationTitle(BaseCampCommunicationKind.backup),
@@ -22,14 +34,14 @@ void main() {
     );
     expect(
       baseCampCommunicationStatus(
-        BaseCampCommunicationKind.brief,
+        BaseCampCommunicationKind.dailyBrief,
         BaseCampCommunicationPhase.running,
       ),
       'RECEIVING...',
     );
     expect(
       baseCampCommunicationStatus(
-        BaseCampCommunicationKind.debrief,
+        BaseCampCommunicationKind.dailyDebrief,
         BaseCampCommunicationPhase.success,
       ),
       'RECEIVED',
@@ -48,6 +60,19 @@ void main() {
       ),
       'COMPLETE',
     );
+    for (final kind in BaseCampCommunicationKind.values.where(
+      (kind) => kind != BaseCampCommunicationKind.backup,
+    )) {
+      expect(
+        baseCampCommunicationEndpoint(kind),
+        BaseCampCommunicationEndpoint.documentToComputer,
+        reason: kind.name,
+      );
+    }
+    expect(
+      baseCampCommunicationEndpoint(BaseCampCommunicationKind.backup),
+      BaseCampCommunicationEndpoint.folderToServer,
+    );
   });
 
   testWidgets('running transfer advances F0-F3 every 200ms and loops', (
@@ -56,7 +81,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: BaseCampCommunicationMotion(
-          kind: BaseCampCommunicationKind.brief,
+          kind: BaseCampCommunicationKind.dailyBrief,
           phase: BaseCampCommunicationPhase.running,
         ),
       ),
@@ -93,7 +118,7 @@ void main() {
     expect(painter.frame, 4);
   });
 
-  testWidgets('fast success waits 1000ms before F4 and holds completion', (
+  testWidgets('fast success enters F4 immediately and holds it for 400ms', (
     tester,
   ) async {
     final task = Completer<String>();
@@ -103,7 +128,7 @@ void main() {
         onStart: (context) async {
           result = await BaseCampCommunicationOverlay.run(
             context,
-            kind: BaseCampCommunicationKind.debrief,
+            kind: BaseCampCommunicationKind.dailyDebrief,
             task: () => task.future,
           );
         },
@@ -113,19 +138,18 @@ void main() {
     await tester.tap(find.text('START'));
     await tester.pump();
     task.complete('saved');
-    await tester.pump(const Duration(milliseconds: 999));
+    await tester.pump();
     expect(result, isNull);
-    expect(find.text('RECEIVING...'), findsOneWidget);
-    expect(find.text('RECEIVED'), findsNothing);
-
-    await tester.pump(const Duration(milliseconds: 1));
     expect(_frame(4), findsOneWidget);
     expect(find.text('RECEIVED'), findsOneWidget);
     expect(result, isNull);
 
-    await tester.pump(baseCampCommunicationCompletionHold);
+    await tester.pump(const Duration(milliseconds: 399));
+    expect(find.text('RECEIVED'), findsOneWidget);
+    expect(result, isNull);
+    await tester.pump(const Duration(milliseconds: 1));
     expect(result, 'saved');
-    expect(find.text('MISSION DEBRIEF'), findsNothing);
+    expect(find.text('DAILY DEBRIEF'), findsNothing);
   });
 
   testWidgets('long operation keeps looping without success copy', (
@@ -167,7 +191,7 @@ void main() {
           try {
             await BaseCampCommunicationOverlay.run<void>(
               context,
-              kind: BaseCampCommunicationKind.brief,
+              kind: BaseCampCommunicationKind.dailyBrief,
               task: () => task.future,
             );
           } catch (error) {
@@ -180,12 +204,10 @@ void main() {
     await tester.tap(find.text('START'));
     await tester.pump();
     task.completeError(StateError('save failed'));
-    await tester.pump(const Duration(milliseconds: 999));
-    expect(caught, isNull);
-    expect(find.text('RECEIVED'), findsNothing);
-    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
     expect(caught, isA<StateError>());
-    expect(find.text('MISSION BRIEF'), findsNothing);
+    expect(find.text('RECEIVED'), findsNothing);
+    expect(find.text('DAILY BRIEF'), findsNothing);
   });
 
   testWidgets('false success predicate never displays completion', (
@@ -209,7 +231,7 @@ void main() {
     await tester.tap(find.text('START'));
     await tester.pump();
     task.complete(false);
-    await tester.pump(baseCampCommunicationMinimumDuration);
+    await tester.pump();
     expect(result, isFalse);
     expect(find.text('COMPLETE'), findsNothing);
     expect(find.text('ARK BACKUP'), findsNothing);
@@ -227,7 +249,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(
           home: BaseCampCommunicationMotion(
-            kind: BaseCampCommunicationKind.debrief,
+            kind: BaseCampCommunicationKind.dailyDebrief,
             phase: BaseCampCommunicationPhase.running,
           ),
         ),
@@ -237,7 +259,7 @@ void main() {
       final motionRect = tester.getRect(
         find.byType(BaseCampCommunicationMotion),
       );
-      final titleRect = tester.getRect(find.text('MISSION DEBRIEF'));
+      final titleRect = tester.getRect(find.text('DAILY DEBRIEF'));
       final statusRect = tester.getRect(find.text('RECEIVING...'));
       expect(titleRect.left, greaterThanOrEqualTo(motionRect.left));
       expect(titleRect.right, lessThanOrEqualTo(motionRect.right));
@@ -257,6 +279,13 @@ void main() {
       expect(gridPaint.painter, isA<BaseCampLcdGrainPainter>());
       expect(BaseCampLcdGrainPainter.pitch, 4);
       expect(BaseCampLcdGrainPainter.opacity, .08);
+      final vent = tester.widget<CustomPaint>(
+        find.descendant(
+          of: find.byKey(const ValueKey('base-camp-communication-vent')),
+          matching: find.byType(CustomPaint),
+        ),
+      );
+      expect(vent.painter, isA<BaseCampCommunicationVentPainter>());
     });
   }
 }

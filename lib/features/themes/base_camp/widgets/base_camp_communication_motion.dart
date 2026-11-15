@@ -4,18 +4,35 @@ import 'package:flutter/material.dart';
 
 import '../base_camp_dashboard_page.dart' show BaseCampLcdGrainPainter;
 
-enum BaseCampCommunicationKind { brief, debrief, backup }
+enum BaseCampCommunicationKind {
+  dailyBrief,
+  dailyDebrief,
+  weeklyReport,
+  monthlyReport,
+  yearlyReport,
+  backup,
+}
 
 enum BaseCampCommunicationPhase { running, success }
 
+enum BaseCampCommunicationEndpoint { documentToComputer, folderToServer }
+
 const baseCampCommunicationFrameDuration = Duration(milliseconds: 200);
-const baseCampCommunicationMinimumDuration = Duration(milliseconds: 1000);
-const baseCampCommunicationCompletionHold = Duration(milliseconds: 200);
+const baseCampCommunicationCompletionHold = Duration(milliseconds: 400);
+
+BaseCampCommunicationEndpoint baseCampCommunicationEndpoint(
+  BaseCampCommunicationKind kind,
+) => kind == BaseCampCommunicationKind.backup
+    ? BaseCampCommunicationEndpoint.folderToServer
+    : BaseCampCommunicationEndpoint.documentToComputer;
 
 String baseCampCommunicationTitle(BaseCampCommunicationKind kind) =>
     switch (kind) {
-      BaseCampCommunicationKind.brief => 'MISSION BRIEF',
-      BaseCampCommunicationKind.debrief => 'MISSION DEBRIEF',
+      BaseCampCommunicationKind.dailyBrief => 'DAILY BRIEF',
+      BaseCampCommunicationKind.dailyDebrief => 'DAILY DEBRIEF',
+      BaseCampCommunicationKind.weeklyReport => 'WEEKLY REPORT',
+      BaseCampCommunicationKind.monthlyReport => 'MONTHLY REPORT',
+      BaseCampCommunicationKind.yearlyReport => 'YEARLY REPORT',
       BaseCampCommunicationKind.backup => 'ARK BACKUP',
     };
 
@@ -23,14 +40,38 @@ String baseCampCommunicationStatus(
   BaseCampCommunicationKind kind,
   BaseCampCommunicationPhase phase,
 ) => switch ((kind, phase)) {
-  (BaseCampCommunicationKind.brief, BaseCampCommunicationPhase.running) ||
+  (BaseCampCommunicationKind.dailyBrief, BaseCampCommunicationPhase.running) ||
   (
-    BaseCampCommunicationKind.debrief,
+    BaseCampCommunicationKind.dailyDebrief,
+    BaseCampCommunicationPhase.running,
+  ) ||
+  (
+    BaseCampCommunicationKind.weeklyReport,
+    BaseCampCommunicationPhase.running,
+  ) ||
+  (
+    BaseCampCommunicationKind.monthlyReport,
+    BaseCampCommunicationPhase.running,
+  ) ||
+  (
+    BaseCampCommunicationKind.yearlyReport,
     BaseCampCommunicationPhase.running,
   ) => 'RECEIVING...',
-  (BaseCampCommunicationKind.brief, BaseCampCommunicationPhase.success) ||
+  (BaseCampCommunicationKind.dailyBrief, BaseCampCommunicationPhase.success) ||
   (
-    BaseCampCommunicationKind.debrief,
+    BaseCampCommunicationKind.dailyDebrief,
+    BaseCampCommunicationPhase.success,
+  ) ||
+  (
+    BaseCampCommunicationKind.weeklyReport,
+    BaseCampCommunicationPhase.success,
+  ) ||
+  (
+    BaseCampCommunicationKind.monthlyReport,
+    BaseCampCommunicationPhase.success,
+  ) ||
+  (
+    BaseCampCommunicationKind.yearlyReport,
     BaseCampCommunicationPhase.success,
   ) => 'RECEIVED',
   (BaseCampCommunicationKind.backup, BaseCampCommunicationPhase.running) =>
@@ -60,9 +101,6 @@ abstract final class BaseCampCommunicationOverlay {
             BaseCampCommunicationMotion(kind: kind, phase: value),
       ),
     );
-    final minimumHold = Future<void>.delayed(
-      baseCampCommunicationMinimumDuration,
-    );
     overlay.insert(entry);
 
     T? result;
@@ -75,8 +113,6 @@ abstract final class BaseCampCommunicationOverlay {
         taskError = error;
         taskStackTrace = stackTrace;
       }
-
-      await minimumHold;
 
       if (taskError != null) {
         Error.throwWithStackTrace(taskError, taskStackTrace!);
@@ -261,6 +297,20 @@ class _BaseCampCommunicationMotionState
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(height: 12),
+                                    const SizedBox(
+                                      key: ValueKey(
+                                        'base-camp-communication-vent',
+                                      ),
+                                      width: double.infinity,
+                                      height: 8,
+                                      child: CustomPaint(
+                                        painter:
+                                            BaseCampCommunicationVentPainter(
+                                              color: dimPhosphor,
+                                            ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -314,12 +364,13 @@ class BaseCampCommunicationPainter extends CustomPainter {
     final destinationCenter = Offset(size.width * .84, centerY);
     final pixel = scale * 2;
 
-    if (kind == BaseCampCommunicationKind.backup) {
-      _paintFolder(canvas, sourceCenter, pixel);
-      _paintServer(canvas, destinationCenter, pixel, frame == 4);
-    } else {
-      _paintDocument(canvas, sourceCenter, pixel);
-      _paintComputer(canvas, destinationCenter, pixel, frame == 4);
+    switch (baseCampCommunicationEndpoint(kind)) {
+      case BaseCampCommunicationEndpoint.documentToComputer:
+        _paintDocument(canvas, sourceCenter, pixel);
+        _paintComputer(canvas, destinationCenter, pixel, frame == 4);
+      case BaseCampCommunicationEndpoint.folderToServer:
+        _paintFolder(canvas, sourceCenter, pixel);
+        _paintServer(canvas, destinationCenter, pixel, frame == 4);
     }
 
     for (var index = 0; index < 3; index++) {
@@ -475,6 +526,34 @@ class BaseCampCommunicationPainter extends CustomPainter {
       oldDelegate.frame != frame ||
       oldDelegate.activeColor != activeColor ||
       oldDelegate.idleColor != idleColor;
+}
+
+@visibleForTesting
+class BaseCampCommunicationVentPainter extends CustomPainter {
+  const BaseCampCommunicationVentPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = false;
+    const pitch = 8.0;
+    for (var x = -size.height; x < size.width; x += pitch) {
+      canvas.drawLine(
+        Offset(x, size.height),
+        Offset(x + size.height, 0),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant BaseCampCommunicationVentPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 class _CommunicationScrews extends StatelessWidget {

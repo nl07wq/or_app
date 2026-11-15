@@ -16,6 +16,8 @@ import '../../repositories/app_repository_container.dart';
 import '../../report_sync/models/report_sync_history.dart';
 import '../../report_sync/services/report_human_presentation.dart';
 import '../../training/services/exercise_name_localization.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/widgets/base_camp_communication_motion.dart';
 import '../models/periodic_report.dart';
 import '../services/periodic_report_presentation_formatter.dart';
 import '../services/periodic_report_fact_service.dart';
@@ -383,7 +385,11 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
   });
 
   Future<void> _apply() => _run(() async {
-    await PeriodicReportService().apply(_preview!);
+    await runPeriodicReportApplyPresentation(
+      context,
+      reportType: widget.reportType,
+      task: () => PeriodicReportService().apply(_preview!),
+    );
     _preview = null;
     _preparation = null;
     _responseController.clear();
@@ -417,6 +423,29 @@ class _PeriodicReportPanelState extends State<PeriodicReportPanel> {
     });
     GlobalTouchRipple.previewFeedback(TouchFeedbackSound.pageFlip);
   }
+}
+
+@visibleForTesting
+BaseCampCommunicationKind baseCampCommunicationKindForPeriodicReport(
+  PeriodicReportType type,
+) => switch (type) {
+  PeriodicReportType.weekly => BaseCampCommunicationKind.weeklyReport,
+  PeriodicReportType.monthly => BaseCampCommunicationKind.monthlyReport,
+  PeriodicReportType.yearly => BaseCampCommunicationKind.yearlyReport,
+};
+
+@visibleForTesting
+Future<T> runPeriodicReportApplyPresentation<T>(
+  BuildContext context, {
+  required PeriodicReportType reportType,
+  required Future<T> Function() task,
+}) {
+  if (!BaseCampPresentation.isActive(context)) return task();
+  return BaseCampCommunicationOverlay.run<T>(
+    context,
+    kind: baseCampCommunicationKindForPeriodicReport(reportType),
+    task: task,
+  );
 }
 
 @visibleForTesting
