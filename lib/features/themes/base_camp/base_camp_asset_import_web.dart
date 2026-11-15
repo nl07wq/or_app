@@ -17,8 +17,43 @@ class BaseCampImportedFile {
 }
 
 Future<BaseCampImportedFile?> platformPickBaseCampAssetFile() async {
-  final input = html.FileUploadInputElement()
-    ..accept = 'image/png,image/gif,image/jpeg';
+  final file = await _pickBaseCampFile(
+    accept: 'image/png,image/gif,image/jpeg',
+  );
+  if (file == null) return null;
+  final extension = file.name.toLowerCase().split('.').last;
+  final mimeType = switch (file.type.toLowerCase()) {
+    'image/png' => 'image/png',
+    'image/gif' => 'image/gif',
+    'image/jpeg' || 'image/jpg' => 'image/jpeg',
+    _ => switch (extension) {
+      'png' => 'image/png',
+      'gif' => 'image/gif',
+      'jpg' || 'jpeg' => 'image/jpeg',
+      _ => file.type,
+    },
+  };
+  return BaseCampImportedFile(
+    name: file.name,
+    mimeType: mimeType,
+    bytes: file.bytes,
+  );
+}
+
+Future<BaseCampImportedFile?> platformPickBaseCampWaterJsonFile() async {
+  final file = await _pickBaseCampFile(accept: '.json,application/json');
+  if (file == null) return null;
+  return BaseCampImportedFile(
+    name: file.name,
+    mimeType: 'application/json',
+    bytes: file.bytes,
+  );
+}
+
+Future<({String name, String type, Uint8List bytes})?> _pickBaseCampFile({
+  required String accept,
+}) async {
+  final input = html.FileUploadInputElement()..accept = accept;
   input.click();
   await input.onChange.first;
   final file = input.files?.singleOrNull;
@@ -37,21 +72,5 @@ Future<BaseCampImportedFile?> platformPickBaseCampAssetFile() async {
   if (result is! ByteBuffer) {
     throw StateError('Base Camp asset file has no binary content.');
   }
-  final extension = file.name.toLowerCase().split('.').last;
-  final mimeType = switch (file.type.toLowerCase()) {
-    'image/png' => 'image/png',
-    'image/gif' => 'image/gif',
-    'image/jpeg' || 'image/jpg' => 'image/jpeg',
-    _ => switch (extension) {
-      'png' => 'image/png',
-      'gif' => 'image/gif',
-      'jpg' || 'jpeg' => 'image/jpeg',
-      _ => file.type,
-    },
-  };
-  return BaseCampImportedFile(
-    name: file.name,
-    mimeType: mimeType,
-    bytes: Uint8List.view(result),
-  );
+  return (name: file.name, type: file.type, bytes: Uint8List.view(result));
 }

@@ -6,3 +6,6 @@ export 'base_camp_asset_import_stub.dart'
 
 Future<BaseCampImportedFile?> pickBaseCampAssetFile() =>
     platformPickBaseCampAssetFile();
+
+Future<BaseCampImportedFile?> pickBaseCampWaterJsonFile() =>
+    platformPickBaseCampWaterJsonFile();

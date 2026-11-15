@@ -134,19 +134,37 @@ class BaseCampWaterMaskClipper extends CustomClipper<Path> {
 
   @override
   Path getClip(Size size) {
-    final path = Path()..fillType = PathFillType.evenOdd;
+    // Some approved exclusions cross a WATER boundary. Build a true set
+    // difference so their out-of-water portion never becomes a filled island.
+    Path? waterUnion;
+    Path? exclusionUnion;
     for (final area in water.effectiveAreas) {
       if (area.mask.length < 3) continue;
-      path.addPolygon(area.mask.map(_toViewport).toList(growable: false), true);
+      final waterPolygon = Path()
+        ..addPolygon(area.mask.map(_toViewport).toList(growable: false), true);
+      waterUnion = waterUnion == null
+          ? waterPolygon
+          : Path.combine(PathOperation.union, waterUnion, waterPolygon);
       for (final exclusion in area.exclusionMasks) {
         if (exclusion.length < 3) continue;
-        path.addPolygon(
-          exclusion.map(_toViewport).toList(growable: false),
-          true,
-        );
+        final exclusionPolygon = Path()
+          ..addPolygon(
+            exclusion.map(_toViewport).toList(growable: false),
+            true,
+          );
+        exclusionUnion = exclusionUnion == null
+            ? exclusionPolygon
+            : Path.combine(
+                PathOperation.union,
+                exclusionUnion,
+                exclusionPolygon,
+              );
       }
     }
-    return path;
+    final waterPath = waterUnion ?? Path();
+    return exclusionUnion == null
+        ? waterPath
+        : Path.combine(PathOperation.difference, waterPath, exclusionUnion);
   }
 
   @override

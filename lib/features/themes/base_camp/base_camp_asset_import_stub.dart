@@ -16,3 +16,10 @@ Future<BaseCampImportedFile?> platformPickBaseCampAssetFile() =>
     Future<BaseCampImportedFile?>.error(
       UnsupportedError('Base Camp asset import is available only on the web.'),
     );
+
+Future<BaseCampImportedFile?> platformPickBaseCampWaterJsonFile() =>
+    Future<BaseCampImportedFile?>.error(
+      UnsupportedError(
+        'Base Camp WATER JSON import is available only on the web.',
+      ),
+    );

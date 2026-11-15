@@ -77,6 +77,121 @@ bool _selfIntersects(List<Offset> points) {
   return false;
 }
 
+@immutable
+class BaseCampWaterGeometryImport {
+  const BaseCampWaterGeometryImport._(this.areas);
+
+  static const expectedExclusionCounts = <int>[3, 0, 2, 2];
+  final List<BaseCampWaterArea> areas;
+
+  int get exclusionCount =>
+      areas.fold<int>(0, (count, area) => count + area.exclusionMasks.length);
+
+  factory BaseCampWaterGeometryImport.parse(String source) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(source);
+    } on FormatException {
+      throw const FormatException('JSON syntax is invalid.');
+    }
+    if (decoded is! Map) {
+      throw const FormatException('The import root must be a JSON object.');
+    }
+    if (decoded['schemaVersion'] != BaseCampMapConfiguration.schemaVersion) {
+      throw FormatException(
+        'Unsupported schemaVersion. Expected '
+        '${BaseCampMapConfiguration.schemaVersion}.',
+      );
+    }
+    if (decoded['mapId'] != BaseCampMapConfiguration.mapId) {
+      throw const FormatException('The JSON is not a BASE CAMP MAP export.');
+    }
+    final waterFx = decoded['waterFx'];
+    final rawWater = waterFx is Map ? waterFx['water'] : null;
+    final rawAreas = rawWater is Map ? rawWater['areas'] : null;
+    if (rawAreas is! List || rawAreas.length != 4) {
+      throw const FormatException(
+        'The approved import must contain exactly four WATER areas.',
+      );
+    }
+    final areas = <BaseCampWaterArea>[];
+    for (var index = 0; index < rawAreas.length; index++) {
+      final area = BaseCampWaterArea.tryParse(rawAreas[index]);
+      if (area == null ||
+          !_validImportPolygon(area.mask) ||
+          area.shoreline.length < 2 ||
+          area.exclusionMasks.any((polygon) => !_validImportPolygon(polygon))) {
+        throw FormatException(
+          'WATER area ${index + 1} contains invalid or missing coordinates.',
+        );
+      }
+      final expected = expectedExclusionCounts[index];
+      if (area.exclusionMasks.length != expected) {
+        throw FormatException(
+          'WATER area ${index + 1} must contain $expected EXCLUSION masks.',
+        );
+      }
+      areas.add(area);
+    }
+
+    final compatibilityArea = BaseCampWaterArea.tryParse(rawWater);
+    if (compatibilityArea == null ||
+        !_samePoints(compatibilityArea.mask, areas.first.mask) ||
+        !_samePoints(compatibilityArea.shoreline, areas.first.shoreline) ||
+        !_samePolygons(
+          compatibilityArea.exclusionMasks,
+          areas.first.exclusionMasks,
+        )) {
+      throw const FormatException(
+        'Area 1 and the compatibility WATER fields are not synchronized.',
+      );
+    }
+    return BaseCampWaterGeometryImport._(
+      List<BaseCampWaterArea>.unmodifiable(areas),
+    );
+  }
+
+  BaseCampWaterFx applyTo(BaseCampWaterFx current) {
+    final primary = areas.first;
+    return current.copyWith(
+      areas: List<BaseCampWaterArea>.of(areas),
+      mask: List<Offset>.of(primary.mask),
+      shoreline: List<Offset>.of(primary.shoreline),
+      exclusionMasks: primary.exclusionMasks
+          .map((polygon) => List<Offset>.of(polygon))
+          .toList(growable: false),
+    );
+  }
+}
+
+bool _validImportPolygon(List<Offset> points) {
+  if (points.length < 3 || _selfIntersects(points)) return false;
+  var twiceArea = 0.0;
+  for (var index = 0; index < points.length; index++) {
+    final current = points[index];
+    final next = points[(index + 1) % points.length];
+    if (current == next) return false;
+    twiceArea += current.dx * next.dy - next.dx * current.dy;
+  }
+  return twiceArea.abs() > .001;
+}
+
+bool _samePoints(List<Offset> left, List<Offset> right) {
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index++) {
+    if (left[index] != right[index]) return false;
+  }
+  return true;
+}
+
+bool _samePolygons(List<List<Offset>> left, List<List<Offset>> right) {
+  if (left.length != right.length) return false;
+  for (var index = 0; index < left.length; index++) {
+    if (!_samePoints(left[index], right[index])) return false;
+  }
+  return true;
+}
+
 /// Computes a temporary editor-only transform that centres a selected water
 /// mask. It never changes source coordinates or durable map framing.
 Matrix4 baseCampWaterFocusTransform({
@@ -117,10 +232,12 @@ class BaseCampMapEditorPage extends StatefulWidget {
     super.key,
     this.configurationController,
     this.waterDraftStore,
+    this.waterJsonPicker,
   });
 
   final BaseCampMapConfigurationController? configurationController;
   final BaseCampWaterDraftStore? waterDraftStore;
+  final Future<BaseCampImportedFile?> Function()? waterJsonPicker;
 
   @override
   State<BaseCampMapEditorPage> createState() => _BaseCampMapEditorPageState();
@@ -209,6 +326,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
 
   bool get _dirty =>
       _working.encode() != _configurationController.value.encode();
+
+  String get _workingJson =>
+      const JsonEncoder.withIndent('  ').convert(_working.toJson());
 
   bool get _waterDirty =>
       jsonEncode(_working.waterFx.map((id, fx) => MapEntry(id, fx.toJson()))) !=
@@ -406,6 +526,91 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       ),
     );
     _scheduleWaterDraftSave();
+  }
+
+  Future<void> _importWaterJson() async {
+    try {
+      final file =
+          await (widget.waterJsonPicker?.call() ?? pickBaseCampWaterJsonFile());
+      if (file == null || !mounted) return;
+      if (file.bytes.lengthInBytes > 2 * 1024 * 1024) {
+        throw const FormatException('The WATER JSON exceeds the 2 MB limit.');
+      }
+      final imported = BaseCampWaterGeometryImport.parse(
+        utf8.decode(file.bytes, allowMalformed: false),
+      );
+      final current = _working.waterFx[_waterFxId];
+      if (current == null) {
+        throw const FormatException(
+          'The current WATER configuration is missing.',
+        );
+      }
+      final oldAreas = current.effectiveAreas.length;
+      final oldExclusions = current.effectiveAreas.fold<int>(
+        0,
+        (count, area) => count + area.exclusionMasks.length,
+      );
+      final approved = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('IMPORT WATER JSON?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('WATER AREAS  $oldAreas → ${imported.areas.length}'),
+              const SizedBox(height: 8),
+              Text(
+                'EXCLUSION MASKS  $oldExclusions → '
+                '${imported.exclusionCount}',
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Only WATER MASK, SHORELINE, and EXCLUSION geometry will be '
+                'replaced in the editor working copy. Press SAVE to persist.',
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('CANCEL'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('REPLACE WATER'),
+            ),
+          ],
+        ),
+      );
+      if (approved != true || !mounted) return;
+      _replaceWaterFx(_waterFxId, imported.applyTo(current));
+      setState(() {
+        _waterAreaIndex = 0;
+        _exclusionMaskIndex = 0;
+        _waterPointIndex = 0;
+        _activeWaterDragAreaIndex = -1;
+        _awaitingNewWaterArea = false;
+        _awaitingWaterPoint = false;
+        _awaitingExclusionPoint = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('WATER IMPORT READY — PRESS SAVE TO PERSIST'),
+        ),
+      );
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('WATER IMPORT REJECTED — ${error.message}')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('WATER IMPORT FAILED — DATA UNCHANGED')),
+      );
+    }
   }
 
   List<BaseCampWaterArea> _areas(BaseCampWaterFx effect) =>
@@ -1194,21 +1399,28 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
             ),
             IconButton(
               key: const ValueKey('base-camp-editor-copy-json'),
-              onPressed: () => Clipboard.setData(
-                ClipboardData(
-                  text: const JsonEncoder.withIndent(
-                    '  ',
-                  ).convert(_working.toJson()),
-                ),
-              ),
+              onPressed: () =>
+                  Clipboard.setData(ClipboardData(text: _workingJson)),
               icon: const Icon(Icons.content_copy),
             ),
             IconButton(
               key: const ValueKey('base-camp-editor-export-json'),
-              onPressed: () => exportBaseCampMapJson(
-                const JsonEncoder.withIndent('  ').convert(_working.toJson()),
-              ),
+              onPressed: () => exportBaseCampMapJson(_workingJson),
               icon: const Icon(Icons.download),
+            ),
+            SizedBox(
+              width: 32,
+              child: IconButton(
+                key: const ValueKey('base-camp-editor-import-water-json'),
+                tooltip: 'IMPORT WATER JSON',
+                onPressed: () => unawaited(_importWaterJson()),
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 48,
+                ),
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.upload_file),
+              ),
             ),
             IconButton(
               key: const ValueKey('base-camp-editor-save'),
