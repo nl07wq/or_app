@@ -209,13 +209,22 @@ class _FootCardState extends State<FootCard> {
                   child: Row(
                     children: [
                       const Expanded(child: Text('PAIN LEVEL')),
-                      Text(
-                        'LV.$value /10',
-                        key: const Key('foot-pain-current-value'),
-                        style: baseCampStatusReadoutStyle(
-                          context,
-                          Theme.of(context).textTheme.titleLarge,
-                          fontSize: 16,
+                      SizedBox(
+                        width: 112,
+                        child: BaseCampStatusLcdWindow(
+                          key: const ValueKey('foot-pain-lcd-window-collapsed'),
+                          height: 42,
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
+                          child: Text(
+                            'LV.$value /10',
+                            key: const Key('foot-pain-current-value'),
+                            maxLines: 1,
+                            style: baseCampStatusReadoutStyle(
+                              context,
+                              Theme.of(context).textTheme.titleLarge,
+                              fontSize: 16,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -251,15 +260,20 @@ class _FootCardState extends State<FootCard> {
                               : () => _selectPainLevel(value - 1),
                         ),
                         Expanded(
-                          child: Text(
-                            'LV.$value /10',
-                            key: const Key('foot-pain-current-value'),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            style: baseCampStatusReadoutStyle(
-                              context,
-                              Theme.of(context).textTheme.headlineMedium,
-                              fontSize: 24,
+                          child: BaseCampStatusLcdWindow(
+                            key: const ValueKey('foot-pain-lcd-window'),
+                            height: 50,
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            child: Text(
+                              'LV.$value /10',
+                              key: const Key('foot-pain-current-value'),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              style: baseCampStatusReadoutStyle(
+                                context,
+                                Theme.of(context).textTheme.headlineMedium,
+                                fontSize: 24,
+                              ),
                             ),
                           ),
                         ),
@@ -307,11 +321,10 @@ class _FootCardState extends State<FootCard> {
                     ),
                     Align(
                       alignment: Alignment.centerRight,
-                      child: TextButton(
+                      child: BaseCampStatusCompletionButton(
                         key: const Key('foot-pain-done'),
                         onPressed: () => setState(() => _editing = false),
-                        child: const Text('完了'),
-                      ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+                      ),
                     ),
                   ],
                 ),
@@ -337,26 +350,15 @@ class _FootStepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = BaseCampTerminalPaletteScope.of(context);
     final enabled = onPressed != null;
     return Tooltip(
       message: tooltip,
-      child: SizedBox.square(
-        dimension: 44,
-        child: Material(
-          color: enabled ? palette.field : palette.auxiliaryText,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-            side: BorderSide(color: palette.primaryText),
-          ),
-          child: InkWell(
-            onTap: onPressed,
-            child: Icon(
-              icon,
-              color: enabled ? palette.primaryText : palette.background,
-            ),
-          ),
-        ),
+      child: BaseCampMechanicalButton(
+        onPressed: onPressed,
+        width: 44,
+        height: 44,
+        padding: EdgeInsets.zero,
+        child: Icon(icon),
       ),
     ).actionableFeedback(enabled: enabled, role: ActionableFeedbackRole.cursor);
   }

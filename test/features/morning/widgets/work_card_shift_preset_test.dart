@@ -5,6 +5,7 @@ import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/services/shift_preset_preferences.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/morning/widgets/work_card.dart';
+import 'package:or_app/features/morning/widgets/base_camp_status_style.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_retro_terminal.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
@@ -390,8 +391,11 @@ void main() {
           expect(label.maxLines, 1);
           expect(label.style?.fontFamily, 'DotGothic16');
         }
-        final selected = tester.widget<ChoiceChip>(
-          find.ancestor(of: find.text('早番'), matching: find.byType(ChoiceChip)),
+        final selected = tester.widget<BaseCampMechanicalButton>(
+          find.ancestor(
+            of: find.text('早番'),
+            matching: find.byType(BaseCampMechanicalButton),
+          ),
         );
         expect(selected.selected, isTrue);
         final palette = tester

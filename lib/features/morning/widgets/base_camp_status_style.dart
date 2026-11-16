@@ -48,7 +48,7 @@ class BaseCampStatusControlColors {
   final Color border;
 }
 
-ChoiceChip baseCampStatusChoiceChip({
+Widget baseCampStatusChoiceChip({
   required BuildContext context,
   required Widget label,
   required bool selected,
@@ -59,22 +59,177 @@ ChoiceChip baseCampStatusChoiceChip({
     context,
     selected: selected,
   );
-  return ChoiceChip(
-    label: DefaultTextStyle.merge(
+  return BaseCampMechanicalButton(
+    selected: selected,
+    onPressed: () => onSelected(!selected),
+    padding:
+        labelPadding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    child: DefaultTextStyle.merge(
       style: TextStyle(color: colors.foreground),
       child: label,
     ),
-    selected: selected,
-    onSelected: onSelected,
-    labelPadding: labelPadding,
-    backgroundColor: colors.background,
-    selectedColor: colors.background,
-    checkmarkColor: colors.foreground,
-    side: BorderSide(color: colors.border),
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-    showCheckmark: false,
-    labelStyle: TextStyle(color: colors.foreground),
-    color: WidgetStatePropertyAll<Color>(colors.background),
+  );
+}
+
+/// Recessed numeric/status window used only by BASE CAMP STATUS readouts.
+/// The 4px LCD texture is owned by this boundary and never covers controls.
+class BaseCampStatusLcdWindow extends StatelessWidget {
+  const BaseCampStatusLcdWindow({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    this.height,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    return SizedBox(
+      height: height,
+      child: BaseCampLcdSurface(
+        palette: palette,
+        padding: padding,
+        child: Center(child: child),
+      ),
+    );
+  }
+}
+
+/// Physical STATUS control. Momentary controls sink while held; mutually
+/// exclusive controls remain sunk while their existing selected state is true.
+class BaseCampMechanicalButton extends StatefulWidget {
+  const BaseCampMechanicalButton({
+    super.key,
+    required this.child,
+    required this.onPressed,
+    this.selected = false,
+    this.width,
+    this.height,
+    this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+  });
+
+  final Widget child;
+  final VoidCallback? onPressed;
+  final bool selected;
+  final double? width;
+  final double? height;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  State<BaseCampMechanicalButton> createState() =>
+      _BaseCampMechanicalButtonState();
+}
+
+class _BaseCampMechanicalButtonState extends State<BaseCampMechanicalButton> {
+  bool _held = false;
+
+  void _setHeld(bool value) {
+    if (_held != value && mounted) setState(() => _held = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    final enabled = widget.onPressed != null;
+    final depressed = enabled && (widget.selected || _held);
+    final colors = BaseCampStatusControlColors.resolve(
+      context,
+      selected: widget.selected,
+    );
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      selected: widget.selected,
+      child: SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: BaseCampTerminalPalette.housingShadow,
+            border: Border.all(color: BaseCampTerminalPalette.housingEdge),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(2, 2, 2, 4),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              curve: Curves.easeOut,
+              transform: Matrix4.translationValues(0, depressed ? 2 : 0, 0),
+              decoration: BoxDecoration(
+                color: enabled ? colors.background : palette.auxiliaryText,
+                border: Border.all(color: colors.border),
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: depressed
+                    ? <BoxShadow>[
+                        BoxShadow(
+                          color: BaseCampTerminalPalette.housingShadow
+                              .withValues(alpha: .45),
+                          blurRadius: 1,
+                          spreadRadius: 1,
+                          blurStyle: BlurStyle.inner,
+                        ),
+                      ]
+                    : <BoxShadow>[
+                        const BoxShadow(
+                          color: BaseCampTerminalPalette.housingShadow,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: widget.onPressed,
+                  onHighlightChanged: enabled ? _setHeld : null,
+                  child: Padding(
+                    padding: widget.padding,
+                    child: IconTheme.merge(
+                      data: IconThemeData(
+                        color: enabled ? colors.foreground : palette.background,
+                      ),
+                      child: DefaultTextStyle.merge(
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: enabled
+                              ? colors.foreground
+                              : palette.background,
+                        ),
+                        child: Center(child: widget.child),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class BaseCampStatusCompletionButton extends StatelessWidget {
+  const BaseCampStatusCompletionButton({super.key, required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => BaseCampMechanicalButton(
+    onPressed: onPressed,
+    height: 40,
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    child: const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Icon(Icons.lock_outline, size: 15),
+        SizedBox(width: 5),
+        Text('完了'),
+      ],
+    ),
   );
 }
 

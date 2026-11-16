@@ -7,7 +7,6 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
 import '../../themes/base_camp/base_camp_retro_theme.dart';
-import '../../themes/base_camp/base_camp_retro_terminal.dart';
 import 'base_camp_status_style.dart';
 
 class RecoveryCard extends StatelessWidget {
@@ -285,18 +284,32 @@ class _SleepDurationOrbitalInputState
                   ],
                 ),
               ),
-              Text(
-                widget.controller.text,
-                style: isBaseCampStatus(context)
-                    ? baseCampStatusReadoutStyle(
+              if (isBaseCampStatus(context))
+                SizedBox(
+                  width: 104,
+                  child: BaseCampStatusLcdWindow(
+                    key: const ValueKey('status-sleep-duration-lcd-window'),
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    child: Text(
+                      widget.controller.text,
+                      maxLines: 1,
+                      style: baseCampStatusReadoutStyle(
                         context,
                         Theme.of(context).textTheme.headlineSmall,
-                      )
-                    : Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        fontFamily: 'ShareTechMono',
+                        fontSize: 20,
                       ),
-              ),
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  widget.controller.text,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'ShareTechMono',
+                  ),
+                ),
               const SizedBox(width: 10),
               Icon(Icons.chevron_right, color: colors.primary),
               const SizedBox(width: 8),
@@ -383,15 +396,20 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
                   onPressed: _value <= 0 ? null : () => _step(-1),
                 ),
                 Expanded(
-                  child: Text(
-                    '$_value /100',
-                    key: const ValueKey('status-sleep-score-lcd-readout'),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    style: baseCampStatusReadoutStyle(
-                      context,
-                      Theme.of(context).textTheme.headlineLarge,
-                      fontSize: 24,
+                  child: BaseCampStatusLcdWindow(
+                    key: const ValueKey('status-sleep-score-lcd-window'),
+                    height: 50,
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    child: Text(
+                      '$_value /100',
+                      key: const ValueKey('status-sleep-score-lcd-readout'),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      style: baseCampStatusReadoutStyle(
+                        context,
+                        Theme.of(context).textTheme.headlineLarge,
+                        fontSize: 24,
+                      ),
                     ),
                   ),
                 ),
@@ -413,11 +431,10 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
             ),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(
+              child: BaseCampStatusCompletionButton(
                 key: const ValueKey('status-sleep-score-done'),
                 onPressed: () => setState(() => _editing = false),
-                child: const Text('完了'),
-              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+              ),
             ),
           ],
         ),
@@ -498,26 +515,15 @@ class _SleepScoreStepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = BaseCampTerminalPaletteScope.of(context);
     final enabled = onPressed != null;
     return Tooltip(
       message: tooltip,
-      child: SizedBox.square(
-        dimension: 44,
-        child: Material(
-          color: enabled ? palette.field : palette.auxiliaryText,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-            side: BorderSide(color: palette.primaryText),
-          ),
-          child: InkWell(
-            onTap: onPressed,
-            child: Icon(
-              icon,
-              color: enabled ? palette.primaryText : palette.background,
-            ),
-          ),
-        ),
+      child: BaseCampMechanicalButton(
+        onPressed: onPressed,
+        width: 44,
+        height: 44,
+        padding: EdgeInsets.zero,
+        child: Icon(icon),
       ),
     ).actionableFeedback(enabled: enabled, role: ActionableFeedbackRole.cursor);
   }
@@ -560,20 +566,33 @@ class _CollapsedRecoveryValue extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              Text(
-                value,
-                style: baseCamp
-                    ? baseCampStatusReadoutStyle(
+              if (baseCamp)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 104),
+                  child: BaseCampStatusLcdWindow(
+                    height: 42,
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    child: Text(
+                      value,
+                      maxLines: 1,
+                      style: baseCampStatusReadoutStyle(
                         context,
                         Theme.of(context).textTheme.titleLarge,
+                        fontSize: 16,
                         color: color,
-                      )
-                    : Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'ShareTechMono',
                       ),
-              ),
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'ShareTechMono',
+                  ),
+                ),
               Icon(Icons.edit_outlined, size: 18, color: color),
             ],
           ),

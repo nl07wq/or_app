@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/morning/widgets/body_card.dart';
+import 'package:or_app/features/morning/widgets/base_camp_status_style.dart';
 import 'package:or_app/features/morning/widgets/foot_card.dart';
 import 'package:or_app/features/morning/widgets/recovery_card.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
@@ -45,6 +46,27 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('94.2 kg'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('status-weight-lcd-window')),
+        matching: find.byKey(const ValueKey('base-camp-terminal-lcd-grid')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('status-weight-rotary-dial')),
+        matching: find.byKey(const ValueKey('base-camp-terminal-lcd-grid')),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('status-weight-plus')),
+        matching: find.byKey(const ValueKey('base-camp-terminal-lcd-grid')),
+      ),
+      findsNothing,
+    );
 
     await tester.tap(find.byKey(const ValueKey('status-weight-plus')));
     await tester.pump();
@@ -179,7 +201,10 @@ void main() {
         find.byKey(const ValueKey('status-body-fat-marker')),
       );
       expect(maximumMarker.left, greaterThan(minimumMarker.left));
-      expect(find.byKey(const ValueKey('status-body-fat-plus')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('status-body-fat-plus')),
+        findsOneWidget,
+      );
     },
   );
 
@@ -292,12 +317,51 @@ void main() {
           find.byType(BaseCampTerminalPaletteScope),
         )
         .palette;
-    final selected = tester.widget<ChoiceChip>(
-      find.ancestor(of: find.text('睡眠'), matching: find.byType(ChoiceChip)),
+    final selected = tester.widget<BaseCampMechanicalButton>(
+      find.ancestor(
+        of: find.text('睡眠'),
+        matching: find.byType(BaseCampMechanicalButton),
+      ),
     );
     expect(selected.selected, isTrue);
-    expect(selected.selectedColor, palette.primaryText);
-    expect(selected.labelStyle?.color, palette.background);
+    expect(
+      tester.widget<Text>(find.text('睡眠')).style?.color,
+      palette.background,
+    );
+  });
+
+  testWidgets('mechanical control sinks two pixels while held', (tester) async {
+    final weight = TextEditingController(text: '94.2');
+    final bodyFat = TextEditingController(text: '31.9');
+    addTearDown(weight.dispose);
+    addTearDown(bodyFat.dispose);
+    await tester.pumpWidget(
+      _baseCampHarness(
+        BodyCard(
+          weightController: weight,
+          bodyFatController: bodyFat,
+          weightUnmeasured: false,
+          onWeightUnmeasured: () {},
+          onWeightMeasured: () {},
+          initiallyExpanded: true,
+        ),
+      ),
+    );
+
+    final button = find.byKey(const ValueKey('status-weight-plus'));
+    Matrix4 transform() => tester
+        .widgetList<AnimatedContainer>(
+          find.descendant(of: button, matching: find.byType(AnimatedContainer)),
+        )
+        .single
+        .transform!;
+    expect(transform().getTranslation().y, 0);
+    final gesture = await tester.startGesture(tester.getCenter(button));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(transform().getTranslation().y, 2);
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(transform().getTranslation().y, 0);
   });
 
   testWidgets('STANDARD retains the existing STATUS instruments', (
@@ -397,6 +461,27 @@ void main() {
           find.byKey(const ValueKey('foot-pain-ten-segments')),
           findsOneWidget,
         );
+        expect(
+          find.byKey(const ValueKey('status-weight-lcd-window')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('status-body-fat-lcd-window')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('status-sleep-duration-lcd-window')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('status-sleep-score-lcd-window')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('foot-pain-lcd-window')),
+          findsOneWidget,
+        );
+        expect(find.byIcon(Icons.lock_outline), findsNWidgets(4));
         expect(tester.takeException(), isNull);
       });
     }

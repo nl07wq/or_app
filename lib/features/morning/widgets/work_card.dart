@@ -295,29 +295,72 @@ class _WorkCardState extends State<WorkCard> {
                           workBreak: widget.breakController.text,
                         );
 
+                        final value = WorkCalculator.format(workHours);
                         return Align(
                           alignment: Alignment.centerRight,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              const Text(
-                                "WORK HOURS",
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 1.2,
+                          child: isBaseCampStatus(context)
+                              ? SizedBox(
+                                  width: 176,
+                                  child: BaseCampStatusLcdWindow(
+                                    key: const ValueKey(
+                                      'work-hours-lcd-window',
+                                    ),
+                                    height: 70,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 5,
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          'WORK HOURS',
+                                          style: baseCampStatusReadoutStyle(
+                                            context,
+                                            Theme.of(
+                                              context,
+                                            ).textTheme.labelSmall,
+                                            fontSize: 8,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          value,
+                                          maxLines: 1,
+                                          style: baseCampStatusReadoutStyle(
+                                            context,
+                                            Theme.of(
+                                              context,
+                                            ).textTheme.headlineSmall,
+                                            fontSize: 24,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    const Text(
+                                      'WORK HOURS',
+                                      style: TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                                    Text(
+                                      value,
+                                      style: const TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              Text(
-                                WorkCalculator.format(workHours),
-                                style: const TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
                         );
                       },
                     );
@@ -417,6 +460,23 @@ class _WorkTypeSelector extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final selected = value == type;
     final baseCamp = BaseCampPresentation.isActive(context);
+    if (isBaseCampStatus(context)) {
+      return BaseCampMechanicalButton(
+        key: ValueKey('work-type-${type.name}'),
+        selected: selected,
+        onPressed: () => onChanged(type),
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 5),
+        child: Text(
+          _labels[type]!,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: BaseCampRetroTheme.japaneseControl(
+            Theme.of(context).textTheme.labelLarge,
+          ).copyWith(fontSize: 12),
+        ),
+      );
+    }
     return Semantics(
       button: true,
       selected: selected,
@@ -561,20 +621,33 @@ class _WorkClockRowState extends State<_WorkClockRow> {
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
-                Text(
-                  widget.controller.text,
-                  style: isBaseCampStatus(context)
-                      ? baseCampStatusReadoutStyle(
+                if (isBaseCampStatus(context))
+                  SizedBox(
+                    width: 106,
+                    child: BaseCampStatusLcdWindow(
+                      height: 42,
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      child: Text(
+                        widget.controller.text,
+                        maxLines: 1,
+                        style: baseCampStatusReadoutStyle(
                           context,
                           Theme.of(context).textTheme.titleLarge,
+                          fontSize: 18,
                           color: cs.primary,
-                        )
-                      : Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: cs.primary,
-                          fontFamily: 'ShareTechMono',
-                          fontWeight: FontWeight.w700,
                         ),
-                ),
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    widget.controller.text,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: cs.primary,
+                      fontFamily: 'ShareTechMono',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 Icon(Icons.edit_outlined, size: 18, color: cs.primary),
               ],
             ),
@@ -606,18 +679,31 @@ class _WorkClockRowState extends State<_WorkClockRow> {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              Text(
-                widget.controller.text,
-                style: isBaseCampStatus(context)
-                    ? baseCampStatusReadoutStyle(
+              if (isBaseCampStatus(context))
+                SizedBox(
+                  width: 106,
+                  child: BaseCampStatusLcdWindow(
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    child: Text(
+                      widget.controller.text,
+                      maxLines: 1,
+                      style: baseCampStatusReadoutStyle(
                         context,
                         Theme.of(context).textTheme.titleLarge,
-                      )
-                    : Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontFamily: 'ShareTechMono',
-                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
                       ),
-              ),
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  widget.controller.text,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontFamily: 'ShareTechMono',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               const SizedBox(width: 8),
               Icon(Icons.chevron_right, color: cs.primary),
               const SizedBox(width: 10),
@@ -718,20 +804,33 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                Text(
-                  _label,
-                  style: isBaseCampStatus(context)
-                      ? baseCampStatusReadoutStyle(
+                if (isBaseCampStatus(context))
+                  SizedBox(
+                    width: 106,
+                    child: BaseCampStatusLcdWindow(
+                      height: 42,
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      child: Text(
+                        _label,
+                        maxLines: 1,
+                        style: baseCampStatusReadoutStyle(
                           context,
                           Theme.of(context).textTheme.titleLarge,
+                          fontSize: 18,
                           color: color,
-                        )
-                      : Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: color,
-                          fontFamily: 'ShareTechMono',
-                          fontWeight: FontWeight.w700,
                         ),
-                ),
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    _label,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: color,
+                      fontFamily: 'ShareTechMono',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 Icon(Icons.edit_outlined, size: 18, color: color),
               ],
             ),
@@ -758,44 +857,79 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            _label,
-            key: const ValueKey('work-break-value'),
-            style: isBaseCampStatus(context)
-                ? baseCampStatusReadoutStyle(
-                    context,
-                    Theme.of(context).textTheme.headlineSmall,
-                    fontSize: 24,
-                  )
-                : Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontSize: 30,
-                    fontFamily: 'ShareTechMono',
-                    fontWeight: FontWeight.w800,
-                  ),
-          ),
+          if (isBaseCampStatus(context))
+            BaseCampStatusLcdWindow(
+              key: const ValueKey('work-break-lcd-window'),
+              height: 50,
+              child: Text(
+                _label,
+                key: const ValueKey('work-break-value'),
+                maxLines: 1,
+                style: baseCampStatusReadoutStyle(
+                  context,
+                  Theme.of(context).textTheme.headlineSmall,
+                  fontSize: 24,
+                ),
+              ),
+            )
+          else
+            Text(
+              _label,
+              key: const ValueKey('work-break-value'),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontSize: 30,
+                fontFamily: 'ShareTechMono',
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              IconButton(
-                key: const ValueKey('work-break-minus'),
-                icon: const Icon(Icons.remove),
-                onPressed: _minutes <= 0 ? null : () => _step(-15),
-              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+              if (isBaseCampStatus(context))
+                BaseCampMechanicalButton(
+                  key: const ValueKey('work-break-minus'),
+                  onPressed: _minutes <= 0 ? null : () => _step(-15),
+                  width: 44,
+                  height: 44,
+                  padding: EdgeInsets.zero,
+                  child: const Icon(Icons.remove),
+                )
+              else
+                IconButton(
+                  key: const ValueKey('work-break-minus'),
+                  icon: const Icon(Icons.remove),
+                  onPressed: _minutes <= 0 ? null : () => _step(-15),
+                ).actionableFeedback(role: ActionableFeedbackRole.cursor),
               const SizedBox(width: 36),
-              IconButton(
-                key: const ValueKey('work-break-plus'),
-                icon: const Icon(Icons.add),
-                onPressed: _minutes >= 23 * 60 + 45 ? null : () => _step(15),
-              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+              if (isBaseCampStatus(context))
+                BaseCampMechanicalButton(
+                  key: const ValueKey('work-break-plus'),
+                  onPressed: _minutes >= 23 * 60 + 45 ? null : () => _step(15),
+                  width: 44,
+                  height: 44,
+                  padding: EdgeInsets.zero,
+                  child: const Icon(Icons.add),
+                )
+              else
+                IconButton(
+                  key: const ValueKey('work-break-plus'),
+                  icon: const Icon(Icons.add),
+                  onPressed: _minutes >= 23 * 60 + 45 ? null : () => _step(15),
+                ).actionableFeedback(role: ActionableFeedbackRole.cursor),
             ],
           ),
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton(
-              key: const ValueKey('work-break-done'),
-              onPressed: () => setState(() => _editing = false),
-              child: const Text('完了'),
-            ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+            child: isBaseCampStatus(context)
+                ? BaseCampStatusCompletionButton(
+                    key: const ValueKey('work-break-done'),
+                    onPressed: () => setState(() => _editing = false),
+                  )
+                : TextButton(
+                    key: const ValueKey('work-break-done'),
+                    onPressed: () => setState(() => _editing = false),
+                    child: const Text('完了'),
+                  ).actionableFeedback(role: ActionableFeedbackRole.cursor),
           ),
         ],
       ),

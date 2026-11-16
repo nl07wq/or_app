@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/morning_data.dart';
 import 'package:or_app/core/models/shift_preset.dart';
@@ -21,6 +22,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 const _captureDirectory = String.fromEnvironment('STATUS_CAPTURE_DIR');
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    await _loadFont('PressStart2P', 'assets/fonts/PressStart2P-Regular.ttf');
+    await _loadFont('DotGothic16', 'assets/fonts/DotGothic16-Regular.ttf');
+  });
+
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     DeviceSettingsController.instance.resetForTesting(const DeviceSettings());
@@ -62,7 +70,13 @@ void main() {
 
   for (final config in <({double width, bool negative, String name})>[
     (width: 320, negative: false, name: '320_light'),
+    (width: 320, negative: true, name: '320_inv'),
+    (width: 375, negative: false, name: '375_light'),
+    (width: 375, negative: true, name: '375_inv'),
+    (width: 390, negative: false, name: '390_light'),
     (width: 390, negative: true, name: '390_inv'),
+    (width: 430, negative: false, name: '430_light'),
+    (width: 430, negative: true, name: '430_inv'),
   ]) {
     testWidgets('renders STATUS gauge evidence ${config.name}', (tester) async {
       await tester.binding.setSurfaceSize(Size(config.width, 2100));
@@ -168,6 +182,13 @@ void main() {
       }
     });
   }
+}
+
+Future<void> _loadFont(String family, String asset) async {
+  final bytes = File(asset).readAsBytesSync();
+  final loader = FontLoader(family)
+    ..addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
+  await loader.load();
 }
 
 Widget _harness(Widget child) => MaterialApp(

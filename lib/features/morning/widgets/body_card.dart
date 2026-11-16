@@ -169,14 +169,19 @@ class _BaseCampWeightTunerState extends State<_BaseCampWeightTuner> {
         padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
         child: Column(
           children: [
-            Text(
-              '${_value.toStringAsFixed(1)} kg',
-              key: const ValueKey('status-weight-radio-readout'),
-              maxLines: 1,
-              style: baseCampStatusReadoutStyle(
-                context,
-                Theme.of(context).textTheme.headlineMedium,
-                fontSize: 28,
+            BaseCampStatusLcdWindow(
+              key: const ValueKey('status-weight-lcd-window'),
+              height: 54,
+              child: Text(
+                '${_value.toStringAsFixed(1)} kg',
+                key: const ValueKey('status-weight-radio-readout'),
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: baseCampStatusReadoutStyle(
+                  context,
+                  Theme.of(context).textTheme.headlineMedium,
+                  fontSize: 26,
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -296,12 +301,10 @@ class _BaseCampWeightTunerState extends State<_BaseCampWeightTuner> {
             ),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton.icon(
+              child: BaseCampStatusCompletionButton(
                 key: const ValueKey('status-weight-done'),
                 onPressed: () => setState(() => _editing = false),
-                icon: const Icon(Icons.lock_outline, size: 15),
-                label: const Text('完了'),
-              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+              ),
             ),
           ],
         ),
@@ -543,15 +546,21 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
                   onPressed: _value <= _minimum ? null : () => _step(-1),
                 ),
                 Expanded(
-                  child: Text(
-                    '${_value.toStringAsFixed(1)} %',
-                    key: const ValueKey('status-body-fat-lcd-readout'),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    style: baseCampStatusReadoutStyle(
-                      context,
-                      Theme.of(context).textTheme.headlineMedium,
-                      fontSize: 26,
+                  child: BaseCampStatusLcdWindow(
+                    key: const ValueKey('status-body-fat-lcd-window'),
+                    height: 50,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Text(
+                      '${_value.toStringAsFixed(1)} %',
+                      key: const ValueKey('status-body-fat-lcd-readout'),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      style: baseCampStatusReadoutStyle(
+                        context,
+                        Theme.of(context).textTheme.headlineMedium,
+                        fontSize: 24,
+                      ),
                     ),
                   ),
                 ),
@@ -604,11 +613,10 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
             ),
             Align(
               alignment: Alignment.centerRight,
-              child: TextButton(
+              child: BaseCampStatusCompletionButton(
                 key: const ValueKey('status-body-fat-done'),
                 onPressed: () => setState(() => _editing = false),
-                child: const Text('完了'),
-              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+              ),
             ),
           ],
         ),
@@ -631,26 +639,15 @@ class _RetroStepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = BaseCampTerminalPaletteScope.of(context);
     final enabled = onPressed != null;
     return Tooltip(
       message: tooltip,
-      child: SizedBox.square(
-        dimension: 44,
-        child: Material(
-          color: enabled ? palette.field : palette.auxiliaryText,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-            side: BorderSide(color: palette.primaryText),
-          ),
-          child: InkWell(
-            onTap: onPressed,
-            child: Icon(
-              icon,
-              color: enabled ? palette.primaryText : palette.background,
-            ),
-          ),
-        ),
+      child: BaseCampMechanicalButton(
+        onPressed: onPressed,
+        width: 44,
+        height: 44,
+        padding: EdgeInsets.zero,
+        child: Icon(icon),
       ),
     ).actionableFeedback(enabled: enabled, role: ActionableFeedbackRole.cursor);
   }
@@ -1743,20 +1740,33 @@ class _CollapsedStatusValue extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              Text(
-                value,
-                style: baseCamp
-                    ? baseCampStatusReadoutStyle(
+              if (baseCamp)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 110),
+                  child: BaseCampStatusLcdWindow(
+                    height: 42,
+                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    child: Text(
+                      value,
+                      maxLines: 1,
+                      style: baseCampStatusReadoutStyle(
                         context,
                         Theme.of(context).textTheme.titleLarge,
+                        fontSize: 16,
                         color: color,
-                      )
-                    : Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'ShareTechMono',
                       ),
-              ),
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'ShareTechMono',
+                  ),
+                ),
               Icon(Icons.edit_outlined, size: 18, color: color),
             ],
           ),
