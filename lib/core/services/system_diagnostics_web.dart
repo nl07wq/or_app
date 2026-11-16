@@ -7,6 +7,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'diagnostic_sanitizer.dart';
 
@@ -15,6 +16,10 @@ class SystemDiagnostics {
 
   static final SystemDiagnostics instance = SystemDiagnostics();
   static const storageKey = 'or_app.system_diagnostics.v2';
+  static const uriEvidenceStorageKey = 'or_app.uri_exception_evidence.v2';
+  static const uriEvidenceSchemaVersion = 2;
+  static const _uriIncidentLimit = 5;
+  static const _navigationMessageLimit = 24;
   static const _flushDelay = Duration(milliseconds: 500);
   static const _heartbeatInterval = Duration(seconds: 20);
 
@@ -23,6 +28,11 @@ class SystemDiagnostics {
   final List<Map<String, Object?>> _sessions = [];
   final Set<String> _recordedAssets = <String>{};
   final List<Map<String, Object?>> _recentNavigation = [];
+  final List<Map<String, Object?>> _navigationMessages = [];
+  final List<Map<String, Object?>> _uriIncidents = [];
+  final Stopwatch _monotonicClock = Stopwatch()..start();
+  int _navigationSequence = 0;
+  bool _uriEvidenceLoaded = false;
   Map<String, Object?>? _current;
   Timer? _flushTimer;
   Timer? _heartbeatTimer;
@@ -36,6 +46,26 @@ class SystemDiagnostics {
   int _lifecycleRevision = 0;
 
   String? get sessionId => _current?['sessionId'] as String?;
+  bool get uriEvidenceOperational => true;
+  int get uriIncidentCount {
+    _loadUriEvidenceIfNeeded();
+    return _uriIncidents.length;
+  }
+
+  List<Map<String, Object?>> get uriIncidentSummaries {
+    _loadUriEvidenceIfNeeded();
+    return _uriIncidents
+        .map(
+          (incident) => <String, Object?>{
+            'incidentId': incident['incidentId'],
+            'timestamp': incident['timestamp'],
+            'captureCompleteness': incident['captureCompleteness'],
+            'status': incident['status'],
+          },
+        )
+        .toList(growable: false);
+  }
+
   List<Map<String, Object?>> get sessions {
     _loadIfNeeded();
     return List.unmodifiable(_sessions);
@@ -170,7 +200,10 @@ class SystemDiagnostics {
     String? routeType,
   }) {
     final before = _browserNavigationMetadata();
+    final eventId = _nextNavigationId('route');
     final entry = <String, Object?>{
+      'navigationEventId': eventId,
+      'sequence': _navigationSequence,
       'action': sanitizeDiagnosticText(action, limit: 32),
       'previousRoute': sanitizeDiagnosticUri(previousRoute),
       'requestedRoute': sanitizeDiagnosticUri(requestedRoute),
@@ -189,6 +222,170 @@ class SystemDiagnostics {
         },
       );
     });
+  }
+
+  String captureNavigationPlatformMessage(ByteData? message) {
+    _loadUriEvidenceIfNeeded();
+    final messageId = _nextNavigationId('message');
+    final entry = <String, Object?>{
+      'navigationEventId': messageId,
+      'sessionId': sessionId,
+      'sequence': _navigationSequence,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'monotonicOffsetMs': _monotonicClock.elapsedMicroseconds / 1000,
+      'channel': SystemChannels.navigation.name,
+      'messageByteLength': message?.lengthInBytes ?? 0,
+      'browserBefore': _browserNavigationMetadata(),
+      'status': 'sent',
+    };
+    try {
+      final call = const JSONMethodCodec().decodeMethodCall(message);
+      entry['method'] = call.method;
+      final arguments = call.arguments;
+      if (arguments is Map) {
+        final uri = arguments['uri'];
+        if (uri is String) entry.addAll(_rawUriEvidence(uri));
+        entry['replace'] = arguments['replace'] == true;
+        entry['historyState'] = _historyStateMetadata(arguments['state']);
+      } else {
+        entry['argumentsType'] = arguments?.runtimeType.toString();
+      }
+    } catch (error) {
+      entry['messageDecodeErrorType'] = error.runtimeType.toString();
+      entry['messageDecodeError'] = _bounded(error.toString(), 1000);
+    }
+    _navigationMessages.add(entry);
+    if (_navigationMessages.length > _navigationMessageLimit) {
+      _navigationMessages.removeRange(
+        0,
+        _navigationMessages.length - _navigationMessageLimit,
+      );
+    }
+    record(
+      'NAVIGATION',
+      'PLATFORM_MESSAGE_SENT',
+      fields: <String, Object?>{
+        'navigationEventId': messageId,
+        'method': entry['method'],
+        'rawUriLength': entry['rawUriLength'],
+        'collectorParseResult': entry['collectorParseResult'],
+      },
+    );
+    return messageId;
+  }
+
+  void completeNavigationPlatformMessage(String messageId) {
+    final entry = _navigationMessages
+        .where((candidate) => candidate['navigationEventId'] == messageId)
+        .lastOrNull;
+    if (entry == null) return;
+    entry['status'] = 'response_completed';
+    entry['responseMonotonicOffsetMs'] =
+        _monotonicClock.elapsedMicroseconds / 1000;
+  }
+
+  void freezeUriExceptionEvidence({
+    required String trigger,
+    Object? error,
+    StackTrace? stackTrace,
+    String? messageId,
+    Map<String, Object?> errorFields = const <String, Object?>{},
+  }) {
+    try {
+      _loadUriEvidenceIfNeeded();
+      final related = messageId == null
+          ? _navigationMessages.lastOrNull
+          : _navigationMessages
+                .where((entry) => entry['navigationEventId'] == messageId)
+                .lastOrNull;
+      final relatedOffset = related?['monotonicOffsetMs'];
+      final ageMs = relatedOffset is num
+          ? _monotonicClock.elapsedMicroseconds / 1000 - relatedOffset
+          : null;
+      if (messageId == null &&
+          (related == null || ageMs == null || ageMs > 5000)) {
+        return;
+      }
+      final relatedId = related?['navigationEventId'];
+      if (relatedId != null &&
+          _uriIncidents.lastOrNull?['relatedNavigationEventId'] == relatedId) {
+        return;
+      }
+      final now = DateTime.now().toUtc();
+      final incident = <String, Object?>{
+        'schemaVersion': uriEvidenceSchemaVersion,
+        'incidentId': 'uri-incident-${now.microsecondsSinceEpoch}',
+        'status': 'unresolved',
+        'timestamp': now.toIso8601String(),
+        'monotonicOffsetMs': _monotonicClock.elapsedMicroseconds / 1000,
+        'sessionId': sessionId,
+        'trigger': trigger,
+        'captureCompleteness': related?['rawUri'] is String
+            ? 'engine_input_captured'
+            : 'engine_input_unavailable',
+        'correlation': messageId != null
+            ? 'platform_response_error'
+            : 'closest_preceding_message_unconfirmed',
+        'relatedNavigationEventId': relatedId,
+        'messageToErrorElapsedMs': ?ageMs,
+        'error': <String, Object?>{
+          'type': ?error?.runtimeType.toString(),
+          'message': error == null ? null : _bounded(error.toString(), 2000),
+          'stack': stackTrace == null
+              ? null
+              : _bounded(stackTrace.toString(), 6000),
+          ...errorFields,
+        },
+        'relatedPlatformMessage': related == null
+            ? null
+            : Map<String, Object?>.from(related),
+        'preExceptionPlatformMessages': _navigationMessages
+            .map((entry) => Map<String, Object?>.from(entry))
+            .toList(growable: false),
+        'recentApplicationNavigation': _recentNavigation
+            .map((entry) => Map<String, Object?>.from(entry))
+            .toList(growable: false),
+        'browserAtFreeze': _browserNavigationMetadata(),
+        'build': const <String, Object?>{
+          'appReleaseCommit': String.fromEnvironment(
+            'OR_APP_RELEASE_COMMIT',
+            defaultValue: 'NOT AVAILABLE',
+          ),
+          'flutterVersion': String.fromEnvironment(
+            'OR_APP_FLUTTER_VERSION',
+            defaultValue: '3.44.6',
+          ),
+          'frameworkRevision': String.fromEnvironment(
+            'OR_APP_FLUTTER_FRAMEWORK_REVISION',
+            defaultValue: 'ee80f08bbf97172ec030b8751ceab557177a34a6',
+          ),
+          'engineRevision': String.fromEnvironment(
+            'OR_APP_FLUTTER_ENGINE_REVISION',
+            defaultValue: '83675ed27633283e7fc296c8bca22e841224c096',
+          ),
+        },
+        'platform': <String, Object?>{
+          'userAgent': _bounded(html.window.navigator.userAgent, 500),
+          'language': html.window.navigator.language,
+        },
+      };
+      _uriIncidents.add(incident);
+      if (_uriIncidents.length > _uriIncidentLimit) {
+        _uriIncidents.removeRange(0, _uriIncidents.length - _uriIncidentLimit);
+      }
+      _flushUriEvidenceNow();
+      record(
+        'NAVIGATION',
+        'URI_EXCEPTION_EVIDENCE_FROZEN',
+        fields: <String, Object?>{
+          'incidentId': incident['incidentId'],
+          'captureCompleteness': incident['captureCompleteness'],
+          'correlation': incident['correlation'],
+        },
+      );
+    } catch (_) {
+      // Evidence collection must never replace the original failure.
+    }
   }
 
   void recordAssetOnce(
@@ -253,6 +450,14 @@ class SystemDiagnostics {
               .map((entry) => Map<String, Object?>.from(entry))
               .toList(growable: false),
           ..._phaseFields,
+        },
+      );
+      freezeUriExceptionEvidence(
+        trigger: 'unhandled_promise_rejection',
+        error: reason,
+        errorFields: <String, Object?>{
+          'reasonName': ?_jsPropertyText(reason, 'name'),
+          'reasonMessage': ?_jsPropertyText(reason, 'message'),
         },
       );
     });
@@ -321,6 +526,7 @@ class SystemDiagnostics {
       _recordWindowErrorDetails(fields);
 
   void _recordWindowErrorDetails(Map<String, Object?> fields) {
+    freezeUriExceptionEvidence(trigger: 'window_error', errorFields: fields);
     record(
       'JAVASCRIPT',
       'WINDOW_ERROR',
@@ -331,6 +537,38 @@ class SystemDiagnostics {
         ..._phaseFields,
       },
     );
+  }
+
+  String _nextNavigationId(String kind) {
+    _navigationSequence++;
+    return '$kind-${sessionId ?? 'pre-session'}-$_navigationSequence';
+  }
+
+  Map<String, Object?> _rawUriEvidence(String rawUri) {
+    final bytes = <int>[];
+    for (final unit in rawUri.codeUnits) {
+      bytes
+        ..add(unit & 0xff)
+        ..add((unit >> 8) & 0xff);
+    }
+    String parseResult = 'success';
+    String? parseError;
+    try {
+      Uri.parse(rawUri);
+    } catch (error) {
+      parseResult = 'format_exception';
+      parseError = _bounded(error.toString(), 1000);
+    }
+    return <String, Object?>{
+      'rawUri': rawUri,
+      'rawUriLength': rawUri.length,
+      'rawUriUtf16LeBase64': base64Encode(bytes),
+      'rawUriEncoding': 'utf-16le-code-units',
+      'rawUriSanitizedView': sanitizeDiagnosticUri(rawUri),
+      'collectorParseResult': parseResult,
+      'collectorParseError': ?parseError,
+      'exportPolicy': 'local-user-initiated-only',
+    };
   }
 
   Map<String, Object?> get _phaseFields => <String, Object?>{
@@ -464,6 +702,16 @@ class SystemDiagnostics {
     }
   }
 
+  String copyUriEvidenceText() {
+    _loadUriEvidenceIfNeeded();
+    return const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+      'title': 'OR-APP URI EXCEPTION EVIDENCE',
+      'schemaVersion': uriEvidenceSchemaVersion,
+      'captureOperational': true,
+      'incidents': _uriIncidents,
+    });
+  }
+
   void clear() {
     _flushTimer?.cancel();
     _sessions.clear();
@@ -481,10 +729,47 @@ class SystemDiagnostics {
 
   String copyText() {
     _loadIfNeeded();
+    _loadUriEvidenceIfNeeded();
     return const JsonEncoder.withIndent(' ').convert(<String, Object?>{
       'title': 'OR-APP SYSTEM DIAGNOSTICS',
       'sessions': _sessions,
+      'uriExceptionEvidence': <String, Object?>{
+        'schemaVersion': uriEvidenceSchemaVersion,
+        'captureOperational': true,
+        'incidents': _uriIncidents,
+      },
     });
+  }
+
+  void _loadUriEvidenceIfNeeded() {
+    if (_uriEvidenceLoaded) return;
+    _uriEvidenceLoaded = true;
+    try {
+      final raw = html.window.localStorage[uriEvidenceStorageKey];
+      if (raw == null) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map || decoded['incidents'] is! List) return;
+      _uriIncidents.addAll(
+        (decoded['incidents'] as List).whereType<Map>().map(
+          (incident) =>
+              incident.map((key, value) => MapEntry(key.toString(), value)),
+        ),
+      );
+      if (_uriIncidents.length > _uriIncidentLimit) {
+        _uriIncidents.removeRange(0, _uriIncidents.length - _uriIncidentLimit);
+      }
+    } catch (_) {}
+  }
+
+  void _flushUriEvidenceNow() {
+    try {
+      html.window.localStorage[uriEvidenceStorageKey] = jsonEncode(
+        <String, Object?>{
+          'schemaVersion': uriEvidenceSchemaVersion,
+          'incidents': _uriIncidents,
+        },
+      );
+    } catch (_) {}
   }
 
   void _loadIfNeeded() {

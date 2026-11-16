@@ -35,6 +35,11 @@ void main() {
   testWidgets('dashboard diagnostics provides copy export and clear', (
     tester,
   ) async {
+    tester.view
+      ..physicalSize = const Size(800, 1800)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     SystemDiagnostics.instance
       ..clear()
       ..beginSession()
@@ -43,6 +48,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: DashboardDiagnosticPage()));
 
     expect(find.textContaining('SAVED SESSIONS'), findsOneWidget);
+    expect(find.text('URI CAPTURE  OPERATIONAL'), findsOneWidget);
+    expect(find.text('RETAINED INCIDENTS  0 / 5'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('dashboard-diagnostic-copy')),
       250,
@@ -56,6 +63,7 @@ void main() {
       find.byKey(const ValueKey('dashboard-diagnostic-export')),
       findsOneWidget,
     );
+    expect(find.byKey(const ValueKey('uri-evidence-copy')), findsOneWidget);
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('dashboard-diagnostic-clear')),
       250,

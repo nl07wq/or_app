@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'diagnostic_sanitizer.dart';
 
@@ -9,18 +10,22 @@ class SystemDiagnostics {
     this.eventLimit = 200,
     this.sessionLimit = 5,
     List<Map<String, Object?>> initialSessions = const [],
+    List<Map<String, Object?>> initialUriIncidents = const [],
   }) {
     _sessions.addAll(initialSessions);
+    _uriIncidents.addAll(initialUriIncidents);
   }
 
   factory SystemDiagnostics.testing({
     int eventLimit = 200,
     int sessionLimit = 5,
     List<Map<String, Object?>> initialSessions = const [],
+    List<Map<String, Object?>> initialUriIncidents = const [],
   }) => SystemDiagnostics(
     eventLimit: eventLimit,
     sessionLimit: sessionLimit,
     initialSessions: initialSessions,
+    initialUriIncidents: initialUriIncidents,
   );
 
   static final SystemDiagnostics instance = SystemDiagnostics();
@@ -31,12 +36,28 @@ class SystemDiagnostics {
   Map<String, Object?>? _current;
   final Set<String> _recordedAssets = <String>{};
   final List<Map<String, Object?>> _recentNavigation = [];
+  final List<Map<String, Object?>> _navigationMessages = [];
+  final List<Map<String, Object?>> _uriIncidents = [];
+  final Stopwatch _monotonicClock = Stopwatch()..start();
+  int _navigationSequence = 0;
   String? _lastStartupPhase;
   String? _lastMapPhase;
   String _lifecycleState = 'unknown';
   int _lifecycleRevision = 0;
 
   String? get sessionId => _current?['sessionId'] as String?;
+  bool get uriEvidenceOperational => true;
+  int get uriIncidentCount => _uriIncidents.length;
+  List<Map<String, Object?>> get uriIncidentSummaries => _uriIncidents
+      .map(
+        (incident) => <String, Object?>{
+          'incidentId': incident['incidentId'],
+          'timestamp': incident['timestamp'],
+          'captureCompleteness': incident['captureCompleteness'],
+          'status': incident['status'],
+        },
+      )
+      .toList(growable: false);
   List<Map<String, Object?>> get sessions => List.unmodifiable(_sessions);
   bool get previousSessionAbnormalSuspected => _sessions.any(
     (session) => session['abnormalTerminationSuspected'] == true,
@@ -153,7 +174,10 @@ class SystemDiagnostics {
     String? requestedRoute,
     String? routeType,
   }) {
+    final eventId = _nextNavigationId('route');
     final entry = <String, Object?>{
+      'navigationEventId': eventId,
+      'sequence': _navigationSequence,
       'action': sanitizeDiagnosticText(action, limit: 32),
       'previousRoute': sanitizeDiagnosticUri(previousRoute),
       'requestedRoute': sanitizeDiagnosticUri(requestedRoute),
@@ -162,6 +186,125 @@ class SystemDiagnostics {
     };
     _rememberNavigation(entry);
     record('NAVIGATION', 'ROUTE_REQUEST', fields: entry);
+  }
+
+  String captureNavigationPlatformMessage(ByteData? message) {
+    final messageId = _nextNavigationId('message');
+    final entry = <String, Object?>{
+      'navigationEventId': messageId,
+      'sessionId': sessionId,
+      'sequence': _navigationSequence,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'monotonicOffsetMs': _monotonicClock.elapsedMicroseconds / 1000,
+      'channel': SystemChannels.navigation.name,
+      'messageByteLength': message?.lengthInBytes ?? 0,
+      'status': 'sent',
+    };
+    try {
+      final call = const JSONMethodCodec().decodeMethodCall(message);
+      entry['method'] = call.method;
+      if (call.arguments case final Map arguments) {
+        final uri = arguments['uri'];
+        if (uri is String) entry.addAll(_rawUriEvidence(uri));
+        entry['replace'] = arguments['replace'] == true;
+      }
+    } catch (error) {
+      entry['messageDecodeErrorType'] = error.runtimeType.toString();
+      entry['messageDecodeError'] = error.toString();
+    }
+    _navigationMessages.add(entry);
+    if (_navigationMessages.length > 24) {
+      _navigationMessages.removeRange(0, _navigationMessages.length - 24);
+    }
+    record(
+      'NAVIGATION',
+      'PLATFORM_MESSAGE_SENT',
+      fields: <String, Object?>{
+        'navigationEventId': messageId,
+        'method': entry['method'],
+        'rawUriLength': entry['rawUriLength'],
+        'collectorParseResult': entry['collectorParseResult'],
+      },
+    );
+    return messageId;
+  }
+
+  void completeNavigationPlatformMessage(String messageId) {
+    final entry = _navigationMessages
+        .where((candidate) => candidate['navigationEventId'] == messageId)
+        .lastOrNull;
+    if (entry != null) entry['status'] = 'response_completed';
+  }
+
+  void freezeUriExceptionEvidence({
+    required String trigger,
+    Object? error,
+    StackTrace? stackTrace,
+    String? messageId,
+    Map<String, Object?> errorFields = const <String, Object?>{},
+  }) {
+    final related = messageId == null
+        ? _navigationMessages.lastOrNull
+        : _navigationMessages
+              .where((entry) => entry['navigationEventId'] == messageId)
+              .lastOrNull;
+    final relatedOffset = related?['monotonicOffsetMs'];
+    final ageMs = relatedOffset is num
+        ? _monotonicClock.elapsedMicroseconds / 1000 - relatedOffset
+        : null;
+    if (messageId == null &&
+        (related == null || ageMs == null || ageMs > 5000)) {
+      return;
+    }
+    final relatedId = related?['navigationEventId'];
+    if (relatedId != null &&
+        _uriIncidents.lastOrNull?['relatedNavigationEventId'] == relatedId) {
+      return;
+    }
+    final now = DateTime.now().toUtc();
+    final incident = <String, Object?>{
+      'schemaVersion': 2,
+      'incidentId': 'uri-incident-${now.microsecondsSinceEpoch}',
+      'status': 'unresolved',
+      'timestamp': now.toIso8601String(),
+      'sessionId': sessionId,
+      'trigger': trigger,
+      'captureCompleteness': related?['rawUri'] is String
+          ? 'engine_input_captured'
+          : 'engine_input_unavailable',
+      'correlation': messageId != null
+          ? 'platform_response_error'
+          : 'closest_preceding_message_unconfirmed',
+      'relatedNavigationEventId': relatedId,
+      'messageToErrorElapsedMs': ?ageMs,
+      'error': <String, Object?>{
+        'type': ?error?.runtimeType.toString(),
+        'message': ?error?.toString(),
+        'stack': ?stackTrace?.toString(),
+        ...errorFields,
+      },
+      'relatedPlatformMessage': related == null
+          ? null
+          : Map<String, Object?>.from(related),
+      'preExceptionPlatformMessages': _navigationMessages
+          .map((entry) => Map<String, Object?>.from(entry))
+          .toList(growable: false),
+      'recentApplicationNavigation': _recentNavigation
+          .map((entry) => Map<String, Object?>.from(entry))
+          .toList(growable: false),
+    };
+    _uriIncidents.add(incident);
+    if (_uriIncidents.length > 5) {
+      _uriIncidents.removeRange(0, _uriIncidents.length - 5);
+    }
+    record(
+      'NAVIGATION',
+      'URI_EXCEPTION_EVIDENCE_FROZEN',
+      fields: <String, Object?>{
+        'incidentId': incident['incidentId'],
+        'captureCompleteness': incident['captureCompleteness'],
+      },
+    );
   }
 
   void recordAssetOnce(
@@ -205,6 +348,7 @@ class SystemDiagnostics {
 
   @visibleForTesting
   void recordWindowErrorDetailsForTesting(Map<String, Object?> fields) {
+    freezeUriExceptionEvidence(trigger: 'window_error', errorFields: fields);
     record(
       'JAVASCRIPT',
       'WINDOW_ERROR',
@@ -223,6 +367,8 @@ class SystemDiagnostics {
     _current = null;
     _recordedAssets.clear();
     _recentNavigation.clear();
+    _navigationMessages.clear();
+    _uriIncidents.clear();
     _lastStartupPhase = null;
     _lastMapPhase = null;
     _lifecycleState = 'unknown';
@@ -273,5 +419,50 @@ class SystemDiagnostics {
       const JsonEncoder.withIndent('  ').convert(<String, Object?>{
         'title': 'OR-APP SYSTEM DIAGNOSTICS',
         'sessions': _sessions,
+        'uriExceptionEvidence': <String, Object?>{
+          'schemaVersion': 2,
+          'captureOperational': true,
+          'incidents': _uriIncidents,
+        },
       });
+
+  String copyUriEvidenceText() =>
+      const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+        'title': 'OR-APP URI EXCEPTION EVIDENCE',
+        'schemaVersion': 2,
+        'captureOperational': true,
+        'incidents': _uriIncidents,
+      });
+
+  String _nextNavigationId(String kind) {
+    _navigationSequence++;
+    return '$kind-${sessionId ?? 'pre-session'}-$_navigationSequence';
+  }
+
+  Map<String, Object?> _rawUriEvidence(String rawUri) {
+    final bytes = <int>[];
+    for (final unit in rawUri.codeUnits) {
+      bytes
+        ..add(unit & 0xff)
+        ..add((unit >> 8) & 0xff);
+    }
+    String parseResult = 'success';
+    String? parseError;
+    try {
+      Uri.parse(rawUri);
+    } catch (error) {
+      parseResult = 'format_exception';
+      parseError = error.toString();
+    }
+    return <String, Object?>{
+      'rawUri': rawUri,
+      'rawUriLength': rawUri.length,
+      'rawUriUtf16LeBase64': base64Encode(bytes),
+      'rawUriEncoding': 'utf-16le-code-units',
+      'rawUriSanitizedView': sanitizeDiagnosticUri(rawUri),
+      'collectorParseResult': parseResult,
+      'collectorParseError': ?parseError,
+      'exportPolicy': 'local-user-initiated-only',
+    };
+  }
 }

@@ -52,6 +52,10 @@ import 'features/themes/base_camp/base_camp_dashboard_page.dart';
 import 'features/themes/base_camp/base_camp_presentation.dart';
 import 'features/themes/base_camp/base_camp_retro_theme.dart';
 
+const _uriEvidenceE2eDiagnosticsRoute = bool.fromEnvironment(
+  'OR_APP_URI_EVIDENCE_E2E_DIAGNOSTICS_ROUTE',
+);
+
 Widget _presentationEntry(BaseCampScreen screen, Widget child) =>
     _PresentationEntry(screen: screen, child: child);
 
@@ -203,7 +207,9 @@ class _OperationRebootAppState extends State<OperationRebootApp>
       title: 'Operation Reboot',
       debugShowCheckedModeBanner: false,
       theme: StandardTheme.theme,
-      initialRoute: AppRoutes.dashboard,
+      initialRoute: _uriEvidenceE2eDiagnosticsRoute
+          ? AppRoutes.dashboardDiagnostic
+          : AppRoutes.dashboard,
       navigatorObservers: <NavigatorObserver>[DiagnosticNavigatorObserver()],
       builder: (context, child) => ValueListenableBuilder<DeviceSettings>(
         valueListenable: DeviceSettingsController.instance,

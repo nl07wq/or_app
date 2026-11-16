@@ -2,18 +2,20 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app.dart';
 import 'core/services/active_session_heartbeat.dart';
 import 'core/services/device_settings_controller.dart';
 import 'core/services/font_readiness_service.dart';
+import 'core/services/navigation_diagnostic_binding.dart';
 import 'core/services/startup_diagnostic.dart';
 import 'core/services/startup_initialization_service.dart';
 import 'core/services/system_diagnostics.dart';
 import 'features/notifications/services/notification_profile_controller.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  NavigationDiagnosticWidgetsFlutterBinding();
   final systemDiagnostics = SystemDiagnostics.instance;
   systemDiagnostics
     ..beginSession()
@@ -22,6 +24,7 @@ Future<void> main() async {
     ..recordBrowserStartupTiming()
     ..record('APPLICATION', 'DART_MAIN_ENTER');
   _installFlutterErrorDiagnostics(systemDiagnostics);
+  _injectMalformedNavigationMessageForVerification(systemDiagnostics);
   // Device preferences and canonical IndexedDB verification are independent.
   // Starting both before the first await removes their former serial wait,
   // while StartupGate still owns the exact same readiness and failure UI.
@@ -60,6 +63,36 @@ Future<void> main() async {
   unawaited(initialization);
   unawaited(fontReadiness);
   unawaited(_initializeNotificationProfile(diagnostic));
+}
+
+const _uriEvidenceInjectionEnabled = bool.fromEnvironment(
+  'OR_APP_URI_EVIDENCE_INJECTION',
+);
+
+void _injectMalformedNavigationMessageForVerification(
+  SystemDiagnostics diagnostics,
+) {
+  if (!_uriEvidenceInjectionEnabled) return;
+  scheduleMicrotask(() {
+    diagnostics.record(
+      'NAVIGATION',
+      'URI_EVIDENCE_INJECTION_START',
+      fields: const <String, Object?>{'buildTimeOptIn': true},
+    );
+    // This deliberately bypasses Uri construction in SystemNavigator and
+    // reaches the same flutter/navigation engine handler as production route
+    // reports. It is excluded from normal builds by the compile-time flag.
+    unawaited(
+      SystemChannels.navigation.invokeMethod<void>(
+        'routeInformationUpdated',
+        <String, Object?>{
+          'uri': 'http://or-app.invalid:bad/path?probe=%25#uri-evidence-v2',
+          'state': const <String, Object?>{'orAppUriEvidenceInjection': true},
+          'replace': true,
+        },
+      ),
+    );
+  });
 }
 
 void _installFlutterErrorDiagnostics(SystemDiagnostics diagnostics) {

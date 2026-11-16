@@ -38,6 +38,16 @@ class _DashboardDiagnosticPageState extends State<DashboardDiagnosticPage> {
     );
   }
 
+  Future<void> _copyUriEvidence() async {
+    await Clipboard.setData(
+      ClipboardData(text: SystemDiagnostics.instance.copyUriEvidenceText()),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('URI EXCEPTION EVIDENCE COPIED')),
+    );
+  }
+
   Future<void> _export() async {
     final exported = await SystemDiagnostics.instance.export();
     if (!mounted) return;
@@ -110,10 +120,51 @@ class _DashboardDiagnosticPageState extends State<DashboardDiagnosticPage> {
             ),
           ),
           AppSpacing.gapMD,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  diagnostics.uriEvidenceOperational
+                      ? 'URI CAPTURE  OPERATIONAL'
+                      : 'URI CAPTURE  UNAVAILABLE',
+                  key: const ValueKey('uri-evidence-operational-status'),
+                ),
+                AppSpacing.gapSM,
+                Text(
+                  'RETAINED INCIDENTS  ${diagnostics.uriIncidentCount} / 5',
+                  key: const ValueKey('uri-evidence-incident-count'),
+                ),
+                if (diagnostics.uriIncidentSummaries.isNotEmpty) ...[
+                  AppSpacing.gapSM,
+                  ...diagnostics.uriIncidentSummaries.map(
+                    (incident) => Text(
+                      '${incident['timestamp']}  '
+                      '${incident['captureCompleteness']}  '
+                      '${incident['status']}',
+                    ),
+                  ),
+                ],
+                AppSpacing.gapSM,
+                const Text(
+                  'Evidence is stored separately from routine session rotation. '
+                  'Export is local and user initiated; no automatic upload occurs.',
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapMD,
           OperationButton(
             text: 'REFRESH',
             icon: Icons.refresh,
             onPressed: _refreshState,
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
+            key: const ValueKey('uri-evidence-copy'),
+            text: 'COPY URI EVIDENCE',
+            icon: Icons.link_outlined,
+            onPressed: _copyUriEvidence,
           ),
           AppSpacing.gapSM,
           OperationButton(

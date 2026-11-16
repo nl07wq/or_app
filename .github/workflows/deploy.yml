@@ -42,11 +42,27 @@ jobs:
           echo "last_updated=$(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M JST')" >> "$GITHUB_OUTPUT"
           echo "title=$(git log -1 --format=%s)" >> "$GITHUB_OUTPUT"
 
+      - name: Capture Flutter build metadata
+        id: flutter_metadata
+        run: |
+          flutter --version --machine > flutter-version.json
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          data = json.loads(Path('flutter-version.json').read_text())
+          print(f"version={data['frameworkVersion']}")
+          print(f"framework_revision={data['frameworkRevision']}")
+          print(f"engine_revision={data['engineRevision']}")
+          PY
+
       - run: >-
           flutter build web --release --base-href /or_app/
           --pwa-strategy=none
           --dart-define=OR_APP_NOTIFICATION_API=https://or-app-notifications.or-app-notifications.workers.dev
           --dart-define=OR_APP_RELEASE_COMMIT=${{ steps.release_metadata.outputs.commit }}
+          --dart-define=OR_APP_FLUTTER_VERSION=${{ steps.flutter_metadata.outputs.version }}
+          --dart-define=OR_APP_FLUTTER_FRAMEWORK_REVISION=${{ steps.flutter_metadata.outputs.framework_revision }}
+          --dart-define=OR_APP_FLUTTER_ENGINE_REVISION=${{ steps.flutter_metadata.outputs.engine_revision }}
           --dart-define="OR_APP_LAST_UPDATED=${{ steps.release_metadata.outputs.last_updated }}"
           --dart-define="OR_APP_RELEASE_TITLE=${{ steps.release_metadata.outputs.title }}"
 
