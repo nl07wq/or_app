@@ -790,12 +790,13 @@ class _BaseCampMapState extends State<BaseCampMap>
     final frameTimings = <Map<String, Object?>>[];
     late BaseCampAssetAcquisitionResult acquisition;
     try {
-      acquisition = await baseCampAcquireAssetBytes(
+      final acquisitionBatch = baseCampStartAssetAcquisition(
         baseCampWaterV3BFrameAssets,
       );
-      if (!mounted) return;
       for (var index = 0; index < baseCampWaterV3BFrameAssets.length; index++) {
         final asset = baseCampWaterV3BFrameAssets[index];
+        await acquisitionBatch.waitFor(asset);
+        if (!mounted) return;
         final frameWatch = Stopwatch()..start();
         final provider = AssetImage(asset);
         final cache = await baseCampImageCacheFields(provider, context);
@@ -819,6 +820,7 @@ class _BaseCampMapState extends State<BaseCampMap>
           if (!mounted) return;
         }
       }
+      acquisition = await acquisitionBatch.result;
     } catch (error) {
       diagnostics.record(
         'ASSET',
@@ -858,8 +860,11 @@ class _BaseCampMapState extends State<BaseCampMap>
         'acquisitionLoadedCount': acquisition.loadedCount,
         'acquisitionFailedCount': acquisition.failedCount,
         'acquisitionMs': acquisition.durationMs,
+        'acquisitionMaxQueueWaitMs': acquisition.maxQueueWaitMs,
+        'acquisitionMaxLoadMs': acquisition.maxLoadMs,
         'eventLoopYieldMs': eventLoopYieldMs,
-        'schedulingStrategy': 'sequential_decode_event_loop_yield_every_4',
+        'schedulingStrategy':
+            'pipelined_fair_acquisition_sequential_decode_yield_every_4',
         'frameTimings': frameTimings,
         'durationMs': watch.elapsedMilliseconds,
       },
@@ -1078,6 +1083,8 @@ class _BaseCampMapState extends State<BaseCampMap>
         'acquisitionLoadedCount': acquisition.loadedCount,
         'acquisitionFailedCount': acquisition.failedCount,
         'acquisitionMs': acquisition.durationMs,
+        'acquisitionMaxQueueWaitMs': acquisition.maxQueueWaitMs,
+        'acquisitionMaxLoadMs': acquisition.maxLoadMs,
         'schedulingStrategy': 'sequential_decode_event_loop_yield',
         'objectTimings': objectTimings,
         'durationMs': watch.elapsedMilliseconds,
@@ -1190,14 +1197,15 @@ class _BaseCampMapState extends State<BaseCampMap>
     var eventLoopYieldMs = 0;
     final frameTimings = <Map<String, Object?>>[];
     final assets = baseCampWalkerWarmupAssets;
-    final acquisition = await baseCampAcquireAssetBytes(assets);
-    if (!mounted) return;
+    final acquisitionBatch = baseCampStartAssetAcquisition(assets);
     for (var index = 0; index < assets.length; index++) {
       final yieldWatch = Stopwatch()..start();
       await Future<void>.value();
       eventLoopYieldMs += yieldWatch.elapsedMilliseconds;
       if (!mounted) return;
       final asset = assets[index];
+      await acquisitionBatch.waitFor(asset);
+      if (!mounted) return;
       final frameWatch = Stopwatch()..start();
       try {
         final provider = baseCampWalkerFrameProvider(asset);
@@ -1235,6 +1243,7 @@ class _BaseCampMapState extends State<BaseCampMap>
         setState(() => _walkerFirstFramesReady = true);
       }
     }
+    final acquisition = await acquisitionBatch.result;
     if (!mounted) return;
     setState(() {
       _walkerFirstFramesReady = true;
@@ -1253,8 +1262,11 @@ class _BaseCampMapState extends State<BaseCampMap>
         'acquisitionLoadedCount': acquisition.loadedCount,
         'acquisitionFailedCount': acquisition.failedCount,
         'acquisitionMs': acquisition.durationMs,
+        'acquisitionMaxQueueWaitMs': acquisition.maxQueueWaitMs,
+        'acquisitionMaxLoadMs': acquisition.maxLoadMs,
         'eventLoopYieldMs': eventLoopYieldMs,
-        'schedulingStrategy': 'sequential_decode_event_loop_yield',
+        'schedulingStrategy':
+            'pipelined_fair_acquisition_sequential_decode',
         'frameTimings': frameTimings,
         'durationMs': watch.elapsedMilliseconds,
       },

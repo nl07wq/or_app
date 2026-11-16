@@ -21,8 +21,29 @@ _flutter.loader.load({
     });
     const appRunner = await engineInitializer.initializeEngine();
     startupTiming.engineInitializeCompleteMs = performance.now();
+    const engineResources = performance.getEntriesByType('resource')
+      .filter((entry) => /flutter-canvaskit|canvaskit/i.test(entry.name))
+      .slice(-12)
+      .map((entry) => {
+        let resource = 'unknown';
+        try {
+          resource = new URL(entry.name).pathname.split('/').pop() || 'unknown';
+        } catch (_) {}
+        return {
+          resource,
+          initiatorType: entry.initiatorType || 'unknown',
+          startMs: Math.round(entry.startTime),
+          durationMs: Math.round(entry.duration),
+          transferBytes: entry.transferSize || 0,
+          encodedBytes: entry.encodedBodySize || 0,
+          decodedBytes: entry.decodedBodySize || 0,
+          protocol: entry.nextHopProtocol || 'unknown',
+        };
+      });
+    startupTiming.engineResourceTimingsJson = JSON.stringify(engineResources);
     markStartup('engine_initialize_complete', {
       engineInitializeCompleteMs: startupTiming.engineInitializeCompleteMs,
+      engineResourceCount: engineResources.length,
     });
 
     startupTiming.runAppStartMs = performance.now();

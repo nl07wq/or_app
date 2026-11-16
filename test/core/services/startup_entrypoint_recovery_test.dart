@@ -64,6 +64,7 @@ void main() {
     expect(source, contains("mainPreload.fetchPriority = 'high'"));
     expect(source, contains('mainPreloadRequestedMs'));
     expect(source, contains('mainPreloadLoadedMs'));
+    expect(source, contains('rel="preconnect" href="https://www.gstatic.com"'));
   });
 
   test('pre-Dart evidence is bounded and survives an interrupted launch', () {
@@ -86,6 +87,8 @@ void main() {
     expect(source, contains('entrypointLoadedMs'));
     expect(source, contains('engineInitializeStartMs'));
     expect(source, contains('engineInitializeCompleteMs'));
+    expect(source, contains('engineResourceTimingsJson'));
+    expect(source, contains('flutter-canvaskit|canvaskit'));
     expect(source, contains('runAppStartMs'));
     expect(source, contains('runAppCompleteMs'));
     expect(source, contains('await engineInitializer.initializeEngine()'));

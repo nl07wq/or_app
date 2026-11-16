@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -293,6 +294,61 @@ void main() {
       expect(result.assetCount, 12);
       expect(result.loadedCount, 11);
       expect(result.failedCount, 1);
+      expect(result.maxQueueWaitMs, greaterThanOrEqualTo(0));
+      expect(result.maxLoadMs, greaterThanOrEqualTo(0));
+    },
+  );
+
+  test('concurrent asset batches share acquisition slots fairly', () async {
+    var active = 0;
+    var maximumActive = 0;
+    final started = <String>[];
+
+    Future<ByteData> load(String asset) async {
+      active++;
+      maximumActive = math.max(maximumActive, active);
+      started.add(asset);
+      await Future<void>.delayed(const Duration(milliseconds: 4));
+      active--;
+      return ByteData(1);
+    }
+
+    final water = baseCampAcquireAssetBytes(
+      List<String>.generate(12, (index) => 'water-$index'),
+      loader: load,
+    );
+    await Future<void>.value();
+    final walker = baseCampAcquireAssetBytes(
+      List<String>.generate(12, (index) => 'walker-$index'),
+      loader: load,
+    );
+    await Future.wait(<Future<BaseCampAssetAcquisitionResult>>[water, walker]);
+
+    expect(maximumActive, baseCampAssetAcquisitionConcurrency);
+    expect(started.indexOf('walker-0'), lessThan(started.indexOf('water-8')));
+  });
+
+  test(
+    'decode can consume an acquired frame before its batch completes',
+    () async {
+      final releaseLater = Completer<void>();
+      final batch = baseCampStartAssetAcquisition(
+        const <String>['first', 'later-1', 'later-2', 'later-3', 'later-4'],
+        loader: (asset) async {
+          if (asset != 'first') await releaseLater.future;
+          return ByteData(1);
+        },
+      );
+
+      await batch.waitFor('first');
+      var batchCompleted = false;
+      batch.result.then((_) => batchCompleted = true);
+      await Future<void>.value();
+      expect(batchCompleted, isFalse);
+
+      releaseLater.complete();
+      final result = await batch.result;
+      expect(result.loadedCount, 5);
     },
   );
 

@@ -546,6 +546,10 @@ class SystemDiagnostics {
             timing,
             'engineInitializeCompleteMs',
           ),
+          'engineResourceTimingsJson': _jsPropertyText(
+            timing,
+            'engineResourceTimingsJson',
+          ),
           'runAppStartMs': _jsNumber(timing, 'runAppStartMs'),
           'runAppCompleteMs': _jsNumber(timing, 'runAppCompleteMs'),
           'dartMainMs': dartMainMs,
