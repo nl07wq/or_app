@@ -337,6 +337,9 @@ class _WorkCardState extends State<WorkCard> {
         widget.endController.text == preset.endTime &&
         widget.breakController.text == preset.breakTime;
     final baseCamp = isBaseCampStatus(context);
+    final controlColors = baseCamp
+        ? BaseCampStatusControlColors.resolve(context, selected: selected)
+        : null;
     final label = Text(
       preset.name,
       maxLines: 1,
@@ -346,7 +349,7 @@ class _WorkCardState extends State<WorkCard> {
       style: baseCamp
           ? BaseCampRetroTheme.japaneseControl(
               Theme.of(context).textTheme.labelLarge,
-            ).copyWith(fontSize: 11)
+            ).copyWith(fontSize: 11, color: controlColors?.foreground)
           : null,
     );
     final chip = baseCamp

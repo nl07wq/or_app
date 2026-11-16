@@ -474,7 +474,6 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
   static const double _maximum = 60;
   late bool _editing;
   int _valueTenths = 200;
-  int _windowMinTenths = 190;
 
   double get _value => _valueTenths / 10;
 
@@ -499,27 +498,19 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
         ((double.tryParse(widget.controller.text) ?? _value) * 10)
             .round()
             .clamp(0, 600);
-    final nextWindow = _windowFor(nextTenths, _windowMinTenths);
-    if ((nextTenths != _valueTenths || nextWindow != _windowMinTenths) &&
-        mounted) {
-      setState(() {
-        _valueTenths = nextTenths;
-        _windowMinTenths = nextWindow;
-      });
+    if (nextTenths != _valueTenths && mounted) {
+      setState(() => _valueTenths = nextTenths);
     }
-  }
-
-  int _windowFor(int valueTenths, int currentMin) {
-    const span = 30;
-    if (valueTenths >= currentMin && valueTenths <= currentMin + span) {
-      return currentMin;
-    }
-    return ((valueTenths - 15) ~/ 10 * 10).clamp(0, 600 - span);
   }
 
   void _step(int tenths) {
     final next = ((_valueTenths + tenths).clamp(0, 600)) / 10;
     widget.controller.text = next.toStringAsFixed(1);
+  }
+
+  void _setFromGauge(double normalized) {
+    final nextTenths = (normalized.clamp(0.0, 1.0) * 600).round();
+    widget.controller.text = (nextTenths / 10).toStringAsFixed(1);
   }
 
   @override
@@ -533,8 +524,6 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
       );
     }
     final palette = BaseCampTerminalPaletteScope.of(context);
-    const localSpanTenths = 30;
-    final fraction = (_valueTenths - _windowMinTenths) / localSpanTenths;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: palette.field,
@@ -575,17 +564,18 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
               ],
             ),
             const SizedBox(height: 10),
-            BaseCampLcdRuler(
+            BaseCampInstrumentGauge(
               key: const ValueKey('status-body-fat-segments'),
-              segmentCount: 20,
-              position: fraction,
+              position: _valueTenths / 600,
+              semanticLabel: 'Body fat ${_value.toStringAsFixed(1)} percent',
+              onChanged: _setFromGauge,
               markerKey: const ValueKey('status-body-fat-marker'),
             ),
             const SizedBox(height: 5),
             Row(
               children: [
                 Text(
-                  '${(_windowMinTenths / 10).toStringAsFixed(1)}%',
+                  '0.0%',
                   style: baseCampStatusReadoutStyle(
                     context,
                     Theme.of(context).textTheme.labelSmall,
@@ -603,7 +593,7 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
                 ),
                 const Spacer(),
                 Text(
-                  '${((_windowMinTenths + localSpanTenths) / 10).toStringAsFixed(1)}%',
+                  '60.0%',
                   style: baseCampStatusReadoutStyle(
                     context,
                     Theme.of(context).textTheme.labelSmall,

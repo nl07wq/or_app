@@ -394,6 +394,19 @@ void main() {
           find.ancestor(of: find.text('早番'), matching: find.byType(ChoiceChip)),
         );
         expect(selected.selected, isTrue);
+        final palette = tester
+            .widget<BaseCampTerminalPaletteScope>(
+              find.byType(BaseCampTerminalPaletteScope).last,
+            )
+            .palette;
+        expect(
+          tester.widget<Text>(find.text('早番')).style?.color,
+          palette.background,
+        );
+        expect(
+          tester.widget<Text>(find.text('朝番')).style?.color,
+          palette.primaryText,
+        );
         expect(tester.takeException(), isNull);
       });
     }

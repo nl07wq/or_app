@@ -7,6 +7,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
 import '../../themes/base_camp/base_camp_retro_theme.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 import 'base_camp_status_style.dart';
 
 class RecoveryCard extends StatelessWidget {
@@ -347,6 +348,7 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
 
   void _set(double v) =>
       widget.controller.text = v.round().clamp(0, 100).toString();
+  void _step(int delta) => _set(_value + delta.toDouble());
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).colorScheme;
@@ -360,7 +362,7 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
     }
     if (isBaseCampStatus(context)) {
       return Container(
-        height: 144,
+        height: 168,
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
         decoration: BoxDecoration(
           color: c.surfaceContainer,
@@ -372,55 +374,42 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
           children: [
             Text(widget.title, style: Theme.of(context).textTheme.labelMedium),
             const SizedBox(height: 4),
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: '$_value',
+            Row(
+              children: [
+                _SleepScoreStepButton(
+                  key: const ValueKey('status-sleep-score-minus'),
+                  icon: Icons.remove,
+                  tooltip: 'Decrease sleep score',
+                  onPressed: _value <= 0 ? null : () => _step(-1),
+                ),
+                Expanded(
+                  child: Text(
+                    '$_value /100',
+                    key: const ValueKey('status-sleep-score-lcd-readout'),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
                     style: baseCampStatusReadoutStyle(
                       context,
                       Theme.of(context).textTheme.headlineLarge,
-                      fontSize: 28,
-                    ),
-                  ),
-                  TextSpan(
-                    text: ' /100',
-                    style: baseCampStatusReadoutStyle(
-                      context,
-                      Theme.of(context).textTheme.labelMedium,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-              key: const ValueKey('status-sleep-score-lcd-readout'),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-            ),
-            const SizedBox(height: 7),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) => Semantics(
-                  slider: true,
-                  label: 'Sleep score $_value',
-                  child: GestureDetector(
-                    key: const ValueKey('status-sleep-score-ruler'),
-                    behavior: HitTestBehavior.opaque,
-                    onTapDown: (details) => _set(
-                      details.localPosition.dx / constraints.maxWidth * 100,
-                    ),
-                    onHorizontalDragUpdate: (details) => _set(
-                      details.localPosition.dx / constraints.maxWidth * 100,
-                    ),
-                    child: Center(
-                      child: BaseCampLcdRuler(
-                        position: _value / 100,
-                        markerKey: const ValueKey('status-sleep-score-marker'),
-                      ),
+                      fontSize: 24,
                     ),
                   ),
                 ),
-              ),
+                _SleepScoreStepButton(
+                  key: const ValueKey('status-sleep-score-plus'),
+                  icon: Icons.add,
+                  tooltip: 'Increase sleep score',
+                  onPressed: _value >= 100 ? null : () => _step(1),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            BaseCampInstrumentGauge(
+              key: const ValueKey('status-sleep-score-ruler'),
+              position: _value / 100,
+              semanticLabel: 'Sleep score $_value',
+              onChanged: (normalized) => _set(normalized * 100),
+              markerKey: const ValueKey('status-sleep-score-marker'),
             ),
             Align(
               alignment: Alignment.centerRight,
@@ -492,6 +481,45 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
         ],
       ),
     );
+  }
+}
+
+class _SleepScoreStepButton extends StatelessWidget {
+  const _SleepScoreStepButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    final enabled = onPressed != null;
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox.square(
+        dimension: 44,
+        child: Material(
+          color: enabled ? palette.field : palette.auxiliaryText,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: BorderSide(color: palette.primaryText),
+          ),
+          child: InkWell(
+            onTap: onPressed,
+            child: Icon(
+              icon,
+              color: enabled ? palette.primaryText : palette.background,
+            ),
+          ),
+        ),
+      ),
+    ).actionableFeedback(enabled: enabled, role: ActionableFeedbackRole.cursor);
   }
 }
 

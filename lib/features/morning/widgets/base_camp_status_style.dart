@@ -117,3 +117,184 @@ class BaseCampLcdRuler extends StatelessWidget {
     );
   }
 }
+
+/// Fixed-range horizontal instrument used by BASE CAMP STATUS editors.
+///
+/// The frame and scale never move. Only the fill and index needle follow the
+/// normalized value, so adjacent edits cannot visually rebase the instrument.
+class BaseCampInstrumentGauge extends StatelessWidget {
+  const BaseCampInstrumentGauge({
+    super.key,
+    required this.position,
+    required this.semanticLabel,
+    this.onChanged,
+    this.markerKey,
+    this.divisions = 10,
+    this.selectionKeyPrefix,
+  });
+
+  final double position;
+  final String semanticLabel;
+  final ValueChanged<double>? onChanged;
+  final Key? markerKey;
+  final int divisions;
+  final String? selectionKeyPrefix;
+
+  void _update(double dx, double width) {
+    if (onChanged == null || width <= 0) return;
+    const horizontalInset = 7.0;
+    final usableWidth = width - horizontalInset * 2;
+    final normalized = usableWidth <= 0
+        ? 0.0
+        : ((dx - horizontalInset) / usableWidth).clamp(0.0, 1.0);
+    onChanged!(normalized);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    final normalized = position.clamp(0.0, 1.0);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        const horizontalInset = 7.0;
+        final needleLeft =
+            horizontalInset + normalized * (width - horizontalInset * 2) - 1.5;
+        return Semantics(
+          slider: onChanged != null,
+          label: semanticLabel,
+          value: '${(normalized * 100).round()}%',
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: onChanged == null
+                ? null
+                : (details) => _update(details.localPosition.dx, width),
+            onHorizontalDragUpdate: onChanged == null
+                ? null
+                : (details) => _update(details.localPosition.dx, width),
+            child: SizedBox(
+              height: 34,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _BaseCampInstrumentGaugePainter(
+                        palette: palette,
+                        position: normalized,
+                        divisions: divisions,
+                      ),
+                    ),
+                  ),
+                  if (selectionKeyPrefix != null)
+                    Positioned.fill(
+                      left: horizontalInset,
+                      right: horizontalInset,
+                      child: Row(
+                        children: List<Widget>.generate(divisions, (index) {
+                          final level = index + 1;
+                          return Expanded(
+                            child: Semantics(
+                              button: true,
+                              selected: normalized >= level / divisions,
+                              label: '$semanticLabel $level',
+                              child: GestureDetector(
+                                key: ValueKey('$selectionKeyPrefix-$level'),
+                                behavior: HitTestBehavior.translucent,
+                                onTap: onChanged == null
+                                    ? null
+                                    : () => onChanged!(level / divisions),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                  Positioned(
+                    key: markerKey,
+                    left: needleLeft,
+                    top: 4,
+                    width: 3,
+                    height: 26,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(color: palette.primaryText),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BaseCampInstrumentGaugePainter extends CustomPainter {
+  const _BaseCampInstrumentGaugePainter({
+    required this.palette,
+    required this.position,
+    required this.divisions,
+  });
+
+  final BaseCampTerminalPalette palette;
+  final double position;
+  final int divisions;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final frame = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(3),
+    );
+    canvas.drawRRect(frame, Paint()..color = palette.background);
+    canvas.drawRRect(
+      frame.deflate(.75),
+      Paint()
+        ..color = palette.auxiliaryText
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+
+    final track = Rect.fromLTRB(7, 9, size.width - 7, size.height - 9);
+    canvas.drawRect(track, Paint()..color = palette.field);
+    final fillWidth = track.width * position;
+    if (fillWidth > 0) {
+      canvas.drawRect(
+        Rect.fromLTWH(track.left, track.top, fillWidth, track.height),
+        Paint()..color = palette.auxiliaryText,
+      );
+    }
+    canvas.drawRect(
+      track,
+      Paint()
+        ..color = palette.primaryText
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
+    final tickPaint = Paint()
+      ..color = palette.primaryText.withValues(alpha: .58)
+      ..strokeWidth = 1;
+    for (var index = 0; index <= divisions; index++) {
+      final x = track.left + track.width * index / divisions;
+      final major = index == 0 || index == divisions || index.isEven;
+      canvas.drawLine(
+        Offset(x, major ? 4 : 6),
+        Offset(x, track.top - 1),
+        tickPaint,
+      );
+      canvas.drawLine(
+        Offset(x, track.bottom + 1),
+        Offset(x, major ? size.height - 4 : size.height - 6),
+        tickPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BaseCampInstrumentGaugePainter oldDelegate) =>
+      oldDelegate.position != position ||
+      oldDelegate.divisions != divisions ||
+      oldDelegate.palette != palette;
+}

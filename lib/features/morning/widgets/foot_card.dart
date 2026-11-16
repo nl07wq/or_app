@@ -274,38 +274,15 @@ class _FootCardState extends State<FootCard> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Row(
+                    BaseCampInstrumentGauge(
                       key: const ValueKey('foot-pain-ten-segments'),
-                      children: List<Widget>.generate(10, (index) {
-                        final level = index + 1;
-                        final filled = level <= value;
-                        return Expanded(
-                          child: Semantics(
-                            button: true,
-                            selected: filled,
-                            label: 'Pain level $level',
-                            child: InkWell(
-                              key: ValueKey('foot-pain-segment-$level'),
-                              onTap: () => _selectPainLevel(level),
-                              child: Container(
-                                height: 28,
-                                margin: EdgeInsets.only(
-                                  right: index == 9 ? 0 : 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: filled
-                                      ? palette.primaryText
-                                      : palette.background,
-                                  border: Border.all(
-                                    color: palette.auxiliaryText,
-                                    width: .8,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
+                      position: value / 10,
+                      semanticLabel: 'Pain level $value',
+                      divisions: 10,
+                      selectionKeyPrefix: 'foot-pain-segment',
+                      markerKey: const ValueKey('foot-pain-marker'),
+                      onChanged: (normalized) =>
+                          _selectPainLevel((normalized * 10).round()),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -325,7 +302,7 @@ class _FootCardState extends State<FootCard> {
                       style: baseCampStatusReadoutStyle(
                         context,
                         Theme.of(context).textTheme.bodySmall,
-                        fontSize: 9,
+                        fontSize: 13,
                       ),
                     ),
                     Align(

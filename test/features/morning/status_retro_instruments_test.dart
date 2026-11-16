@@ -110,49 +110,78 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('BASE CAMP body fat uses synchronized discrete LCD segments', (
-    tester,
-  ) async {
-    final weight = TextEditingController(text: '94.2');
-    final bodyFat = TextEditingController(text: '31.9');
-    addTearDown(weight.dispose);
-    addTearDown(bodyFat.dispose);
-    await tester.pumpWidget(
-      _baseCampHarness(
-        BodyCard(
-          weightController: weight,
-          bodyFatController: bodyFat,
-          weightUnmeasured: false,
-          onWeightUnmeasured: () {},
-          onWeightMeasured: () {},
-          initiallyExpanded: true,
+  testWidgets(
+    'BASE CAMP body fat uses fixed 0-60 gauge with buttons and touch',
+    (tester) async {
+      final weight = TextEditingController(text: '94.2');
+      final bodyFat = TextEditingController(text: '31.9');
+      addTearDown(weight.dispose);
+      addTearDown(bodyFat.dispose);
+      await tester.pumpWidget(
+        _baseCampHarness(
+          BodyCard(
+            weightController: weight,
+            bodyFatController: bodyFat,
+            weightUnmeasured: false,
+            onWeightUnmeasured: () {},
+            onWeightMeasured: () {},
+            initiallyExpanded: true,
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('31.9 %'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('status-body-fat-segments')),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const ValueKey('status-body-fat-plus')));
-    await tester.pump();
-    expect(bodyFat.text, '32.0');
-    expect(find.text('30.0%'), findsOneWidget);
-    expect(find.text('33.0%'), findsOneWidget);
-    final movedMarker = tester.getRect(
-      find.byKey(const ValueKey('status-body-fat-marker')),
-    );
-    await tester.tap(find.byKey(const ValueKey('status-body-fat-minus')));
-    await tester.pump();
-    expect(bodyFat.text, '31.9');
-    expect(find.text('30.0%'), findsOneWidget);
-    expect(find.text('33.0%'), findsOneWidget);
-    final restoredMarker = tester.getRect(
-      find.byKey(const ValueKey('status-body-fat-marker')),
-    );
-    expect(movedMarker.left, greaterThan(restoredMarker.left));
-  });
+      expect(find.text('31.9 %'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('status-body-fat-segments')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('status-body-fat-plus')));
+      await tester.pump();
+      expect(bodyFat.text, '32.0');
+      expect(find.text('0.0%'), findsOneWidget);
+      expect(find.text('60.0%'), findsOneWidget);
+      final movedMarker = tester.getRect(
+        find.byKey(const ValueKey('status-body-fat-marker')),
+      );
+      await tester.tap(find.byKey(const ValueKey('status-body-fat-minus')));
+      await tester.pump();
+      expect(bodyFat.text, '31.9');
+      final restoredMarker = tester.getRect(
+        find.byKey(const ValueKey('status-body-fat-marker')),
+      );
+      expect(movedMarker.left, greaterThan(restoredMarker.left));
+
+      final gauge = find.byKey(const ValueKey('status-body-fat-segments'));
+      final gaugeRect = tester.getRect(gauge);
+      await tester.tapAt(
+        Offset(gaugeRect.left + gaugeRect.width * .75, gaugeRect.center.dy),
+      );
+      await tester.pump();
+      expect(double.parse(bodyFat.text), closeTo(45, .5));
+      final highMarker = tester.getRect(
+        find.byKey(const ValueKey('status-body-fat-marker')),
+      );
+      await tester.drag(gauge, Offset(-gaugeRect.width * .5, 0));
+      await tester.pump();
+      final lowerMarker = tester.getRect(
+        find.byKey(const ValueKey('status-body-fat-marker')),
+      );
+      expect(double.parse(bodyFat.text), lessThan(45));
+      expect(lowerMarker.left, lessThan(highMarker.left));
+      bodyFat.text = '0.0';
+      await tester.pump();
+      final minimumMarker = tester.getRect(
+        find.byKey(const ValueKey('status-body-fat-marker')),
+      );
+      bodyFat.text = '60.0';
+      await tester.pump();
+      final maximumMarker = tester.getRect(
+        find.byKey(const ValueKey('status-body-fat-marker')),
+      );
+      expect(maximumMarker.left, greaterThan(minimumMarker.left));
+      expect(find.byKey(const ValueKey('status-body-fat-plus')), findsOneWidget);
+    },
+  );
 
   testWidgets('BASE CAMP sleep score uses fixed 0-100 LCD ruler', (
     tester,
@@ -188,6 +217,17 @@ void main() {
       expect(current, greaterThanOrEqualTo(previous));
       previous = current;
     }
+    await tester.tap(find.byKey(const ValueKey('status-sleep-score-minus')));
+    await tester.pump();
+    expect(score.text, '99');
+    await tester.tap(find.byKey(const ValueKey('status-sleep-score-plus')));
+    await tester.pump();
+    expect(score.text, '100');
+    final gauge = find.byKey(const ValueKey('status-sleep-score-ruler'));
+    final rect = tester.getRect(gauge);
+    await tester.tapAt(Offset(rect.left + rect.width * .57, rect.center.dy));
+    await tester.pump();
+    expect(score.text, '57');
     expect(tester.takeException(), isNull);
   });
 
@@ -204,6 +244,7 @@ void main() {
 
     expect(find.text('LV.0 /10'), findsOneWidget);
     expect(find.text('軽度'), findsOneWidget);
+    expect(tester.widget<Text>(find.text('軽度')).style?.fontSize, 13);
     expect(
       find.byKey(const ValueKey('foot-pain-ten-segments')),
       findsOneWidget,
@@ -305,9 +346,13 @@ void main() {
         );
         final weight = TextEditingController(text: '94.2');
         final bodyFat = TextEditingController(text: '31.9');
+        final sleep = TextEditingController(text: '7:00');
+        final score = TextEditingController(text: '57');
         final foot = TextEditingController(text: '3');
         addTearDown(weight.dispose);
         addTearDown(bodyFat.dispose);
+        addTearDown(sleep.dispose);
+        addTearDown(score.dispose);
         addTearDown(foot.dispose);
         await tester.pumpWidget(
           _baseCampHarness(
@@ -321,6 +366,16 @@ void main() {
                   onWeightMeasured: () {},
                   initiallyExpanded: true,
                 ),
+                RecoveryCard(
+                  sleepController: sleep,
+                  sleepScoreController: score,
+                  sleepType: SleepType.sleep,
+                  onSleepTypeChanged: (_) {},
+                  sleepTimeUnmeasured: false,
+                  onSleepTimeUnmeasured: () {},
+                  onSleepTimeMeasured: () {},
+                  initiallyExpanded: true,
+                ),
                 FootCard(controller: foot, initiallyExpanded: true),
               ],
             ),
@@ -332,6 +387,10 @@ void main() {
         );
         expect(
           find.byKey(const ValueKey('status-body-fat-segments')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('status-sleep-score-ruler')),
           findsOneWidget,
         );
         expect(
