@@ -209,21 +209,16 @@ class _FootCardState extends State<FootCard> {
                   child: Row(
                     children: [
                       const Expanded(child: Text('PAIN LEVEL')),
-                      SizedBox(
-                        width: 112,
-                        child: BaseCampStatusLcdWindow(
-                          key: const ValueKey('foot-pain-lcd-window-collapsed'),
-                          height: 42,
-                          padding: const EdgeInsets.symmetric(horizontal: 5),
-                          child: Text(
-                            'LV.$value /10',
-                            key: const Key('foot-pain-current-value'),
-                            maxLines: 1,
-                            style: baseCampStatusReadoutStyle(
-                              context,
-                              Theme.of(context).textTheme.titleLarge,
-                              fontSize: 16,
-                            ),
+                      BaseCampStatusLcdWindow(
+                        key: const ValueKey('foot-pain-lcd-window-collapsed'),
+                        finishedValue: true,
+                        child: BaseCampStatusFittedReadout(
+                          key: const Key('foot-pain-current-value'),
+                          text: 'LV.$value /10',
+                          style: baseCampStatusReadoutStyle(
+                            context,
+                            Theme.of(context).textTheme.titleLarge,
+                            fontSize: 16,
                           ),
                         ),
                       ),
@@ -263,12 +258,9 @@ class _FootCardState extends State<FootCard> {
                           child: BaseCampStatusLcdWindow(
                             key: const ValueKey('foot-pain-lcd-window'),
                             height: 50,
-                            padding: const EdgeInsets.symmetric(horizontal: 5),
-                            child: Text(
-                              'LV.$value /10',
+                            child: BaseCampStatusFittedReadout(
                               key: const Key('foot-pain-current-value'),
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
+                              text: 'LV.$value /10',
                               style: baseCampStatusReadoutStyle(
                                 context,
                                 Theme.of(context).textTheme.headlineMedium,
@@ -320,7 +312,7 @@ class _FootCardState extends State<FootCard> {
                       ),
                     ),
                     Align(
-                      alignment: Alignment.centerRight,
+                      alignment: Alignment.center,
                       child: BaseCampStatusCompletionButton(
                         key: const Key('foot-pain-done'),
                         onPressed: () => setState(() => _editing = false),

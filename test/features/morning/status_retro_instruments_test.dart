@@ -274,6 +274,12 @@ void main() {
       find.byKey(const ValueKey('foot-pain-ten-segments')),
       findsOneWidget,
     );
+    for (var level = 0; level <= 10; level++) {
+      controller.text = '$level';
+      await tester.pump();
+      expect(find.text('LV.$level /10'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
     await tester.tap(find.byKey(const ValueKey('foot-pain-segment-3')));
     await tester.pump();
     expect(controller.text, '3');
@@ -362,6 +368,130 @@ void main() {
     await gesture.up();
     await tester.pump(const Duration(milliseconds: 100));
     expect(transform().getTranslation().y, 0);
+  });
+
+  testWidgets('LCD grids are owned only by STATUS LCD windows', (tester) async {
+    final weight = TextEditingController(text: '94.2');
+    final bodyFat = TextEditingController(text: '31.9');
+    addTearDown(weight.dispose);
+    addTearDown(bodyFat.dispose);
+    await tester.pumpWidget(
+      _baseCampHarness(
+        BodyCard(
+          weightController: weight,
+          bodyFatController: bodyFat,
+          weightUnmeasured: false,
+          onWeightUnmeasured: () {},
+          onWeightMeasured: () {},
+          initiallyExpanded: true,
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('status-entry-physical-content')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('status-entry-bounded-lcd-display')),
+      findsNothing,
+    );
+    for (final grid
+        in find
+            .byKey(const ValueKey('base-camp-terminal-lcd-grid'))
+            .evaluate()) {
+      var insideStatusWindow = false;
+      grid.visitAncestorElements((ancestor) {
+        if (ancestor.widget is BaseCampStatusLcdWindow) {
+          insideStatusWindow = true;
+          return false;
+        }
+        return true;
+      });
+      expect(insideStatusWindow, isTrue);
+    }
+    for (final controlKey in <String>[
+      'status-weight-radio-scale',
+      'status-weight-rotary-dial',
+      'status-weight-plus',
+      'status-weight-done',
+    ]) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey(controlKey)),
+          matching: find.byKey(const ValueKey('base-camp-terminal-lcd-grid')),
+        ),
+        findsNothing,
+      );
+    }
+    expect(
+      tester.getSize(find.byKey(const ValueKey('status-weight-done'))),
+      const Size(112, 40),
+    );
+  });
+
+  for (final width in <double>[320, 375, 390, 430]) {
+    testWidgets('finished LCD contract and LV.10 fit at ${width}dp', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(Size(width, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final controller = TextEditingController(text: '10');
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        _baseCampHarness(
+          MediaQuery(
+            data: MediaQueryData(size: Size(width, 700)),
+            child: FootCard(controller: controller, initiallyExpanded: true),
+          ),
+        ),
+      );
+      expect(find.text('LV.10 /10'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const Key('foot-pain-done')));
+      await tester.pump();
+      final lcd = find.byKey(const ValueKey('foot-pain-lcd-window-collapsed'));
+      expect(find.text('LV.10 /10'), findsOneWidget);
+      expect(tester.getSize(lcd), Size(width < 375 ? 120 : 136, 42));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('sleep type uses two equal 40dp physical columns', (
+    tester,
+  ) async {
+    final sleep = TextEditingController(text: '7:00');
+    final score = TextEditingController(text: '80');
+    addTearDown(sleep.dispose);
+    addTearDown(score.dispose);
+    await tester.pumpWidget(
+      _baseCampHarness(
+        RecoveryCard(
+          sleepController: sleep,
+          sleepScoreController: score,
+          sleepType: SleepType.sleep,
+          onSleepTypeChanged: (_) {},
+          sleepTimeUnmeasured: false,
+          onSleepTimeUnmeasured: () {},
+          onSleepTimeMeasured: () {},
+          initiallyExpanded: true,
+        ),
+      ),
+    );
+    final sleepButton = find.ancestor(
+      of: find.text('睡眠'),
+      matching: find.byType(BaseCampMechanicalButton),
+    );
+    final napButton = find.ancestor(
+      of: find.text('仮眠').first,
+      matching: find.byType(BaseCampMechanicalButton),
+    );
+    final sleepRect = tester.getRect(sleepButton);
+    final napRect = tester.getRect(napButton);
+    expect(sleepRect.height, 40);
+    expect(napRect.height, 40);
+    expect(sleepRect.width, closeTo(napRect.width, .01));
+    expect(napRect.left - sleepRect.right, closeTo(8, .01));
   });
 
   testWidgets('STANDARD retains the existing STATUS instruments', (
@@ -514,8 +644,7 @@ Widget _baseCampHarness(Widget child) => MaterialApp(
     child: BaseCampRetroTerminalScreen(
       screenKey: 'status-instrument-test',
       child: Scaffold(
-        body: BaseCampTerminalDisplay(
-          margin: const EdgeInsets.all(8),
+        body: BaseCampStatusEntrySurface(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(12),
             child: child,

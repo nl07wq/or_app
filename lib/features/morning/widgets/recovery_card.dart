@@ -70,53 +70,74 @@ class RecoveryCard extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: SleepType.values
-                .map(
-                  (value) => Builder(
-                    builder: (context) {
-                      final selected = sleepType == value;
-                      final controlColors = isBaseCampStatus(context)
-                          ? BaseCampStatusControlColors.resolve(
-                              context,
-                              selected: selected,
-                            )
-                          : null;
-                      final label = Builder(
-                        builder: (context) => Text(
-                          value.displayLabel,
-                          style: BaseCampRetroTheme.isApplied(Theme.of(context))
-                              ? BaseCampRetroTheme.japaneseControl(
-                                  Theme.of(context).textTheme.labelLarge,
-                                ).copyWith(color: controlColors?.foreground)
-                              : null,
-                        ),
-                      );
-                      final chip = isBaseCampStatus(context)
-                          ? baseCampStatusChoiceChip(
-                              context: context,
-                              label: label,
-                              selected: selected,
-                              onSelected: (next) {
-                                if (next) onSleepTypeChanged(value);
-                              },
-                            )
-                          : ChoiceChip(
-                              label: label,
-                              selected: selected,
-                              onSelected: (next) {
-                                if (next) onSleepTypeChanged(value);
-                              },
-                            );
-                      return chip.actionableFeedback(
-                        role: ActionableFeedbackRole.cursor,
-                      );
-                    },
-                  ),
-                )
-                .toList(),
+          Builder(
+            builder: (context) {
+              final baseCamp = isBaseCampStatus(context);
+              final controls = SleepType.values
+                  .map(
+                    (value) => Builder(
+                      builder: (context) {
+                        final selected = sleepType == value;
+                        final controlColors = isBaseCampStatus(context)
+                            ? BaseCampStatusControlColors.resolve(
+                                context,
+                                selected: selected,
+                              )
+                            : null;
+                        final label = Builder(
+                          builder: (context) => Text(
+                            value.displayLabel,
+                            style:
+                                BaseCampRetroTheme.isApplied(Theme.of(context))
+                                ? BaseCampRetroTheme.japaneseControl(
+                                    Theme.of(context).textTheme.labelLarge,
+                                  ).copyWith(color: controlColors?.foreground)
+                                : null,
+                          ),
+                        );
+                        final chip = isBaseCampStatus(context)
+                            ? baseCampStatusChoiceChip(
+                                context: context,
+                                label: label,
+                                selected: selected,
+                                onSelected: (next) {
+                                  if (next) onSleepTypeChanged(value);
+                                },
+                                height: 40,
+                                labelPadding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                              )
+                            : ChoiceChip(
+                                label: label,
+                                selected: selected,
+                                onSelected: (next) {
+                                  if (next) onSleepTypeChanged(value);
+                                },
+                              );
+                        return chip.actionableFeedback(
+                          role: ActionableFeedbackRole.cursor,
+                        );
+                      },
+                    ),
+                  )
+                  .toList();
+              if (!baseCamp) {
+                return Wrap(spacing: 8, runSpacing: 8, children: controls);
+              }
+              return SizedBox(
+                height: 40,
+                child: Row(
+                  key: const ValueKey('status-sleep-type-row'),
+                  children: <Widget>[
+                    Expanded(child: controls[0]),
+                    const SizedBox(width: 8),
+                    Expanded(child: controls[1]),
+                  ],
+                ),
+              );
+            },
           ),
 
           const SizedBox(height: 20),
@@ -291,9 +312,8 @@ class _SleepDurationOrbitalInputState
                     key: const ValueKey('status-sleep-duration-lcd-window'),
                     height: 48,
                     padding: const EdgeInsets.symmetric(horizontal: 5),
-                    child: Text(
-                      widget.controller.text,
-                      maxLines: 1,
+                    child: BaseCampStatusFittedReadout(
+                      text: widget.controller.text,
                       style: baseCampStatusReadoutStyle(
                         context,
                         Theme.of(context).textTheme.headlineSmall,
@@ -399,12 +419,9 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
                   child: BaseCampStatusLcdWindow(
                     key: const ValueKey('status-sleep-score-lcd-window'),
                     height: 50,
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    child: Text(
-                      '$_value /100',
+                    child: BaseCampStatusFittedReadout(
                       key: const ValueKey('status-sleep-score-lcd-readout'),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
+                      text: '$_value /100',
                       style: baseCampStatusReadoutStyle(
                         context,
                         Theme.of(context).textTheme.headlineLarge,
@@ -430,7 +447,7 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
               markerKey: const ValueKey('status-sleep-score-marker'),
             ),
             Align(
-              alignment: Alignment.centerRight,
+              alignment: Alignment.center,
               child: BaseCampStatusCompletionButton(
                 key: const ValueKey('status-sleep-score-done'),
                 onPressed: () => setState(() => _editing = false),
@@ -567,20 +584,15 @@ class _CollapsedRecoveryValue extends StatelessWidget {
                 ),
               ),
               if (baseCamp)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 104),
-                  child: BaseCampStatusLcdWindow(
-                    height: 42,
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    child: Text(
-                      value,
-                      maxLines: 1,
-                      style: baseCampStatusReadoutStyle(
-                        context,
-                        Theme.of(context).textTheme.titleLarge,
-                        fontSize: 16,
-                        color: color,
-                      ),
+                BaseCampStatusLcdWindow(
+                  finishedValue: true,
+                  child: BaseCampStatusFittedReadout(
+                    text: value,
+                    style: baseCampStatusReadoutStyle(
+                      context,
+                      Theme.of(context).textTheme.titleLarge,
+                      fontSize: 16,
+                      color: color,
                     ),
                   ),
                 )

@@ -14,6 +14,7 @@ import 'package:or_app/features/morning/widgets/body_card.dart';
 import 'package:or_app/features/morning/widgets/foot_card.dart';
 import 'package:or_app/features/morning/widgets/recovery_card.dart';
 import 'package:or_app/features/morning/widgets/work_card.dart';
+import 'package:or_app/features/morning/widgets/base_camp_status_style.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_retro_terminal.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
@@ -202,8 +203,7 @@ Widget _harness(Widget child) => MaterialApp(
     child: BaseCampRetroTerminalScreen(
       screenKey: 'status-gauge-shift-capture',
       child: Scaffold(
-        body: BaseCampTerminalDisplay(
-          margin: const EdgeInsets.all(8),
+        body: BaseCampStatusEntrySurface(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(12),
             child: child,

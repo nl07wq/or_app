@@ -172,11 +172,9 @@ class _BaseCampWeightTunerState extends State<_BaseCampWeightTuner> {
             BaseCampStatusLcdWindow(
               key: const ValueKey('status-weight-lcd-window'),
               height: 54,
-              child: Text(
-                '${_value.toStringAsFixed(1)} kg',
+              child: BaseCampStatusFittedReadout(
                 key: const ValueKey('status-weight-radio-readout'),
-                maxLines: 1,
-                overflow: TextOverflow.clip,
+                text: '${_value.toStringAsFixed(1)} kg',
                 style: baseCampStatusReadoutStyle(
                   context,
                   Theme.of(context).textTheme.headlineMedium,
@@ -300,7 +298,7 @@ class _BaseCampWeightTunerState extends State<_BaseCampWeightTuner> {
               ],
             ),
             Align(
-              alignment: Alignment.centerRight,
+              alignment: Alignment.center,
               child: BaseCampStatusCompletionButton(
                 key: const ValueKey('status-weight-done'),
                 onPressed: () => setState(() => _editing = false),
@@ -335,11 +333,16 @@ class _RadioScalePainter extends CustomPainter {
       ..strokeWidth = 1
       ..color = palette.primaryText;
     canvas.drawRect(rect.deflate(.5), border);
-    final centerX = size.width / 2;
+    final viewport = rect.deflate(1);
+    const tickBaseline = 47.0;
+    const labelTop = 54.0;
+    final centerX = viewport.center.dx;
     final centerTenths = (value * 10).round();
     const pixelsPerTenth = _BaseCampWeightTunerState._pixelsPerTenth;
     final visible = (size.width / pixelsPerTenth / 2).ceil() + 2;
     final tick = Paint()..strokeCap = StrokeCap.square;
+    canvas.save();
+    canvas.clipRect(viewport);
     for (var delta = -visible; delta <= visible; delta++) {
       final tenths = centerTenths + delta;
       if (tenths < 400 || tenths > 1800) continue;
@@ -354,7 +357,11 @@ class _RadioScalePainter extends CustomPainter {
       tick
         ..strokeWidth = major ? 1.5 : 1
         ..color = palette.primaryText;
-      canvas.drawLine(Offset(x, 48 - height), Offset(x, 48), tick);
+      canvas.drawLine(
+        Offset(x, tickBaseline - height),
+        Offset(x, tickBaseline),
+        tick,
+      );
       if (major) {
         final label = TextPainter(
           text: TextSpan(
@@ -367,7 +374,11 @@ class _RadioScalePainter extends CustomPainter {
           ),
           textDirection: TextDirection.ltr,
         )..layout();
-        label.paint(canvas, Offset(x - label.width / 2, 57));
+        final labelX = (x - label.width / 2).clamp(
+          viewport.left,
+          viewport.right - label.width,
+        );
+        label.paint(canvas, Offset(labelX, labelTop));
       }
     }
     final needle = Paint()
@@ -375,6 +386,7 @@ class _RadioScalePainter extends CustomPainter {
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.square;
     canvas.drawLine(Offset(centerX, 7), Offset(centerX, 58), needle);
+    canvas.restore();
   }
 
   @override
@@ -550,12 +562,9 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
                     key: const ValueKey('status-body-fat-lcd-window'),
                     height: 50,
                     padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      '${_value.toStringAsFixed(1)} %',
+                    child: BaseCampStatusFittedReadout(
                       key: const ValueKey('status-body-fat-lcd-readout'),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.clip,
+                      text: '${_value.toStringAsFixed(1)} %',
                       style: baseCampStatusReadoutStyle(
                         context,
                         Theme.of(context).textTheme.headlineMedium,
@@ -612,7 +621,7 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
               ],
             ),
             Align(
-              alignment: Alignment.centerRight,
+              alignment: Alignment.center,
               child: BaseCampStatusCompletionButton(
                 key: const ValueKey('status-body-fat-done'),
                 onPressed: () => setState(() => _editing = false),
@@ -1741,20 +1750,15 @@ class _CollapsedStatusValue extends StatelessWidget {
                 ),
               ),
               if (baseCamp)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 110),
-                  child: BaseCampStatusLcdWindow(
-                    height: 42,
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    child: Text(
-                      value,
-                      maxLines: 1,
-                      style: baseCampStatusReadoutStyle(
-                        context,
-                        Theme.of(context).textTheme.titleLarge,
-                        fontSize: 16,
-                        color: color,
-                      ),
+                BaseCampStatusLcdWindow(
+                  finishedValue: true,
+                  child: BaseCampStatusFittedReadout(
+                    text: value,
+                    style: baseCampStatusReadoutStyle(
+                      context,
+                      Theme.of(context).textTheme.titleLarge,
+                      fontSize: 16,
+                      color: color,
                     ),
                   ),
                 )

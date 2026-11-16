@@ -299,46 +299,37 @@ class _WorkCardState extends State<WorkCard> {
                         return Align(
                           alignment: Alignment.centerRight,
                           child: isBaseCampStatus(context)
-                              ? SizedBox(
-                                  width: 176,
-                                  child: BaseCampStatusLcdWindow(
-                                    key: const ValueKey(
-                                      'work-hours-lcd-window',
-                                    ),
-                                    height: 70,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 5,
-                                    ),
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          'WORK HOURS',
-                                          style: baseCampStatusReadoutStyle(
+                              ? Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        'WORK HOURS',
+                                        style: baseCampStatusReadoutStyle(
+                                          context,
+                                          Theme.of(
                                             context,
-                                            Theme.of(
-                                              context,
-                                            ).textTheme.labelSmall,
-                                            fontSize: 8,
-                                          ),
+                                          ).textTheme.labelSmall,
+                                          fontSize: 8,
                                         ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          value,
-                                          maxLines: 1,
-                                          style: baseCampStatusReadoutStyle(
-                                            context,
-                                            Theme.of(
-                                              context,
-                                            ).textTheme.headlineSmall,
-                                            fontSize: 24,
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ),
-                                  ),
+                                    BaseCampStatusLcdWindow(
+                                      key: const ValueKey(
+                                        'work-hours-lcd-window',
+                                      ),
+                                      finishedValue: true,
+                                      child: BaseCampStatusFittedReadout(
+                                        text: value,
+                                        style: baseCampStatusReadoutStyle(
+                                          context,
+                                          Theme.of(
+                                            context,
+                                          ).textTheme.headlineSmall,
+                                          fontSize: 20,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 )
                               : Column(
                                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -626,20 +617,15 @@ class _WorkClockRowState extends State<_WorkClockRow> {
                   ),
                 ),
                 if (isBaseCampStatus(context))
-                  SizedBox(
-                    width: 106,
-                    child: BaseCampStatusLcdWindow(
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 5),
-                      child: Text(
-                        widget.controller.text,
-                        maxLines: 1,
-                        style: baseCampStatusReadoutStyle(
-                          context,
-                          Theme.of(context).textTheme.titleLarge,
-                          fontSize: 18,
-                          color: cs.primary,
-                        ),
+                  BaseCampStatusLcdWindow(
+                    finishedValue: true,
+                    child: BaseCampStatusFittedReadout(
+                      text: widget.controller.text,
+                      style: baseCampStatusReadoutStyle(
+                        context,
+                        Theme.of(context).textTheme.titleLarge,
+                        fontSize: 18,
+                        color: cs.primary,
                       ),
                     ),
                   )
@@ -689,9 +675,8 @@ class _WorkClockRowState extends State<_WorkClockRow> {
                   child: BaseCampStatusLcdWindow(
                     height: 48,
                     padding: const EdgeInsets.symmetric(horizontal: 5),
-                    child: Text(
-                      widget.controller.text,
-                      maxLines: 1,
+                    child: BaseCampStatusFittedReadout(
+                      text: widget.controller.text,
                       style: baseCampStatusReadoutStyle(
                         context,
                         Theme.of(context).textTheme.titleLarge,
@@ -809,20 +794,15 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
                   ),
                 ),
                 if (isBaseCampStatus(context))
-                  SizedBox(
-                    width: 106,
-                    child: BaseCampStatusLcdWindow(
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 5),
-                      child: Text(
-                        _label,
-                        maxLines: 1,
-                        style: baseCampStatusReadoutStyle(
-                          context,
-                          Theme.of(context).textTheme.titleLarge,
-                          fontSize: 18,
-                          color: color,
-                        ),
+                  BaseCampStatusLcdWindow(
+                    finishedValue: true,
+                    child: BaseCampStatusFittedReadout(
+                      text: _label,
+                      style: baseCampStatusReadoutStyle(
+                        context,
+                        Theme.of(context).textTheme.titleLarge,
+                        fontSize: 18,
+                        color: color,
                       ),
                     ),
                   )
@@ -923,7 +903,7 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
             ],
           ),
           Align(
-            alignment: Alignment.centerRight,
+            alignment: Alignment.center,
             child: isBaseCampStatus(context)
                 ? BaseCampStatusCompletionButton(
                     key: const ValueKey('work-break-done'),

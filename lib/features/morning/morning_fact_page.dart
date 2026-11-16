@@ -21,6 +21,7 @@ import '../food/widgets/food_saved_floating_hud.dart';
 import 'services/morning_fact_initializer.dart';
 import 'services/morning_submit_service.dart';
 import 'widgets/body_card.dart';
+import 'widgets/base_camp_status_style.dart';
 import 'widgets/foot_card.dart';
 import 'widgets/memo_input_card.dart';
 import 'widgets/morning_submit_button.dart';
@@ -312,9 +313,7 @@ class _MorningFactPageState extends State<MorningFactPage> {
             ? const Center(child: Text('Operation Dateを取得できませんでした。'))
             : !_initialValuesLoaded
             ? const Center(child: CircularProgressIndicator())
-            : BaseCampTerminalDisplay(
-                key: const ValueKey('status-entry-bounded-lcd-display'),
-                margin: const EdgeInsets.all(8),
+            : BaseCampStatusEntrySurface(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(
                     AppSpacing.cardPadding.left,

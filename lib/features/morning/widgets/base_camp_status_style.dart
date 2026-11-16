@@ -54,6 +54,7 @@ Widget baseCampStatusChoiceChip({
   required bool selected,
   required ValueChanged<bool> onSelected,
   EdgeInsetsGeometry? labelPadding,
+  double? height,
 }) {
   final colors = BaseCampStatusControlColors.resolve(
     context,
@@ -62,6 +63,7 @@ Widget baseCampStatusChoiceChip({
   return BaseCampMechanicalButton(
     selected: selected,
     onPressed: () => onSelected(!selected),
+    height: height,
     padding:
         labelPadding ?? const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
     child: DefaultTextStyle.merge(
@@ -79,17 +81,25 @@ class BaseCampStatusLcdWindow extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
     this.height,
+    this.width,
+    this.finishedValue = false,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double? height;
+  final double? width;
+  final bool finishedValue;
+
+  static double finishedValueWidth(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < 375 ? 120 : 136;
 
   @override
   Widget build(BuildContext context) {
     final palette = BaseCampTerminalPaletteScope.of(context);
     return SizedBox(
-      height: height,
+      width: finishedValue ? finishedValueWidth(context) : width,
+      height: finishedValue ? 42 : height,
       child: BaseCampLcdSurface(
         palette: palette,
         padding: padding,
@@ -97,6 +107,74 @@ class BaseCampStatusLcdWindow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A single-line readout that measures the actual pixel-font glyphs and only
+/// reduces the requested size when the LCD aperture cannot contain them.
+class BaseCampStatusFittedReadout extends StatelessWidget {
+  const BaseCampStatusFittedReadout({
+    super.key,
+    required this.text,
+    required this.style,
+    this.minimumFontSize = 8,
+    this.textAlign = TextAlign.center,
+  });
+
+  final String text;
+  final TextStyle style;
+  final double minimumFontSize;
+  final TextAlign textAlign;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      var fontSize = style.fontSize ?? 14;
+      final direction = Directionality.of(context);
+      while (fontSize > minimumFontSize) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: text,
+            style: style.copyWith(fontSize: fontSize),
+          ),
+          maxLines: 1,
+          textDirection: direction,
+        )..layout(maxWidth: constraints.maxWidth);
+        if (!painter.didExceedMaxLines &&
+            painter.width <= constraints.maxWidth &&
+            painter.height <= constraints.maxHeight) {
+          break;
+        }
+        fontSize -= .5;
+      }
+      return Text(
+        text,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.clip,
+        textAlign: textAlign,
+        style: style.copyWith(fontSize: fontSize.clamp(minimumFontSize, 100)),
+      );
+    },
+  );
+}
+
+/// STATUS ENTRY content sits on the terminal chassis. It is intentionally not
+/// an LCD surface; individual [BaseCampStatusLcdWindow] instances own all grid
+/// rendering.
+class BaseCampStatusEntrySurface extends StatelessWidget {
+  const BaseCampStatusEntrySurface({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      BaseCampTerminalPaletteScope.maybeOf(context) == null
+      ? child
+      : Padding(
+          key: const ValueKey('status-entry-physical-content'),
+          padding: const EdgeInsets.all(8),
+          child: child,
+        );
 }
 
 /// Physical STATUS control. Momentary controls sink while held; mutually
@@ -220,6 +298,7 @@ class BaseCampStatusCompletionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => BaseCampMechanicalButton(
     onPressed: onPressed,
+    width: 112,
     height: 40,
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     child: const Row(
