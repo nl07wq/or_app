@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
@@ -6,11 +8,18 @@ import '../../import_export/services/backup_file_export_service.dart';
 import '../../import_export/services/backup_file_gateway.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
 import '../../themes/base_camp/widgets/base_camp_communication_motion.dart';
+import '../../themes/base_camp/widgets/base_camp_terminal_popup.dart';
+import 'base_camp_finalize_day_dialog.dart';
 
 class BackupPromptDialog extends StatefulWidget {
-  const BackupPromptDialog({super.key, required this.exportService});
+  const BackupPromptDialog({
+    super.key,
+    required this.exportService,
+    this.successHold = baseCampTerminalSuccessHold,
+  });
 
   final BackupFileExportService exportService;
+  final Duration successHold;
 
   @override
   State<BackupPromptDialog> createState() => _BackupPromptDialogState();
@@ -18,8 +27,16 @@ class BackupPromptDialog extends StatefulWidget {
 
 class _BackupPromptDialogState extends State<BackupPromptDialog> {
   _BackupPromptState _state = _BackupPromptState.ready;
+  Object? _error;
+  Timer? _dismissTimer;
 
   bool get _busy => _state == _BackupPromptState.exporting;
+
+  @override
+  void dispose() {
+    _dismissTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _export() async {
     if (_busy) return;
@@ -40,14 +57,47 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
             ? _BackupPromptState.cancelled
             : _BackupPromptState.exported;
       });
-    } catch (_) {
+      if (result.delivery != BackupFileDelivery.cancelled &&
+          BaseCampPresentation.isActive(context)) {
+        _dismissTimer = Timer(widget.successHold, () {
+          if (mounted) Navigator.pop(context);
+        });
+      }
+    } catch (error) {
       if (!mounted) return;
-      setState(() => _state = _BackupPromptState.failed);
+      setState(() {
+        _error = error;
+        _state = _BackupPromptState.failed;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (BaseCampPresentation.isActive(context)) {
+      return PopScope(
+        canPop: false,
+        child: BaseCampTerminalPopup(
+          title: 'BACKUP',
+          stateLabel: switch (_state) {
+            _BackupPromptState.ready => 'REQUIRED',
+            _BackupPromptState.exporting => 'EXPORTING',
+            _BackupPromptState.exported => 'COMPLETE',
+            _BackupPromptState.cancelled => 'CANCELLED',
+            _BackupPromptState.failed => 'FAILED',
+          },
+          message: switch (_state) {
+            _BackupPromptState.ready => '最新のBACKUPを保存してください。',
+            _BackupPromptState.exporting => 'BACKUPを出力しています。',
+            _BackupPromptState.exported => 'BACKUPを出力しました。',
+            _BackupPromptState.cancelled => 'BACKUPの保存をキャンセルしました。',
+            _BackupPromptState.failed => 'BACKUPの出力に失敗しました。\n${_error ?? ''}',
+          },
+          busy: _busy,
+          actions: _baseCampActions(),
+        ),
+      );
+    }
     return PopScope(
       canPop: !_busy,
       child: AlertDialog(
@@ -60,6 +110,40 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
       ),
     );
   }
+
+  List<Widget> _baseCampActions() => switch (_state) {
+    _BackupPromptState.ready => <Widget>[
+      BaseCampTerminalPopupButton(
+        label: 'NOT NOW',
+        onPressed: () => Navigator.pop(context),
+      ),
+      BaseCampTerminalPopupButton(
+        label: 'EXPORT BACKUP',
+        primary: true,
+        onPressed: _export,
+      ),
+    ],
+    _BackupPromptState.exporting ||
+    _BackupPromptState.exported => const <Widget>[],
+    _BackupPromptState.cancelled => <Widget>[
+      BaseCampTerminalPopupButton(
+        label: 'CLOSE',
+        primary: true,
+        onPressed: () => Navigator.pop(context),
+      ),
+    ],
+    _BackupPromptState.failed => <Widget>[
+      BaseCampTerminalPopupButton(
+        label: 'CLOSE',
+        onPressed: () => Navigator.pop(context),
+      ),
+      BaseCampTerminalPopupButton(
+        label: 'RETRY',
+        primary: true,
+        onPressed: _export,
+      ),
+    ],
+  };
 
   Widget _content() {
     return switch (_state) {

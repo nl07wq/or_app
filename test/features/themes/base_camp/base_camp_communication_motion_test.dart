@@ -189,7 +189,7 @@ void main() {
     }
   });
 
-  testWidgets('successful task completes before the fixed 2.5 second motion', (
+  testWidgets('successful task completes before the fixed 2.7 second motion', (
     tester,
   ) async {
     expect(
@@ -227,7 +227,7 @@ void main() {
     );
     expect(find.text('RECEIVED'), findsOneWidget);
     expect(result, isNull);
-    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pump(const Duration(milliseconds: 1000));
     expect(result, isNull);
     await tester.pump(const Duration(milliseconds: 250));
     expect(result, 'saved');

@@ -26,7 +26,9 @@ import '../../periodic_report/pages/periodic_report_page.dart';
 import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/daily_debrief_state.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
 import 'backup_prompt_dialog.dart';
+import 'base_camp_finalize_day_dialog.dart';
 
 typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
@@ -51,7 +53,7 @@ Future<void> presentDailyFinalizeBackupPrompt({
   }
   final route = DialogRoute<void>(
     context: navigator.context,
-    barrierDismissible: true,
+    barrierDismissible: !BaseCampPresentation.isActive(navigator.context),
     builder: (_) => BackupPromptDialog(exportService: exportService),
   );
   await navigator.push(route);
@@ -227,6 +229,10 @@ class _DailyLogSectionState extends State<DailyLogSection> {
 
   Future<void> _finalize() async {
     if (_isFinalizing) return;
+    if (BaseCampPresentation.isActive(context)) {
+      await _finalizeBaseCamp();
+      return;
+    }
     final approved = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -316,6 +322,67 @@ class _DailyLogSectionState extends State<DailyLogSection> {
                 ),
         ),
       );
+    } finally {
+      if (mounted) setState(() => _isFinalizing = false);
+    }
+  }
+
+  Future<void> _finalizeBaseCamp() async {
+    final promptNavigator = Navigator.of(context, rootNavigator: true);
+    final backupExportService =
+        widget.backupExportService ?? BackupFileExportService();
+    final onReviewCompleted = widget.onReviewCompleted;
+    OperationLocalDate? previousDate;
+    var finalizeStarted = false;
+    var formalFinalizeSucceeded = false;
+
+    setState(() => _isFinalizing = true);
+    try {
+      final approved = await showDialog<bool>(
+        context: context,
+        useRootNavigator: true,
+        barrierDismissible: false,
+        builder: (_) => BaseCampFinalizeDayDialog(
+          onFinalize: () async {
+            final state = await AppRepositoryRegistry.container.operationState
+                .requireCurrent();
+            previousDate = state.operationDate;
+            widget.onFinalizeStarted?.call();
+            finalizeStarted = true;
+            await DailyFinalizeCoordinatorFactory.production().finalize(
+              targetLocalDate: previousDate!,
+            );
+            formalFinalizeSucceeded = true;
+          },
+        ),
+      );
+      if (approved != true || previousDate == null) {
+        if (finalizeStarted) widget.onFinalizePresentationReleased?.call();
+        return;
+      }
+
+      await presentDailyFinalizeBackupPrompt(
+        navigator: promptNavigator,
+        exportService: backupExportService,
+      );
+      await presentWeeklyReportInvitationForFinalizedDate(
+        navigator: promptNavigator,
+        finalizedDate: previousDate!,
+        reportExists: (periodId) async =>
+            await AppRepositoryRegistry.container.periodicReports.read(
+              periodId,
+            ) !=
+            null,
+      );
+      await onReviewCompleted?.call(previousDate!);
+      if (mounted) _reloadCloseState();
+    } catch (error) {
+      widget.onFinalizePresentationReleased?.call();
+      if (formalFinalizeSucceeded && promptNavigator.mounted) {
+        ScaffoldMessenger.maybeOf(
+          promptNavigator.context,
+        )?.showSnackBar(SnackBar(content: Text('BACKUPを表示できませんでした: $error')));
+      }
     } finally {
       if (mounted) setState(() => _isFinalizing = false);
     }

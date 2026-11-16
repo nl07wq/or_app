@@ -21,8 +21,8 @@ enum BaseCampCommunicationEndpoint { documentToComputer, folderToServer }
 const baseCampCommunicationFrameDuration = Duration(milliseconds: 200);
 const baseCampCommunicationConnectingDuration = Duration(milliseconds: 300);
 const baseCampCommunicationTransferDuration = Duration(milliseconds: 1200);
-const baseCampCommunicationCompletionHold = Duration(milliseconds: 1000);
-const baseCampCommunicationMinimumDisplay = Duration(milliseconds: 2500);
+const baseCampCommunicationCompletionHold = Duration(milliseconds: 1200);
+const baseCampCommunicationMinimumDisplay = Duration(milliseconds: 2700);
 
 const baseCampCommunicationAssetRoot =
     'assets/images/themes/base_camp/communication';
