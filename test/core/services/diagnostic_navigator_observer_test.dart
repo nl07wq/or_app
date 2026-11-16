@@ -7,7 +7,8 @@ void main() {
   testWidgets('named-route observation does not alter navigation behavior', (
     tester,
   ) async {
-    final diagnostics = SystemDiagnostics.testing();
+    final diagnostics = SystemDiagnostics.instance..clear();
+    addTearDown(diagnostics.clear);
     await tester.pumpWidget(
       MaterialApp(
         navigatorObservers: <NavigatorObserver>[
@@ -37,7 +38,8 @@ void main() {
   testWidgets(
     'invalid route evidence remains observable without interception',
     (tester) async {
-      final diagnostics = SystemDiagnostics.testing();
+      final diagnostics = SystemDiagnostics.instance..clear();
+      addTearDown(diagnostics.clear);
       final observer = DiagnosticNavigatorObserver(diagnostics: diagnostics);
       final invalidRoute = MaterialPageRoute<void>(
         settings: const RouteSettings(
@@ -54,4 +56,41 @@ void main() {
       expect(trace, isNot(contains('secret')));
     },
   );
+
+  testWidgets('unnamed popup route can pop before a named system route push', (
+    tester,
+  ) async {
+    final diagnostics = SystemDiagnostics.instance..clear();
+    addTearDown(diagnostics.clear);
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorObservers: <NavigatorObserver>[
+          DiagnosticNavigatorObserver(diagnostics: diagnostics),
+        ],
+        routes: <String, WidgetBuilder>{
+          '/': (context) => Scaffold(
+            body: PopupMenuButton<String>(
+              onSelected: (route) => Navigator.of(context).pushNamed(route),
+              itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                PopupMenuItem<String>(value: '/system', child: Text('SYSTEM')),
+              ],
+            ),
+          ),
+          '/system': (_) => const Scaffold(body: Text('SYSTEM PAGE')),
+        },
+      ),
+    );
+
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('SYSTEM'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SYSTEM PAGE'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    final trace = diagnostics.copyText();
+    expect(trace, contains('PopupMenuRoute'));
+    expect(trace, contains('"action": "pop"'));
+    expect(trace, contains('"path": "/system"'));
+  });
 }

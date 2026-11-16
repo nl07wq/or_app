@@ -170,10 +170,7 @@ void main() {
     expect(trace, contains('MAP_BACKGROUND_LOAD_COMPLETE'));
     expect(trace, contains('MAP_BACKGROUND_READY'));
     expect(trace, contains('MAP_DISPLAY_COMPLETE'));
-    expect(
-      trace.indexOf('MAP_DISPLAY_COMPLETE'),
-      lessThan(trace.indexOf('FACILITY_ASSET_LOAD_START')),
-    );
+    expect(trace, contains('FACILITY_OBJECTS_ATOMIC_PREPARE_START'));
   });
 
   testWidgets('visible facilities publish atomically after preparation', (
@@ -211,11 +208,33 @@ void main() {
     final displayComplete = trace.indexOf('FACILITY_OBJECTS_DISPLAY_COMPLETE');
     final interactive = trace.indexOf('DASHBOARD_INTERACTIVE');
     expect(mapDisplayed, greaterThanOrEqualTo(0));
-    expect(prepareStart, greaterThan(mapDisplayed));
+    expect(prepareStart, greaterThanOrEqualTo(0));
     expect(prepareComplete, greaterThan(prepareStart));
+    expect(displayComplete, greaterThan(mapDisplayed));
     expect(displayComplete, greaterThan(prepareComplete));
     expect(interactive, greaterThan(displayComplete));
     expect(trace, contains('"atomicReveal": true'));
+  });
+
+  test('facility preparation no longer depends on MAP display completion', () {
+    final source = File(
+      'lib/features/themes/base_camp/widgets/base_camp_map.dart',
+    ).readAsStringSync();
+    final start = source.indexOf('void _startInitialFacilityBatchIfReady()');
+    final end = source.indexOf(
+      '_facilityBatchStarted = true;',
+      start,
+    );
+    final method = source.substring(start, end);
+
+    expect(method, contains('!_dependenciesReady'));
+    expect(method, contains('!_configurationReady'));
+    expect(method, isNot(contains('!_mapDisplayed')));
+    expect(
+      source,
+      contains("'startedBeforeMapDisplay':"),
+      reason: 'production diagnostics must prove whether preparation overlaps',
+    );
   });
 
   testWidgets('WATER V3B overlay is clipped to masks and protected land', (
@@ -311,6 +330,19 @@ void main() {
     expect(trace, contains('"frameDurationMs": 140'));
     expect(trace, contains('"loopDurationMs": 3360'));
     expect(trace, contains('approvedV3BRoundingV2RgbaFrames'));
+    final deferredStart = trace.indexOf('DEFERRED_MAP_ANIMATION_PREPARE_START');
+    final waterStart = trace.indexOf('WATER_FX_INIT_START');
+    final walkerStart = trace.indexOf('WALKER_STAGED_PRECACHE_START');
+    final walkerComplete = trace.indexOf('WALKER_STAGED_PRECACHE_COMPLETE');
+    expect(deferredStart, greaterThanOrEqualTo(0));
+    expect(waterStart, greaterThan(deferredStart));
+    expect(walkerStart, greaterThan(waterStart));
+    expect(
+      walkerComplete < 0 || waterStart < walkerComplete,
+      isTrue,
+      reason: 'WATER must not wait for the full WALKER precache',
+    );
+    expect(trace, contains('"maxConcurrentDecodeTasks": 2'));
   });
 
   test('WATER V3B uses exact frame order, timing, and seamless loop', () {

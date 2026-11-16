@@ -560,7 +560,10 @@ class _BaseCampMapState extends State<BaseCampMap>
   final Set<String> _resolvedFacilityObjects = <String>{};
   final Set<String> _displayedFacilityObjects = <String>{};
   bool _configurationReady = false;
+  bool _dependenciesReady = false;
   bool _facilityBatchStarted = false;
+  bool _facilityPreparationStartedBeforeMapDisplay = false;
+  bool _facilityBatchPrepared = false;
   bool _facilityLayerRevealed = false;
   bool _mapPrecacheStarted = false;
   bool _mapDecodeReady = false;
@@ -631,6 +634,7 @@ class _BaseCampMapState extends State<BaseCampMap>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _dependenciesReady = true;
     final motionAllowed =
         TickerMode.valuesOf(context).enabled &&
         !MediaQuery.disableAnimationsOf(context);
@@ -638,9 +642,11 @@ class _BaseCampMapState extends State<BaseCampMap>
       _waterMotionAllowed = motionAllowed;
       _recordWaterFxActive(reason: 'tickerMode');
     }
-    if (_mapPrecacheStarted) return;
-    _mapPrecacheStarted = true;
-    unawaited(_precacheMapBackground());
+    if (!_mapPrecacheStarted) {
+      _mapPrecacheStarted = true;
+      unawaited(_precacheMapBackground());
+    }
+    _startInitialFacilityBatchIfReady();
   }
 
   Future<void> _precacheMapBackground() async {
@@ -902,27 +908,19 @@ class _BaseCampMapState extends State<BaseCampMap>
         },
       );
       setState(() {});
-      _startInitialFacilityBatchIfReady();
-      if (!baseCampMapConfigurationController.value.objects.values.any(
-        (object) => object.visible,
-      )) {
-        _recordDashboardInteractive(
-          visibleFacilityCount: 0,
-          displayedFacilityCount: 0,
-        );
-        unawaited(_warmDeferredMapAnimationAssets());
-      }
+      _revealInitialFacilityLayerIfReady();
     });
   }
 
   void _startInitialFacilityBatchIfReady() {
     if (!mounted ||
-        !_mapDisplayed ||
+        !_dependenciesReady ||
         !_configurationReady ||
         _facilityBatchStarted) {
       return;
     }
     _facilityBatchStarted = true;
+    _facilityPreparationStartedBeforeMapDisplay = !_mapDisplayed;
     unawaited(_prepareInitialFacilityBatch());
   }
 
@@ -1017,11 +1015,28 @@ class _BaseCampMapState extends State<BaseCampMap>
         'objectCount': readyCount + failedCount,
         'readyCount': readyCount,
         'failedCount': failedCount,
+        'startedBeforeMapDisplay': _facilityPreparationStartedBeforeMapDisplay,
         'durationMs': watch.elapsedMilliseconds,
       },
     );
+    _facilityBatchPrepared = true;
+    _revealInitialFacilityLayerIfReady();
+  }
+
+  void _revealInitialFacilityLayerIfReady() {
+    if (!mounted ||
+        !_mapDisplayed ||
+        !_facilityBatchPrepared ||
+        _facilityLayerRevealed) {
+      return;
+    }
+    final visibleCount = _visibleFacilityObjects().length;
     setState(() => _facilityLayerRevealed = true);
-    if (readyCount + failedCount == 0) {
+    if (visibleCount == 0) {
+      _recordDashboardInteractive(
+        visibleFacilityCount: 0,
+        displayedFacilityCount: 0,
+      );
       unawaited(_warmDeferredMapAnimationAssets());
     }
   }
@@ -1172,14 +1187,37 @@ class _BaseCampMapState extends State<BaseCampMap>
   Future<void> _warmDeferredMapAnimationAssets() async {
     if (_deferredAnimationWarmupStarted) return;
     _deferredAnimationWarmupStarted = true;
-    // Dashboard interaction and the existing walking animation take priority.
-    // The nonessential 24-frame WATER overlay is decoded only after the
-    // staged walker warm-up, avoiding a burst of competing image decodes.
-    await _warmWalkerFrames();
-    if (!mounted) return;
+    final diagnostics = SystemDiagnostics.instance;
+    final watch = Stopwatch()..start();
+    diagnostics.record(
+      'ASSET',
+      'DEFERRED_MAP_ANIMATION_PREPARE_START',
+      fields: const <String, Object?>{
+        'maxConcurrentDecodeTasks': 2,
+        'waterStartsBeforeWalker': true,
+      },
+    );
+
+    // Each lane decodes sequentially, so at most two expensive image decodes
+    // are in flight. WATER receives the first slot, then WALKER starts on the
+    // next frame instead of blocking WATER behind all 25 walker frames.
+    final waterPreparation = _initializeWaterFx();
     await SchedulerBinding.instance.endOfFrame;
     if (!mounted) return;
-    await _initializeWaterFx();
+    final walkerPreparation = _warmWalkerFrames();
+    await Future.wait<void>(<Future<void>>[
+      waterPreparation,
+      walkerPreparation,
+    ]);
+    if (!mounted) return;
+    diagnostics.record(
+      'ASSET',
+      'DEFERRED_MAP_ANIMATION_PREPARE_COMPLETE',
+      fields: <String, Object?>{
+        'maxConcurrentDecodeTasks': 2,
+        'durationMs': watch.elapsedMilliseconds,
+      },
+    );
   }
 
   Future<void> _openEditor() async {

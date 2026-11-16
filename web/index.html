@@ -209,6 +209,15 @@
     // main.dart.js release token as well.
     window.__orAppStartupRecovery.finally(function () {
       window.__orAppStartupTiming.bootstrapRequestedMs = performance.now();
+      // Begin acquiring the release-matched Dart bundle while the generated
+      // Flutter bootstrap initializes the engine. This runs only after legacy
+      // service-worker recovery, so an obsolete worker cannot satisfy it.
+      const mainPreload = document.createElement('link');
+      mainPreload.rel = 'preload';
+      mainPreload.as = 'script';
+      mainPreload.fetchPriority = 'high';
+      mainPreload.href = 'main.dart.js?or_app_release=__OR_APP_RELEASE__';
+      document.head.appendChild(mainPreload);
       const bootstrap = document.createElement('script');
       bootstrap.async = true;
       bootstrap.src = 'flutter_bootstrap.js?or_app_release=__OR_APP_RELEASE__';
