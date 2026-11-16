@@ -249,8 +249,16 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('status-weight-hud')), findsOneWidget);
-    expect(find.byKey(const ValueKey('status-body-fat-ring')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('status-weight-radio-tuner')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('status-body-fat-segment-meter')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('status-weight-hud')), findsNothing);
+    expect(find.byKey(const ValueKey('status-body-fat-ring')), findsNothing);
     expect(
       find.byKey(const ValueKey('status-sleep-duration-picker')),
       findsOneWidget,

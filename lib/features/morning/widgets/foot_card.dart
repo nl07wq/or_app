@@ -7,6 +7,8 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
+import 'base_camp_status_style.dart';
 
 class FootCard extends StatefulWidget {
   final TextEditingController controller;
@@ -67,6 +69,7 @@ class _FootCardState extends State<FootCard> {
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.primary;
     final baseCamp = BaseCampPresentation.isActive(context);
+    if (isBaseCampStatus(context)) return _buildBaseCamp(context);
     return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,6 +173,196 @@ class _FootCardState extends State<FootCard> {
         ],
       ),
     );
+  }
+
+  Widget _buildBaseCamp(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    final value = (_selectedValue ?? 0).clamp(0, 10);
+    return DashboardGlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionHeader(icon: Symbols.barefoot, title: 'FOOT HEALTH'),
+          const SizedBox(height: 20),
+          if (!_editing)
+            Semantics(
+              button: true,
+              label: 'PAIN LEVEL LV.$value /10 再編集',
+              child: InkWell(
+                key: const Key('foot-pain-current-value-button'),
+                onTap: () => setState(() => _editing = true),
+                child: Container(
+                  height: 52,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: palette.field,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: palette.auxiliaryText),
+                  ),
+                  child: Row(
+                    children: [
+                      const Expanded(child: Text('PAIN LEVEL')),
+                      Text(
+                        'LV.$value /10',
+                        key: const Key('foot-pain-current-value'),
+                        style: baseCampStatusReadoutStyle(
+                          context,
+                          Theme.of(context).textTheme.titleLarge,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.edit_outlined,
+                        size: 17,
+                        color: palette.primaryText,
+                      ),
+                    ],
+                  ),
+                ),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+            )
+          else
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: palette.field,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: palette.auxiliaryText),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        _FootStepButton(
+                          key: const ValueKey('foot-pain-minus'),
+                          icon: Icons.remove,
+                          tooltip: 'Decrease pain level',
+                          onPressed: value <= 0
+                              ? null
+                              : () => _selectPainLevel(value - 1),
+                        ),
+                        Expanded(
+                          child: Text(
+                            'LV.$value /10',
+                            key: const Key('foot-pain-current-value'),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            style: baseCampStatusReadoutStyle(
+                              context,
+                              Theme.of(context).textTheme.headlineMedium,
+                              fontSize: 24,
+                            ),
+                          ),
+                        ),
+                        _FootStepButton(
+                          key: const ValueKey('foot-pain-plus'),
+                          icon: Icons.add,
+                          tooltip: 'Increase pain level',
+                          onPressed: value >= 10
+                              ? null
+                              : () => _selectPainLevel(value + 1),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      key: const ValueKey('foot-pain-ten-segments'),
+                      children: List<Widget>.generate(10, (index) {
+                        final level = index + 1;
+                        final filled = level <= value;
+                        return Expanded(
+                          child: Semantics(
+                            button: true,
+                            selected: filled,
+                            label: 'Pain level $level',
+                            child: InkWell(
+                              key: ValueKey('foot-pain-segment-$level'),
+                              onTap: () => _selectPainLevel(level),
+                              child: Container(
+                                height: 28,
+                                margin: EdgeInsets.only(
+                                  right: index == 9 ? 0 : 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: filled
+                                      ? palette.primaryText
+                                      : palette.background,
+                                  border: Border.all(
+                                    color: palette.auxiliaryText,
+                                    width: .8,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'LEVEL 0–10 / STEP 1',
+                      style: baseCampStatusReadoutStyle(
+                        context,
+                        Theme.of(context).textTheme.labelSmall,
+                        fontSize: 7,
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        key: const Key('foot-pain-done'),
+                        onPressed: () => setState(() => _editing = false),
+                        child: const Text('完了'),
+                      ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FootStepButton extends StatelessWidget {
+  const _FootStepButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    final enabled = onPressed != null;
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox.square(
+        dimension: 44,
+        child: Material(
+          color: enabled ? palette.field : palette.auxiliaryText,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: BorderSide(color: palette.primaryText),
+          ),
+          child: InkWell(
+            onTap: onPressed,
+            child: Icon(
+              icon,
+              color: enabled ? palette.primaryText : palette.background,
+            ),
+          ),
+        ),
+      ),
+    ).actionableFeedback(enabled: enabled, role: ActionableFeedbackRole.cursor);
   }
 }
 

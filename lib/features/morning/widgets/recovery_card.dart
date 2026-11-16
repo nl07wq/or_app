@@ -7,6 +7,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
 import '../../themes/base_camp/base_camp_retro_theme.dart';
+import 'base_camp_status_style.dart';
 
 class RecoveryCard extends StatelessWidget {
   final TextEditingController sleepController;
@@ -74,22 +75,46 @@ class RecoveryCard extends StatelessWidget {
             runSpacing: 8,
             children: SleepType.values
                 .map(
-                  (value) => ChoiceChip(
-                    label: Builder(
-                      builder: (context) => Text(
-                        value.displayLabel,
-                        style: BaseCampRetroTheme.isApplied(Theme.of(context))
-                            ? BaseCampRetroTheme.japaneseControl(
-                                Theme.of(context).textTheme.labelLarge,
-                              )
-                            : null,
-                      ),
-                    ),
-                    selected: sleepType == value,
-                    onSelected: (selected) {
-                      if (selected) onSleepTypeChanged(value);
+                  (value) => Builder(
+                    builder: (context) {
+                      final selected = sleepType == value;
+                      final controlColors = isBaseCampStatus(context)
+                          ? BaseCampStatusControlColors.resolve(
+                              context,
+                              selected: selected,
+                            )
+                          : null;
+                      final label = Builder(
+                        builder: (context) => Text(
+                          value.displayLabel,
+                          style: BaseCampRetroTheme.isApplied(Theme.of(context))
+                              ? BaseCampRetroTheme.japaneseControl(
+                                  Theme.of(context).textTheme.labelLarge,
+                                ).copyWith(color: controlColors?.foreground)
+                              : null,
+                        ),
+                      );
+                      final chip = isBaseCampStatus(context)
+                          ? baseCampStatusChoiceChip(
+                              context: context,
+                              label: label,
+                              selected: selected,
+                              onSelected: (next) {
+                                if (next) onSleepTypeChanged(value);
+                              },
+                            )
+                          : ChoiceChip(
+                              label: label,
+                              selected: selected,
+                              onSelected: (next) {
+                                if (next) onSleepTypeChanged(value);
+                              },
+                            );
+                      return chip.actionableFeedback(
+                        role: ActionableFeedbackRole.cursor,
+                      );
                     },
-                  ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+                  ),
                 )
                 .toList(),
           ),
@@ -261,10 +286,15 @@ class _SleepDurationOrbitalInputState
               ),
               Text(
                 widget.controller.text,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'ShareTechMono',
-                ),
+                style: isBaseCampStatus(context)
+                    ? baseCampStatusReadoutStyle(
+                        context,
+                        Theme.of(context).textTheme.headlineSmall,
+                      )
+                    : Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'ShareTechMono',
+                      ),
               ),
               const SizedBox(width: 10),
               Icon(Icons.chevron_right, color: colors.primary),
@@ -340,11 +370,17 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
               children: [
                 Text(
                   '$_value',
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    fontFamily: 'ShareTechMono',
-                    fontSize: 40,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: isBaseCampStatus(context)
+                      ? baseCampStatusReadoutStyle(
+                          context,
+                          Theme.of(context).textTheme.headlineLarge,
+                          fontSize: 32,
+                        )
+                      : Theme.of(context).textTheme.headlineLarge?.copyWith(
+                          fontFamily: 'ShareTechMono',
+                          fontSize: 40,
+                          fontWeight: FontWeight.w800,
+                        ),
                 ),
                 Text('/100', style: Theme.of(context).textTheme.labelMedium),
                 const SizedBox(width: 14),
@@ -395,6 +431,7 @@ class _CollapsedRecoveryValue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.primary;
+    final baseCamp = isBaseCampStatus(context);
     return Semantics(
       button: true,
       label: '$label $value 再編集',
@@ -421,11 +458,17 @@ class _CollapsedRecoveryValue extends StatelessWidget {
               ),
               Text(
                 value,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'ShareTechMono',
-                ),
+                style: baseCamp
+                    ? baseCampStatusReadoutStyle(
+                        context,
+                        Theme.of(context).textTheme.titleLarge,
+                        color: color,
+                      )
+                    : Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'ShareTechMono',
+                      ),
               ),
               Icon(Icons.edit_outlined, size: 18, color: color),
             ],
@@ -477,18 +520,30 @@ class _UnmeasuredToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseCamp = BaseCampRetroTheme.isApplied(Theme.of(context));
-    return ChoiceChip(
-      label: Text(
-        '未計測',
-        style: baseCamp
-            ? BaseCampRetroTheme.japaneseControl(
-                Theme.of(context).textTheme.labelLarge,
-              )
-            : null,
-      ),
-      selected: selected,
-      onSelected: (_) => onPressed(),
-    ).actionableFeedback(role: ActionableFeedbackRole.cursor);
+    final controlColors = isBaseCampStatus(context)
+        ? BaseCampStatusControlColors.resolve(context, selected: selected)
+        : null;
+    final label = Text(
+      '未計測',
+      style: baseCamp
+          ? BaseCampRetroTheme.japaneseControl(
+              Theme.of(context).textTheme.labelLarge,
+            ).copyWith(color: controlColors?.foreground)
+          : null,
+    );
+    final chip = isBaseCampStatus(context)
+        ? baseCampStatusChoiceChip(
+            context: context,
+            label: label,
+            selected: selected,
+            onSelected: (_) => onPressed(),
+          )
+        : ChoiceChip(
+            label: label,
+            selected: selected,
+            onSelected: (_) => onPressed(),
+          );
+    return chip.actionableFeedback(role: ActionableFeedbackRole.cursor);
   }
 }
 

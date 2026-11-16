@@ -8,6 +8,7 @@ import '../../../core/services/shift_preset_preferences.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
+import 'base_camp_status_style.dart';
 import '../../../core/services/work_calculator.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
 
@@ -410,7 +411,11 @@ class _WorkTypeSelector extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (selected) ...[
-                  Icon(Icons.check, size: 14, color: colors.primary),
+                  Icon(
+                    Icons.check,
+                    size: 14,
+                    color: baseCamp ? colors.onPrimary : colors.primary,
+                  ),
                   const SizedBox(width: 3),
                 ],
                 Flexible(
@@ -523,11 +528,17 @@ class _WorkClockRowState extends State<_WorkClockRow> {
                 ),
                 Text(
                   widget.controller.text,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: cs.primary,
-                    fontFamily: 'ShareTechMono',
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: isBaseCampStatus(context)
+                      ? baseCampStatusReadoutStyle(
+                          context,
+                          Theme.of(context).textTheme.titleLarge,
+                          color: cs.primary,
+                        )
+                      : Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: cs.primary,
+                          fontFamily: 'ShareTechMono',
+                          fontWeight: FontWeight.w700,
+                        ),
                 ),
                 Icon(Icons.edit_outlined, size: 18, color: cs.primary),
               ],
@@ -562,10 +573,15 @@ class _WorkClockRowState extends State<_WorkClockRow> {
               ),
               Text(
                 widget.controller.text,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontFamily: 'ShareTechMono',
-                  fontWeight: FontWeight.w700,
-                ),
+                style: isBaseCampStatus(context)
+                    ? baseCampStatusReadoutStyle(
+                        context,
+                        Theme.of(context).textTheme.titleLarge,
+                      )
+                    : Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontFamily: 'ShareTechMono',
+                        fontWeight: FontWeight.w700,
+                      ),
               ),
               const SizedBox(width: 8),
               Icon(Icons.chevron_right, color: cs.primary),
@@ -669,11 +685,17 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
                 ),
                 Text(
                   _label,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: color,
-                    fontFamily: 'ShareTechMono',
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: isBaseCampStatus(context)
+                      ? baseCampStatusReadoutStyle(
+                          context,
+                          Theme.of(context).textTheme.titleLarge,
+                          color: color,
+                        )
+                      : Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: color,
+                          fontFamily: 'ShareTechMono',
+                          fontWeight: FontWeight.w700,
+                        ),
                 ),
                 Icon(Icons.edit_outlined, size: 18, color: color),
               ],
@@ -704,11 +726,17 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
           Text(
             _label,
             key: const ValueKey('work-break-value'),
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontSize: 30,
-              fontFamily: 'ShareTechMono',
-              fontWeight: FontWeight.w800,
-            ),
+            style: isBaseCampStatus(context)
+                ? baseCampStatusReadoutStyle(
+                    context,
+                    Theme.of(context).textTheme.headlineSmall,
+                    fontSize: 24,
+                  )
+                : Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontSize: 30,
+                    fontFamily: 'ShareTechMono',
+                    fontWeight: FontWeight.w800,
+                  ),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

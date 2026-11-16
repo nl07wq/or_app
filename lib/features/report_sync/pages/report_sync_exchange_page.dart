@@ -133,9 +133,15 @@ class ReportSyncExchangePage extends StatelessWidget {
       initialTargetDate: initialTargetDate,
       currentOperationDateValidation: currentOperationDateValidation,
     );
+    final body = exchangeType == ReportSyncExchangeType.food
+        ? BaseCampTerminalDisplay(
+            margin: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+            child: panel,
+          )
+        : panel;
     final page =
-        scaffoldBuilder?.call(appBar: appBar, body: panel) ??
-        Scaffold(appBar: appBar, body: panel);
+        scaffoldBuilder?.call(appBar: appBar, body: body) ??
+        Scaffold(appBar: appBar, body: body);
     return BaseCampRetroTerminalScreen(
       screenKey: 'report-sync-${exchangeType.name}',
       child: page,
