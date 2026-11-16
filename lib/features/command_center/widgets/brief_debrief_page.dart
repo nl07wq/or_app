@@ -44,6 +44,43 @@ typedef _CommanderIntentOutcomePresentation = ({Color color, String label});
 
 enum BriefDebriefTab { dailyBrief, dailyDebrief }
 
+@immutable
+class BriefDebriefFormalState {
+  const BriefDebriefFormalState({
+    required this.operationDate,
+    required this.briefExists,
+    required this.debriefExists,
+  });
+
+  final String operationDate;
+  final bool briefExists;
+  final bool debriefExists;
+}
+
+typedef BriefDebriefFormalStateLoader =
+    Future<BriefDebriefFormalState> Function();
+
+@visibleForTesting
+BriefDebriefTab briefDebriefInitialTabForState(BriefDebriefFormalState state) =>
+    state.briefExists
+    ? BriefDebriefTab.dailyDebrief
+    : BriefDebriefTab.dailyBrief;
+
+Future<BriefDebriefFormalState> loadBriefDebriefFormalState() async {
+  final container = AppRepositoryRegistry.container;
+  final operationState = await container.operationState.requireCurrent();
+  final operationDate = operationState.operationDate.value;
+  final records = await Future.wait<Object?>([
+    container.morningBriefs.readByLocalDate(operationDate),
+    container.dailyDebriefs.readByLocalDate(operationDate),
+  ]);
+  return BriefDebriefFormalState(
+    operationDate: operationDate,
+    briefExists: records[0] != null,
+    debriefExists: records[1] != null,
+  );
+}
+
 _CommanderIntentOutcomePresentation _commanderIntentOutcomePresentation(
   BuildContext context,
   DailyDebriefCommanderIntentOutcome outcome,
@@ -73,46 +110,82 @@ Color _morningBriefBackNumberColor(MorningBriefOperationStatus status) =>
       MorningBriefOperationStatus.red => AppColors.danger,
     };
 
-class BriefDebriefPage extends StatelessWidget {
+class BriefDebriefPage extends StatefulWidget {
   const BriefDebriefPage({
     super.key,
-    this.initialTab = BriefDebriefTab.dailyBrief,
+    this.initialTab,
+    this.formalStateLoader = loadBriefDebriefFormalState,
     this.dailyLogSourceLoader = DailyLogConfirmationService.loadSourceSnapshot,
     this.prepareDailyDebrief,
   });
 
-  final BriefDebriefTab initialTab;
+  final BriefDebriefTab? initialTab;
+  final BriefDebriefFormalStateLoader formalStateLoader;
   final Future<DailyLogSourceSnapshot> Function(String localDate)
   dailyLogSourceLoader;
   final PrepareDailyDebrief? prepareDailyDebrief;
 
   @override
-  Widget build(BuildContext context) => DefaultTabController(
-    length: 2,
-    initialIndex: initialTab.index,
-    child: Column(
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: SectionHeader(
-            icon: Icons.article_outlined,
-            title: 'BRIEF / DEBRIEF',
-          ),
-        ),
-        const _BriefDebriefPageFlipTabBar(),
-        Expanded(
-          child: TabBarView(
-            children: [
-              const _MorningBriefView(),
-              _DailyDebriefView(
-                sourceLoader: dailyLogSourceLoader,
-                prepareDailyDebrief: prepareDailyDebrief,
+  State<BriefDebriefPage> createState() => _BriefDebriefPageState();
+}
+
+class _BriefDebriefPageState extends State<BriefDebriefPage> {
+  late final Future<BriefDebriefTab> _initialTab;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialTab = widget.initialTab == null
+        ? _resolveFormalInitialTab()
+        : Future.value(widget.initialTab!);
+  }
+
+  Future<BriefDebriefTab> _resolveFormalInitialTab() async {
+    try {
+      return briefDebriefInitialTabForState(await widget.formalStateLoader());
+    } catch (_) {
+      return BriefDebriefTab.dailyBrief;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<BriefDebriefTab>(
+    future: _initialTab,
+    builder: (context, snapshot) {
+      if (!snapshot.hasData) {
+        return const Center(
+          key: ValueKey('brief-debrief-initial-tab-loading'),
+          child: CircularProgressIndicator(),
+        );
+      }
+      return DefaultTabController(
+        length: 2,
+        initialIndex: snapshot.requireData.index,
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: SectionHeader(
+                icon: Icons.article_outlined,
+                title: 'BRIEF / DEBRIEF',
               ),
-            ],
-          ),
+            ),
+            const _BriefDebriefPageFlipTabBar(),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  const _MorningBriefView(),
+                  _DailyDebriefView(
+                    sourceLoader: widget.dailyLogSourceLoader,
+                    prepareDailyDebrief: widget.prepareDailyDebrief,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
+      );
+    },
   );
 }
 

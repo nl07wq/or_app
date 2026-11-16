@@ -34,6 +34,7 @@ import 'widgets/food_ocr_scanner.dart';
 import 'widgets/food_pfc_balance_card.dart';
 import 'widgets/food_thumbnail.dart';
 import 'widgets/food_form_theme.dart';
+import 'widgets/food_quantity_unit_field.dart';
 import 'widgets/food_feature_chrome.dart';
 import 'widgets/food_saved_floating_hud.dart';
 
@@ -1611,37 +1612,39 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     required ValueChanged<FoodQuantityUnit?> onChanged,
     ValueChanged<String>? onTextChanged,
     bool allowNull = false,
-  }) => Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: FoodFormMetrics.fieldSurface,
-      border: Border.all(color: FoodFormMetrics.separator),
-      borderRadius: BorderRadius.circular(12),
+  }) => FoodQuantityUnitField<FoodQuantityUnit?>(
+    key: ValueKey(
+      allowNull
+          ? 'food-catalog-package-compound'
+          : 'food-catalog-base-compound',
     ),
-    child: Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: OperationTextField(
-            controller: controller,
-            label: label,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: onTextChanged,
-          ),
-        ),
-        FoodFormMetrics.horizontalGap,
-        Expanded(
-          flex: 2,
-          child: _dropdown<FoodQuantityUnit?>(
-            label: 'UNIT',
-            value: value,
-            values: [if (allowNull) null, ...FoodQuantityUnit.values],
-            text: (unit) => unit == null ? 'NOT SET' : _unit(unit),
-            onChanged: onChanged,
-          ),
-        ),
-      ],
+    controller: controller,
+    group: allowNull ? 'package' : 'base',
+    label: label,
+    quantityKey: ValueKey(
+      allowNull
+          ? 'food-catalog-package-quantity'
+          : 'food-catalog-base-quantity',
     ),
+    unitKey: ValueKey(
+      'food-catalog-${allowNull ? 'package' : 'base'}-unit-${value?.name ?? 'none'}',
+    ),
+    value: value,
+    valueLabel: value == null ? 'NOT SET' : _unit(value).trim(),
+    fitLabels: foodQuantityUnitDisplayLabels,
+    items: [if (allowNull) null, ...FoodQuantityUnit.values]
+        .map(
+          (unit) => DropdownMenuItem<FoodQuantityUnit?>(
+            value: unit,
+            child: Text(
+              unit == null ? 'NOT SET' : _unit(unit).trim(),
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        )
+        .toList(growable: false),
+    onUnitChanged: onChanged,
+    onQuantityChanged: onTextChanged ?? (_) {},
   );
 
   Widget _nutritionEditorPanel() => Container(
@@ -1820,28 +1823,6 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
         ? ''
         : FoodNutritionFormatter.macro(nutrition.carbohydrate!);
   }
-
-  Widget _dropdown<T>({
-    required String label,
-    required T value,
-    required List<T> values,
-    required String Function(T) text,
-    required ValueChanged<T> onChanged,
-  }) => DropdownButtonFormField<T>(
-    initialValue: value,
-    isExpanded: true,
-    decoration: InputDecoration(labelText: label),
-    style: Theme.of(context).textTheme.bodyLarge,
-    items: [
-      for (final item in values)
-        DropdownMenuItem(value: item, child: Text(text(item))),
-    ],
-    onChanged: (item) {
-      if (item != null || values.contains(null)) {
-        onChanged(item as T);
-      }
-    },
-  ).inputFeedback();
 }
 
 class _CatalogNutritionFocusField extends StatelessWidget {

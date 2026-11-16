@@ -9,6 +9,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import 'food_form_theme.dart';
+import 'food_quantity_unit_field.dart';
 import '../food_catalog_page.dart';
 import '../models/food_catalog_models.dart';
 import '../models/food_quantity_models.dart';
@@ -176,7 +177,7 @@ class FoodInputFields extends StatelessWidget {
 
           LayoutBuilder(
             builder: (context, constraints) {
-              final quantity = _QuantityUnitGroup<FoodQuantityUnit?>(
+              final quantity = FoodQuantityUnitField<FoodQuantityUnit?>(
                 key: const ValueKey('food-entry-package-compound'),
                 controller: packageQuantityController,
                 group: 'package',
@@ -189,6 +190,7 @@ class FoodInputFields extends StatelessWidget {
                 valueLabel: packageUnit == null
                     ? 'NOT SET'
                     : _quantityUnitLabel(packageUnit!),
+                fitLabels: foodQuantityUnitDisplayLabels,
                 items: [null, ...FoodQuantityUnit.values]
                     .map(
                       (unit) => DropdownMenuItem(
@@ -209,7 +211,7 @@ class FoodInputFields extends StatelessWidget {
                 }
                 return quantity;
               }
-              final baseQuantity = _QuantityUnitGroup<FoodQuantityUnit>(
+              final baseQuantity = FoodQuantityUnitField<FoodQuantityUnit>(
                 key: const ValueKey('food-entry-base-compound'),
                 controller: baseAmountController,
                 group: 'base',
@@ -218,6 +220,7 @@ class FoodInputFields extends StatelessWidget {
                 unitKey: ValueKey('food-entry-base-unit-${baseUnit.name}'),
                 value: baseUnit,
                 valueLabel: _quantityUnitLabel(baseUnit),
+                fitLabels: foodQuantityUnitDisplayLabels,
                 items: FoodQuantityUnit.values
                     .map(
                       (unit) => DropdownMenuItem(
@@ -893,282 +896,6 @@ class FoodNumericStepper extends StatelessWidget {
       ],
     ),
   );
-}
-
-class _QuantityUnitGroup<T> extends StatelessWidget {
-  const _QuantityUnitGroup({
-    super.key,
-    required this.controller,
-    required this.group,
-    required this.label,
-    required this.quantityKey,
-    required this.unitKey,
-    required this.value,
-    required this.valueLabel,
-    required this.items,
-    required this.onUnitChanged,
-    required this.onQuantityChanged,
-  });
-
-  final TextEditingController controller;
-  final String group;
-  final String label;
-  final Key quantityKey;
-  final Key unitKey;
-  final T value;
-  final String valueLabel;
-  final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T?> onUnitChanged;
-  final ValueChanged<String> onQuantityChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final classicTerminal = BaseCampRetroTheme.isApplied(Theme.of(context));
-    final scheme = Theme.of(context).colorScheme;
-    final fieldColor = classicTerminal
-        ? scheme.surfaceContainer
-        : FoodFormMetrics.fieldSurface;
-    final borderColor = classicTerminal
-        ? scheme.outline
-        : FoodFormMetrics.separator;
-    final captionColor = classicTerminal
-        ? scheme.onSurfaceVariant
-        : FoodFormMetrics.caption;
-    final labelColor = classicTerminal
-        ? scheme.onSurfaceVariant
-        : FoodFormMetrics.fieldLabel;
-    return Container(
-      key: ValueKey('food-entry-$group-quantity-module'),
-      height: 76,
-      decoration: BoxDecoration(
-        color: fieldColor,
-        border: Border.all(color: borderColor),
-        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 12),
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 22,
-            child: ExcludeSemantics(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        label,
-                        key: ValueKey('food-entry-$group-group-label'),
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          fontSize: 10.5,
-                          letterSpacing: .55,
-                          color: captionColor,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      group == 'package' ? 'PACKAGE UNIT' : 'BASIS UNIT',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontSize: 10,
-                        letterSpacing: .45,
-                        color: labelColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Container(
-            key: ValueKey('food-entry-$group-horizontal-divider'),
-            height: 1,
-            color: borderColor,
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: Semantics(
-                    label: '$label 数値',
-                    textField: true,
-                    child: TextField(
-                      key: quantityKey,
-                      controller: controller,
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        filled: false,
-                        isDense: true,
-                        contentPadding: EdgeInsets.only(left: 6, right: 10),
-                      ),
-                      textAlignVertical: TextAlignVertical.center,
-                      textAlign: TextAlign.right,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      onChanged: onQuantityChanged,
-                    ).inputFeedback(),
-                  ),
-                ),
-                Container(
-                  key: ValueKey('food-entry-$group-vertical-divider'),
-                  width: 1,
-                  color: borderColor,
-                ),
-                Expanded(
-                  flex: 6,
-                  child: Semantics(
-                    label: '$label 単位',
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        const chevronWidth = 24.0;
-                        const chevronRightPadding = 4.0;
-                        const chevronClearance = 4.0;
-                        const preferredDividerPadding = 10.0;
-                        final inheritedStyle = Theme.of(
-                          context,
-                        ).textTheme.bodyLarge;
-                        final baseCamp = BaseCampRetroTheme.isApplied(
-                          Theme.of(context),
-                        );
-                        final availableTextWidth =
-                            constraints.maxWidth -
-                            chevronWidth -
-                            chevronRightPadding -
-                            chevronClearance -
-                            preferredDividerPadding;
-                        final selectedFontSize = baseCamp
-                            ? _fitUnitSelectedFontSize(
-                                style: inheritedStyle,
-                                maxWidth: availableTextWidth,
-                                maxHeight: constraints.maxHeight,
-                                textDirection: Directionality.of(context),
-                                textScaler: MediaQuery.textScalerOf(context),
-                              )
-                            : 14.0;
-                        final textStyle = inheritedStyle?.copyWith(
-                          fontSize: selectedFontSize,
-                          height: baseCamp ? 1.2 : inheritedStyle.height,
-                        );
-                        final textPainter = TextPainter(
-                          text: TextSpan(text: valueLabel, style: textStyle),
-                          textDirection: Directionality.of(context),
-                          textScaler: MediaQuery.textScalerOf(context),
-                        )..layout(maxWidth: constraints.maxWidth);
-                        final chevronExclusionLeft =
-                            constraints.maxWidth -
-                            chevronWidth -
-                            chevronRightPadding;
-                        final unitTextLeft =
-                            (chevronExclusionLeft -
-                                    chevronClearance -
-                                    textPainter.width)
-                                .clamp(0.0, preferredDividerPadding);
-
-                        return Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            DropdownButtonHideUnderline(
-                              child: DropdownButton<T>(
-                                key: unitKey,
-                                value: value,
-                                isExpanded: true,
-                                alignment: AlignmentDirectional.centerStart,
-                                padding: const EdgeInsets.only(right: 4),
-                                style: textStyle,
-                                selectedItemBuilder: (context) => items
-                                    .map((_) => const SizedBox.shrink())
-                                    .toList(growable: false),
-                                items: items,
-                                onChanged: onUnitChanged,
-                              ).inputFeedback(),
-                            ),
-                            Positioned(
-                              left: unitTextLeft,
-                              right:
-                                  chevronWidth +
-                                  chevronRightPadding +
-                                  chevronClearance,
-                              top: 0,
-                              bottom: 0,
-                              child: ExcludeSemantics(
-                                child: IgnorePointer(
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      valueLabel,
-                                      key: ValueKey(
-                                        'food-entry-$group-unit-value',
-                                      ),
-                                      maxLines: 1,
-                                      softWrap: false,
-                                      overflow: TextOverflow.visible,
-                                      style: textStyle,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-const _unitSelectedLabels = <String>[
-  'NOT SET',
-  'g',
-  'mL',
-  'piece',
-  'pack',
-  'serving',
-];
-
-double _fitUnitSelectedFontSize({
-  required TextStyle? style,
-  required double maxWidth,
-  required double maxHeight,
-  required TextDirection textDirection,
-  required TextScaler textScaler,
-}) {
-  const maximum = 11.2;
-  const minimum = 8.0;
-  var fontSize = maximum;
-  bool fits(double candidate) => _unitSelectedLabels.every((label) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: style?.copyWith(fontSize: candidate, height: 1.2),
-      ),
-      textDirection: textDirection,
-      textScaler: textScaler,
-      maxLines: 1,
-    )..layout();
-    return painter.width <= maxWidth && painter.height <= maxHeight;
-  });
-
-  while (fontSize > minimum && !fits(fontSize)) {
-    fontSize -= .2;
-  }
-  assert(
-    fits(fontSize),
-    'The longest FOOD unit label does not fit the fixed selector at '
-    '$fontSize px (${maxWidth}x$maxHeight).',
-  );
-  return fontSize;
 }
 
 class FoodNumericStepButton extends StatelessWidget {

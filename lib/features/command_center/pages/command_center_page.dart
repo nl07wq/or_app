@@ -116,12 +116,12 @@ class CommandCenterPage extends StatefulWidget {
   const CommandCenterPage({
     super.key,
     this.initialSection = CommandCenterSection.dailyCommand,
-    this.initialBriefDebriefTab = BriefDebriefTab.dailyBrief,
+    this.initialBriefDebriefTab,
     this.showBaseCampEntry = true,
   });
 
   final CommandCenterSection initialSection;
-  final BriefDebriefTab initialBriefDebriefTab;
+  final BriefDebriefTab? initialBriefDebriefTab;
   final bool showBaseCampEntry;
 
   @override
