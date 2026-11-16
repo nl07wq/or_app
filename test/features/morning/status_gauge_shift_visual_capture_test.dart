@@ -27,6 +27,10 @@ void main() {
   setUpAll(() async {
     await _loadFont('PressStart2P', 'assets/fonts/PressStart2P-Regular.ttf');
     await _loadFont('DotGothic16', 'assets/fonts/DotGothic16-Regular.ttf');
+    await _loadFont(
+      'MaterialIcons',
+      'build/unit_test_assets/fonts/MaterialIcons-Regular.otf',
+    );
   });
 
   setUp(() async {

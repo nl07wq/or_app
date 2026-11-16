@@ -331,6 +331,59 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('BASE CAMP selected work type keeps inverted text readable', (
+    tester,
+  ) async {
+    final start = TextEditingController(text: '07:00');
+    final end = TextEditingController(text: '18:00');
+    final workBreak = TextEditingController(text: '01:00');
+    addTearDown(start.dispose);
+    addTearDown(end.dispose);
+    addTearDown(workBreak.dispose);
+    await tester.binding.setSurfaceSize(const Size(320, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: BaseCampRetroTheme.apply(ThemeData.light()),
+        home: BaseCampPresentation(
+          screen: BaseCampScreen.morning,
+          child: BaseCampRetroTerminalScreen(
+            screenKey: 'work-type-inversion-test',
+            child: Scaffold(
+              body: BaseCampTerminalDisplay(
+                child: SingleChildScrollView(
+                  child: WorkCard(
+                    workType: WorkType.work,
+                    onChanged: (_) {},
+                    startController: start,
+                    endController: end,
+                    breakController: workBreak,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final palette = tester
+        .widget<BaseCampTerminalPaletteScope>(
+          find.byType(BaseCampTerminalPaletteScope).last,
+        )
+        .palette;
+    expect(
+      tester.widget<Text>(find.text('出勤')).style?.color,
+      palette.background,
+    );
+    expect(
+      tester.widget<Text>(find.text('公休日')).style?.color,
+      palette.primaryText,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in <double>[320, 375, 390, 430]) {
     for (final negative in <bool>[false, true]) {
       testWidgets('BASE CAMP four shifts fit ${width}dp INV=$negative', (

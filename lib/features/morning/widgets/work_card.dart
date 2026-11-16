@@ -461,6 +461,10 @@ class _WorkTypeSelector extends StatelessWidget {
     final selected = value == type;
     final baseCamp = BaseCampPresentation.isActive(context);
     if (isBaseCampStatus(context)) {
+      final controlColors = BaseCampStatusControlColors.resolve(
+        context,
+        selected: selected,
+      );
       return BaseCampMechanicalButton(
         key: ValueKey('work-type-${type.name}'),
         selected: selected,
@@ -473,7 +477,7 @@ class _WorkTypeSelector extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: BaseCampRetroTheme.japaneseControl(
             Theme.of(context).textTheme.labelLarge,
-          ).copyWith(fontSize: 12),
+          ).copyWith(fontSize: 12, color: controlColors.foreground),
         ),
       );
     }
