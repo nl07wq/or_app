@@ -385,6 +385,8 @@ class SystemDiagnostics {
 
   void recordBrowserStartupTiming() {}
 
+  void installStartupTimingHandlers() {}
+
   @visibleForTesting
   void recordWindowErrorDetailsForTesting(Map<String, Object?> fields) {
     freezeUriExceptionEvidence(trigger: 'window_error', errorFields: fields);

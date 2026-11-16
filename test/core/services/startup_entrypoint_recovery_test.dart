@@ -64,7 +64,22 @@ void main() {
     expect(source, contains("mainPreload.fetchPriority = 'high'"));
     expect(source, contains('mainPreloadRequestedMs'));
     expect(source, contains('mainPreloadLoadedMs'));
-    expect(source, contains('rel="preconnect" href="https://www.gstatic.com"'));
+    expect(source, isNot(contains('href="https://www.gstatic.com"')));
+    expect(source, contains("module.rel = 'modulepreload'"));
+    expect(source, contains("wasm.type = 'application/wasm'"));
+    expect(source, contains("wasm.href = variant + 'canvaskit.wasm'"));
+  });
+
+  test('pre-Flutter host is neutral, inline, and has no artificial hold', () {
+    final source = File('web/index.html').readAsStringSync();
+
+    expect(source, contains('id="or-app-preflutter"'));
+    expect(source, contains('OPERATION REBOOT'));
+    expect(source, contains('PRE-FLIGHT SYSTEM'));
+    expect(source, contains('preFlutterHostCreatedMs'));
+    expect(source, contains('firstContentfulPaintMs'));
+    expect(source, contains('#or-app-preflutter[data-state="complete"]'));
+    expect(source, isNot(contains('setTimeout')));
   });
 
   test('pre-Dart evidence is bounded and survives an interrupted launch', () {
@@ -89,9 +104,29 @@ void main() {
     expect(source, contains('engineInitializeCompleteMs'));
     expect(source, contains('engineResourceTimingsJson'));
     expect(source, contains('flutter-canvaskit|canvaskit'));
+    expect(source, contains("config: {"));
+    expect(source, contains("canvasKitBaseUrl: 'canvaskit/'"));
+    expect(source, contains("source: entry.name.includes(location.origin)"));
+    expect(source, contains('fetchWaitMs'));
+    expect(source, contains('downloadMs'));
     expect(source, contains('runAppStartMs'));
     expect(source, contains('runAppCompleteMs'));
+    expect(source, contains("new CustomEvent('or-app-run-app-complete')"));
+    expect(source, contains("preFlutterHost.dataset.state = 'complete'"));
     expect(source, contains('await engineInitializer.initializeEngine()'));
     expect(source, contains('await appRunner.runApp()'));
+  });
+
+  test('completed runApp timing refreshes the existing diagnostic session', () {
+    final mainSource = File('lib/main.dart').readAsStringSync();
+    final diagnostics = File(
+      'lib/core/services/system_diagnostics_web.dart',
+    ).readAsStringSync();
+
+    expect(mainSource, contains('..installStartupTimingHandlers()'));
+    expect(diagnostics, contains("on['or-app-run-app-complete']"));
+    expect(diagnostics, contains('BROWSER_STARTUP_TIMING_COMPLETE'));
+    expect(diagnostics, contains("'runAppCompleteMs'"));
+    expect(diagnostics, contains("'firstContentfulPaintMs'"));
   });
 }

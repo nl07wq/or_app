@@ -46,6 +46,8 @@ class SystemDiagnostics {
   StreamSubscription<html.Event>? _errorSubscription;
   StreamSubscription<html.PopStateEvent>? _popStateSubscription;
   StreamSubscription<html.Event>? _hashChangeSubscription;
+  StreamSubscription<html.Event>? _startupTimingSubscription;
+  double? _browserDartMainMs;
   bool _lifecycleInstalled = false;
   String? _lastStartupPhase;
   String? _lastMapPhase;
@@ -517,17 +519,24 @@ class SystemDiagnostics {
     });
   }
 
-  void recordBrowserStartupTiming() {
+  void installStartupTimingHandlers() {
+    _startupTimingSubscription ??= html.window.on['or-app-run-app-complete']
+        .listen((_) => recordBrowserStartupTiming(completed: true));
+  }
+
+  void recordBrowserStartupTiming({bool completed = false}) {
     try {
       final timing = globalContext.getProperty<JSObject?>(
         '__orAppStartupTiming'.toJS,
       );
       if (timing == null) return;
-      final dartMainMs = html.window.performance.now();
-      _markPreDartEvidenceReachedDart(dartMainMs);
+      final dartMainMs = _browserDartMainMs ??= html.window.performance.now();
+      if (!completed) _markPreDartEvidenceReachedDart(dartMainMs);
       record(
         'BROWSER',
-        'BROWSER_STARTUP_TIMING',
+        completed
+            ? 'BROWSER_STARTUP_TIMING_COMPLETE'
+            : 'BROWSER_STARTUP_TIMING',
         fields: <String, Object?>{
           'documentStartMs': _jsNumber(timing, 'documentStartMs') ?? 0,
           'bootstrapRequestedMs': _jsNumber(timing, 'bootstrapRequestedMs'),
@@ -537,6 +546,19 @@ class SystemDiagnostics {
           ),
           'mainPreloadRequestedMs': _jsNumber(timing, 'mainPreloadRequestedMs'),
           'mainPreloadLoadedMs': _jsNumber(timing, 'mainPreloadLoadedMs'),
+          'preFlutterHostCreatedMs': _jsNumber(
+            timing,
+            'preFlutterHostCreatedMs',
+          ),
+          'firstContentfulPaintMs': _jsNumber(timing, 'firstContentfulPaintMs'),
+          'canvasKitPreloadRequestedMs': _jsNumber(
+            timing,
+            'canvasKitPreloadRequestedMs',
+          ),
+          'canvasKitPreloadVariant': _jsPropertyText(
+            timing,
+            'canvasKitPreloadVariant',
+          ),
           'entrypointLoadedMs': _jsNumber(timing, 'entrypointLoadedMs'),
           'engineInitializeStartMs': _jsNumber(
             timing,
