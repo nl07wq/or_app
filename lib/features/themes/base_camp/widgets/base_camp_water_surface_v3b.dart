@@ -15,6 +15,7 @@ const baseCampWaterV3BHorizontalPitchFactor = .75;
 const baseCampWaterV3BVerticalPitchFactor = .75;
 const baseCampWaterV3BAdjacentRowOffsetFactor = .25;
 const baseCampWaterV3BFeatherFactor = .25;
+const baseCampWaterV3BAreaIntensityMultipliers = <double>[.55, .65, 1, 1];
 const baseCampWaterV3BAssetDirectory =
     'assets/images/themes/base_camp/water_v3b/frames_rgba';
 
@@ -46,6 +47,11 @@ const baseCampWaterV3BFrameAssets = <String>[
 ];
 
 int baseCampWaterV3BFrameIndex(int tick) => tick % baseCampWaterV3BFrameCount;
+
+double baseCampWaterV3BAreaIntensity(int areaIndex) =>
+    areaIndex < baseCampWaterV3BAreaIntensityMultipliers.length
+    ? baseCampWaterV3BAreaIntensityMultipliers[areaIndex]
+    : 1;
 
 @immutable
 class BaseCampWaterV3BPlacement {
@@ -123,6 +129,30 @@ List<BaseCampWaterV3BPlacement> baseCampWaterV3BVisiblePlacements({
   );
 }
 
+List<BaseCampWaterV3BPlacement> baseCampWaterV3BVisiblePlacementsForArea({
+  required BaseCampWaterArea area,
+  Size artworkSize = baseCampWaterV3BMapSourceSize,
+  double patternScale = baseCampWaterV3BPatternScale,
+}) {
+  if (area.mask.length < 3) return const <BaseCampWaterV3BPlacement>[];
+  final waterPath = Path()..addPolygon(area.mask, true);
+  return List<BaseCampWaterV3BPlacement>.unmodifiable(
+    baseCampWaterV3BPlacements(
+      artworkSize: artworkSize,
+      patternScale: patternScale,
+    ).where((placement) {
+      if (!waterPath.getBounds().overlaps(placement.sourceRect)) return false;
+      final tilePath = Path()..addRect(placement.sourceRect);
+      final intersection = Path.combine(
+        PathOperation.intersect,
+        waterPath,
+        tilePath,
+      );
+      return intersection.computeMetrics().isNotEmpty;
+    }),
+  );
+}
+
 Rect baseCampWaterV3BViewportRect({
   required Rect sourceRect,
   required Rect imageRect,
@@ -164,19 +194,26 @@ class BaseCampWaterSurfaceV3BLayer extends StatelessWidget {
     // Placement geometry is stable for the lifetime of this presentation.
     // Compute it outside the 140 ms frame builder so playback allocates no
     // source-space placement lists or destination rects per tick.
-    final placements = baseCampWaterV3BVisiblePlacements(
-      water: water,
-      artworkSize: artworkSize,
-    );
-    final viewportRects = placements
-        .map(
-          (placement) => baseCampWaterV3BViewportRect(
-            sourceRect: placement.sourceRect,
-            imageRect: imageRect,
-            artworkSize: artworkSize,
-          ),
-        )
-        .toList(growable: false);
+    final areas = water.effectiveAreas;
+    final placementsByArea = <List<BaseCampWaterV3BPlacement>>[
+      for (final area in areas)
+        baseCampWaterV3BVisiblePlacementsForArea(
+          area: area,
+          artworkSize: artworkSize,
+        ),
+    ];
+    final viewportRectsByArea = <List<Rect>>[
+      for (final placements in placementsByArea)
+        placements
+            .map(
+              (placement) => baseCampWaterV3BViewportRect(
+                sourceRect: placement.sourceRect,
+                imageRect: imageRect,
+                artworkSize: artworkSize,
+              ),
+            )
+            .toList(growable: false),
+    ];
     return ClipPath(
       key: const ValueKey('base-camp-water-mask-clip'),
       clipper: BaseCampWaterMaskClipper(
@@ -193,13 +230,47 @@ class BaseCampWaterSurfaceV3BLayer extends StatelessWidget {
             fit: StackFit.expand,
             clipBehavior: Clip.hardEdge,
             children: <Widget>[
-              for (var index = 0; index < placements.length; index++)
-                Positioned.fromRect(
-                  rect: viewportRects[index],
-                  child: _BaseCampWaterV3BTile(
-                    key: ValueKey('base-camp-water-v3b-tile-$index'),
-                    frameIndex: baseCampWaterV3BFrameIndex(
-                      tick + placements[index].phaseOffset,
+              for (var areaIndex = 0; areaIndex < areas.length; areaIndex++)
+                ClipPath(
+                  key: ValueKey('base-camp-water-v3b-area-$areaIndex-clip'),
+                  clipper: BaseCampWaterAreaMaskClipper(
+                    area: areas[areaIndex],
+                    claimedAreas: areas.take(areaIndex).toList(growable: false),
+                    imageRect: imageRect,
+                    artworkSize: artworkSize,
+                  ),
+                  clipBehavior: Clip.hardEdge,
+                  child: Opacity(
+                    key: ValueKey(
+                      'base-camp-water-v3b-area-$areaIndex-opacity',
+                    ),
+                    opacity: baseCampWaterV3BAreaIntensity(areaIndex),
+                    child: Stack(
+                      key: ValueKey(
+                        'base-camp-water-v3b-area-$areaIndex-composite',
+                      ),
+                      fit: StackFit.expand,
+                      clipBehavior: Clip.hardEdge,
+                      children: <Widget>[
+                        for (
+                          var index = 0;
+                          index < placementsByArea[areaIndex].length;
+                          index++
+                        )
+                          Positioned.fromRect(
+                            rect: viewportRectsByArea[areaIndex][index],
+                            child: _BaseCampWaterV3BTile(
+                              key: ValueKey(
+                                'base-camp-water-v3b-area-$areaIndex-tile-$index',
+                              ),
+                              frameIndex: baseCampWaterV3BFrameIndex(
+                                tick +
+                                    placementsByArea[areaIndex][index]
+                                        .phaseOffset,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -209,6 +280,70 @@ class BaseCampWaterSurfaceV3BLayer extends StatelessWidget {
       ),
     );
   }
+}
+
+Path baseCampWaterV3BAreaClipPath({
+  required BaseCampWaterArea area,
+  required List<BaseCampWaterArea> claimedAreas,
+  required Rect imageRect,
+  required Size artworkSize,
+}) {
+  Offset toViewport(Offset point) => Offset(
+    imageRect.left + point.dx * imageRect.width / artworkSize.width,
+    imageRect.top + point.dy * imageRect.height / artworkSize.height,
+  );
+
+  Path effectivePath(BaseCampWaterArea value) {
+    if (value.mask.length < 3) return Path();
+    var result = Path()
+      ..addPolygon(value.mask.map(toViewport).toList(growable: false), true);
+    for (final exclusion in value.exclusionMasks) {
+      if (exclusion.length < 3) continue;
+      final exclusionPath = Path()
+        ..addPolygon(exclusion.map(toViewport).toList(growable: false), true);
+      result = Path.combine(PathOperation.difference, result, exclusionPath);
+    }
+    return result;
+  }
+
+  var result = effectivePath(area);
+  for (final claimedArea in claimedAreas) {
+    result = Path.combine(
+      PathOperation.difference,
+      result,
+      effectivePath(claimedArea),
+    );
+  }
+  return result;
+}
+
+class BaseCampWaterAreaMaskClipper extends CustomClipper<Path> {
+  const BaseCampWaterAreaMaskClipper({
+    required this.area,
+    required this.claimedAreas,
+    required this.imageRect,
+    required this.artworkSize,
+  });
+
+  final BaseCampWaterArea area;
+  final List<BaseCampWaterArea> claimedAreas;
+  final Rect imageRect;
+  final Size artworkSize;
+
+  @override
+  Path getClip(Size size) => baseCampWaterV3BAreaClipPath(
+    area: area,
+    claimedAreas: claimedAreas,
+    imageRect: imageRect,
+    artworkSize: artworkSize,
+  );
+
+  @override
+  bool shouldReclip(BaseCampWaterAreaMaskClipper oldClipper) =>
+      oldClipper.area != area ||
+      !listEquals(oldClipper.claimedAreas, claimedAreas) ||
+      oldClipper.imageRect != imageRect ||
+      oldClipper.artworkSize != artworkSize;
 }
 
 class _BaseCampWaterV3BTile extends StatelessWidget {

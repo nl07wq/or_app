@@ -287,9 +287,16 @@ void main() {
     expect(
       find.descendant(of: water, matching: find.byType(Image)),
       findsNWidgets(
-        baseCampWaterV3BVisiblePlacements(
-          water: baseCampMapConfigurationController.value.waterFx['water']!,
-        ).length,
+        baseCampMapConfigurationController
+            .value
+            .waterFx['water']!
+            .effectiveAreas
+            .fold<int>(
+              0,
+              (count, area) =>
+                  count +
+                  baseCampWaterV3BVisiblePlacementsForArea(area: area).length,
+            ),
       ),
     );
     await tester.pump(baseCampWaterV3BFrameDuration);
@@ -322,6 +329,15 @@ void main() {
     expect(baseCampWaterV3BFrameIndex(47), 23);
   });
 
+  test('WATER V3B applies only the approved per-area intensities', () {
+    expect(baseCampWaterV3BAreaIntensityMultipliers, const [.55, .65, 1, 1]);
+    expect(baseCampWaterV3BAreaIntensity(0), .55);
+    expect(baseCampWaterV3BAreaIntensity(1), .65);
+    expect(baseCampWaterV3BAreaIntensity(2), 1);
+    expect(baseCampWaterV3BAreaIntensity(3), 1);
+    expect(baseCampWaterV3BAreaIntensity(4), 1);
+  });
+
   testWidgets('WATER V3B layer selects the controlled frame exactly', (
     tester,
   ) async {
@@ -340,17 +356,25 @@ void main() {
         ),
       ),
     );
-    final placements = baseCampWaterV3BVisiblePlacements(
-      water: BaseCampMapConfiguration.defaults().waterFx['water']!,
+    final water = BaseCampMapConfiguration.defaults().waterFx['water']!;
+    final placements = baseCampWaterV3BVisiblePlacementsForArea(
+      area: water.effectiveAreas.first,
+    );
+    final expectedTileCount = water.effectiveAreas.fold<int>(
+      0,
+      (count, area) =>
+          count + baseCampWaterV3BVisiblePlacementsForArea(area: area).length,
     );
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('base-camp-water-v3b-overlay')),
         matching: find.byType(Image),
       ),
-      findsNWidgets(placements.length),
+      findsNWidgets(expectedTileCount),
     );
-    final firstTile = find.byKey(const ValueKey('base-camp-water-v3b-tile-0'));
+    final firstTile = find.byKey(
+      const ValueKey('base-camp-water-v3b-area-0-tile-0'),
+    );
     expect(
       find.descendant(of: firstTile, matching: find.byType(ShaderMask)),
       findsNWidgets(2),
@@ -397,6 +421,107 @@ void main() {
     );
   });
 
+  testWidgets('WATER V3B applies intensity after each area tile composite', (
+    tester,
+  ) async {
+    final tick = ValueNotifier<int>(0);
+    addTearDown(tick.dispose);
+    final water = BaseCampMapConfiguration.defaults().waterFx['water']!;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.square(
+          dimension: 390,
+          child: BaseCampWaterSurfaceV3BLayer(
+            water: water,
+            imageRect: const Rect.fromLTWH(0, 0, 390, 390),
+            artworkSize: baseCampMapArtworkSize,
+            frameTick: tick,
+          ),
+        ),
+      ),
+    );
+
+    for (var areaIndex = 0; areaIndex < 4; areaIndex++) {
+      final opacityFinder = find.byKey(
+        ValueKey('base-camp-water-v3b-area-$areaIndex-opacity'),
+      );
+      final compositeFinder = find.byKey(
+        ValueKey('base-camp-water-v3b-area-$areaIndex-composite'),
+      );
+      expect(
+        tester.widget<Opacity>(opacityFinder).opacity,
+        baseCampWaterV3BAreaIntensity(areaIndex),
+      );
+      expect(
+        find.ancestor(of: compositeFinder, matching: opacityFinder),
+        findsOneWidget,
+      );
+    }
+  });
+
+  testWidgets('WATER V3B keeps all four areas active for three full loops', (
+    tester,
+  ) async {
+    final tick = ValueNotifier<int>(0);
+    addTearDown(tick.dispose);
+    final water = BaseCampMapConfiguration.defaults().waterFx['water']!;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.square(
+          dimension: 390,
+          child: BaseCampWaterSurfaceV3BLayer(
+            water: water,
+            imageRect: const Rect.fromLTWH(0, 0, 390, 390),
+            artworkSize: baseCampMapArtworkSize,
+            frameTick: tick,
+          ),
+        ),
+      ),
+    );
+
+    for (var frame = 0; frame < baseCampWaterV3BFrameCount * 3; frame++) {
+      tick.value = frame;
+      await tester.pump(baseCampWaterV3BFrameDuration);
+      for (var areaIndex = 0; areaIndex < 4; areaIndex++) {
+        expect(
+          find.byKey(ValueKey('base-camp-water-v3b-area-$areaIndex-composite')),
+          findsOneWidget,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    }
+    expect(tick.value, baseCampWaterV3BFrameCount * 3 - 1);
+  });
+
+  test('WATER V3B area clips exclude masks and never double-render', () {
+    final areas =
+        BaseCampMapConfiguration.defaults().waterFx['water']!.effectiveAreas;
+    final clips = <Path>[];
+    for (var areaIndex = 0; areaIndex < areas.length; areaIndex++) {
+      clips.add(
+        baseCampWaterV3BAreaClipPath(
+          area: areas[areaIndex],
+          claimedAreas: areas.take(areaIndex).toList(growable: false),
+          imageRect: const Rect.fromLTWH(0, 0, 1254, 1254),
+          artworkSize: baseCampMapArtworkSize,
+        ),
+      );
+    }
+    for (var left = 0; left < clips.length; left++) {
+      for (var right = left + 1; right < clips.length; right++) {
+        expect(
+          Path.combine(
+            PathOperation.intersect,
+            clips[left],
+            clips[right],
+          ).computeMetrics(),
+          isEmpty,
+        );
+      }
+    }
+    expect(clips[0].contains(const Offset(50, 50)), isFalse);
+  });
+
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
     testWidgets('WATER V3B overlay has no overflow at width $width', (
       tester,
@@ -427,9 +552,13 @@ void main() {
           matching: find.byType(Image),
         ),
         findsNWidgets(
-          baseCampWaterV3BVisiblePlacements(
-            water: BaseCampMapConfiguration.defaults().waterFx['water']!,
-          ).length,
+          BaseCampMapConfiguration.defaults().waterFx['water']!.effectiveAreas
+              .fold<int>(
+                0,
+                (count, area) =>
+                    count +
+                    baseCampWaterV3BVisiblePlacementsForArea(area: area).length,
+              ),
         ),
       );
     });
