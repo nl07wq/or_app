@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../services/startup_initialization_service.dart';
@@ -12,6 +13,15 @@ import 'operation_button.dart';
 import 'loading/or_loading_surface.dart';
 import 'loading/or_loading_tokens.dart';
 
+typedef StartupBootPresentationBuilder =
+    Widget Function(
+      BuildContext context,
+      ValueListenable<AppInitializationState> initialization,
+      Widget Function(AppInitializationState state) fallbackBuilder,
+      VoidCallback onPresentationReleased,
+      BootSequenceEventListener? onEvent,
+    );
+
 class StartupGate extends StatefulWidget {
   final StartupInitializationService service;
   final Widget child;
@@ -19,6 +29,7 @@ class StartupGate extends StatefulWidget {
   final BootSequenceEventListener? onBootEvent;
   final BootStartupTraceListener? onBootTrace;
   final BootSequenceTiming bootSequenceTiming;
+  final StartupBootPresentationBuilder? bootPresentationBuilder;
 
   const StartupGate({
     super.key,
@@ -28,6 +39,7 @@ class StartupGate extends StatefulWidget {
     this.onBootEvent,
     this.onBootTrace,
     this.bootSequenceTiming = const BootSequenceTiming(),
+    this.bootPresentationBuilder,
   });
 
   @override
@@ -111,6 +123,16 @@ class _StartupGateState extends State<StartupGate> {
     // temporary presentation child: once it releases, it is disposed rather
     // than being retained as a possible loading fallback.
     if (_bootPresentationMounted) {
+      final customBoot = widget.bootPresentationBuilder;
+      if (customBoot != null) {
+        return customBoot(
+          context,
+          widget.service.controller,
+          (state) => _stateChild(context, state),
+          _releaseBootPresentation,
+          widget.onBootEvent,
+        );
+      }
       return BootSequenceGate(
         initialization: widget.service.controller,
         isInitialBootPresentation: _isInitialBootPresentation,

@@ -51,6 +51,7 @@ import 'features/notifications/services/notification_profile_controller.dart';
 import 'features/themes/base_camp/base_camp_dashboard_page.dart';
 import 'features/themes/base_camp/base_camp_presentation.dart';
 import 'features/themes/base_camp/base_camp_retro_theme.dart';
+import 'features/themes/base_camp/widgets/base_camp_boot_sequence.dart';
 
 const _uriEvidenceE2eDiagnosticsRoute = bool.fromEnvironment(
   'OR_APP_URI_EVIDENCE_E2E_DIAGNOSTICS_ROUTE',
@@ -240,6 +241,22 @@ class _OperationRebootAppState extends State<OperationRebootApp>
                         service: _initializationService,
                         showBootSequence: true,
                         onBootEvent: widget.onBootEvent,
+                        bootPresentationBuilder:
+                            settings.presentationTheme ==
+                                AppPresentationTheme.baseCamp
+                            ? (
+                                context,
+                                initialization,
+                                fallbackBuilder,
+                                onPresentationReleased,
+                                onEvent,
+                              ) => BaseCampBootSequenceGate(
+                                initialization: initialization,
+                                fallbackBuilder: fallbackBuilder,
+                                onPresentationReleased: onPresentationReleased,
+                                onEvent: onEvent,
+                              )
+                            : null,
                         child: child ?? const SizedBox.shrink(),
                       ),
                       if (settings.brightness < 1)
