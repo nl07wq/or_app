@@ -108,12 +108,18 @@ Future<void> _renderAndCapture(
       ),
     ),
   );
+  // flutter_test may restore debug-paint globals while installing a new root.
+  // Reassert production paint settings and force the capture frame to repaint.
+  debugPaintBaselinesEnabled = false;
+  debugPaintSizeEnabled = false;
+  final boundary =
+      boundaryKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  boundary.markNeedsPaint();
+  await tester.pump();
+  expect(debugPaintBaselinesEnabled, isFalse);
   expect(tester.takeException(), isNull);
 
   await tester.runAsync(() async {
-    final boundary =
-        boundaryKey.currentContext!.findRenderObject()!
-            as RenderRepaintBoundary;
     final image = await boundary.toImage(pixelRatio: 2);
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     await File(
