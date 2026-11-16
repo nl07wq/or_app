@@ -135,6 +135,12 @@ export type AlarmMutation =
   | { action: 'delete' }
   | { action: 'set'; scheduledAt: number };
 
+export interface AlarmScheduleResult {
+  mutation: AlarmMutation;
+  sqlRowsRead: number;
+  storageRowsRead: number;
+}
+
 /**
  * Keep the existing alarm when it already represents the required wake-up.
  * For overdue work, an earlier alarm is always preferable to delaying it just

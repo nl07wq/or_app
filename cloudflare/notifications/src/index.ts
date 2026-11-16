@@ -26,7 +26,7 @@ import {
   projectionUpsertSql,
   requiredAlarmMutation,
   subscriptionUpsertSql,
-  type AlarmMutation,
+  type AlarmScheduleResult,
 } from './reconciliation';
 
 interface Env {
@@ -248,12 +248,12 @@ export class NotificationProfile extends DurableObject<Env> {
       subscriptionUpsertSql,
       installationId, body.endpoint, body.keys.p256dh, body.keys.auth, Date.now(),
     );
-    const alarmMutation = await this.scheduleNextAlarm();
+    const alarmSchedule = await this.scheduleNextAlarm();
     return json({
       subscribed: true,
       storageMutation: {
         rowsWritten: installationRowsWritten + subscriptionCursor.rowsWritten,
-        alarm: alarmMutation.action,
+        alarm: alarmSchedule.mutation.action,
       },
     });
   }
@@ -272,15 +272,19 @@ export class NotificationProfile extends DurableObject<Env> {
     const previousFingerprint = await this.ctx.storage.get<string>(
       projectionFingerprintStorageKey,
     );
+    let sqlRowsRead = 0;
     let projectionRowsWritten = 0;
     let cancelledCount = 0;
     let changedCount = 0;
 
     if (previousFingerprint !== fingerprint) {
-      const activeIds = [...sql.exec(activeProjectionIdsSql)] as Array<{ id: string }>;
+      const activeCursor = sql.exec(activeProjectionIdsSql);
+      const activeIds = [...activeCursor] as Array<{ id: string }>;
+      sqlRowsRead += activeCursor.rowsRead;
       for (const active of activeIds) {
         if (ids.has(active.id)) continue;
         const cursor = sql.exec(cancelProjectionSql, now, active.id);
+        sqlRowsRead += cursor.rowsRead;
         projectionRowsWritten += cursor.rowsWritten;
         if (cursor.rowsWritten > 0) cancelledCount++;
       }
@@ -296,6 +300,7 @@ export class NotificationProfile extends DurableObject<Env> {
           projectionUpsertSql,
           ...projectionUpsertBindings(item, body.generation),
         );
+        sqlRowsRead += cursor.rowsRead;
         projectionRowsWritten += cursor.rowsWritten;
         if (cursor.rowsWritten === 0) continue;
         changedCount++;
@@ -306,16 +311,21 @@ export class NotificationProfile extends DurableObject<Env> {
       }
       await this.ctx.storage.put(projectionFingerprintStorageKey, fingerprint);
     }
-    this.expireStaleProjections(now);
-    const alarmMutation = await this.scheduleNextAlarm();
+    const expiration = this.expireStaleProjections(now);
+    sqlRowsRead += expiration.rowsRead;
+    projectionRowsWritten += expiration.rowsWritten;
+    const alarmSchedule = await this.scheduleNextAlarm();
+    sqlRowsRead += alarmSchedule.sqlRowsRead;
     const unchanged = previousFingerprint === fingerprint;
     this.logDeliveryDiagnostic('reconciliation_summary', {
       accepted: projections.length,
       changed: changedCount,
       cancelled: cancelledCount,
+      sqlRowsRead,
+      storageRowsRead: 1 + alarmSchedule.storageRowsRead,
       projectionRowsWritten,
       metadataRowsWritten: unchanged ? 0 : 1,
-      alarmWrites: alarmMutation.action === 'none' ? 0 : 1,
+      alarmWrites: alarmSchedule.mutation.action === 'none' ? 0 : 1,
     });
     return json({
       generation: body.generation,
@@ -323,8 +333,10 @@ export class NotificationProfile extends DurableObject<Env> {
       unchanged,
       storageMutation: {
         projectionRowsWritten,
+        sqlRowsRead,
+        storageRowsRead: 1 + alarmSchedule.storageRowsRead,
         metadataRowsWritten: unchanged ? 0 : 1,
-        alarm: alarmMutation.action,
+        alarm: alarmSchedule.mutation.action,
       },
     });
   }
@@ -363,12 +375,16 @@ export class NotificationProfile extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     const now = Date.now();
-    const expired = this.expireStaleProjections(now);
+    const expiration = this.expireStaleProjections(now);
     const due = [...this.ctx.storage.sql.exec(
       `SELECT * FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL
        AND COALESCE(retry_at, trigger_at) <= ? ORDER BY COALESCE(retry_at, trigger_at) LIMIT 50`, now,
     )] as unknown as Array<Record<string, string | number | null>>;
-    this.logDeliveryDiagnostic('alarm_due', { alarmAt: now, due: due.length, expired });
+    this.logDeliveryDiagnostic('alarm_due', {
+      alarmAt: now,
+      due: due.length,
+      expired: expiration.count,
+    });
     for (const row of due) await this.deliver(row);
     await this.scheduleNextAlarm();
   }
@@ -494,19 +510,28 @@ export class NotificationProfile extends DurableObject<Env> {
     }
   }
 
-  private expireStaleProjections(now: number): number {
+  private expireStaleProjections(now: number): {
+    count: number;
+    rowsRead: number;
+    rowsWritten: number;
+  } {
     const deadline = now - pushFreshnessToleranceMs;
-    const before = this.ctx.storage.sql.exec(
+    const countCursor = this.ctx.storage.sql.exec(
       'SELECT COUNT(*) AS count FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL AND trigger_at < ?',
       deadline,
-    ).one() as { count: number };
+    );
+    const before = countCursor.one() as { count: number };
+    let rowsRead = countCursor.rowsRead;
+    let rowsWritten = 0;
     if (before.count > 0) {
-      this.ctx.storage.sql.exec(
+      const updateCursor = this.ctx.storage.sql.exec(
         'UPDATE projections SET expired_at=?, retry_at=NULL, last_result=? WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL AND trigger_at < ?',
         now, 'expired', deadline,
       );
+      rowsRead += updateCursor.rowsRead;
+      rowsWritten += updateCursor.rowsWritten;
     }
-    return before.count;
+    return { count: before.count, rowsRead, rowsWritten };
   }
 
   private expireProjectionIfStale(row: Record<string, string | number | null>, now: number): boolean {
@@ -527,8 +552,9 @@ export class NotificationProfile extends DurableObject<Env> {
     console.log(JSON.stringify({ notificationDelivery: event, ...values }));
   }
 
-  private async scheduleNextAlarm(): Promise<AlarmMutation> {
-    const row = [...this.ctx.storage.sql.exec(nextProjectionAlarmSql)][0] as
+  private async scheduleNextAlarm(): Promise<AlarmScheduleResult> {
+    const nextCursor = this.ctx.storage.sql.exec(nextProjectionAlarmSql);
+    const row = [...nextCursor][0] as
       { id: string; trigger_at: number; due_at: number } | undefined;
     const currentAlarm = await this.ctx.storage.getAlarm();
     const mutation = requiredAlarmMutation(
@@ -545,6 +571,10 @@ export class NotificationProfile extends DurableObject<Env> {
       await this.ctx.storage.setAlarm(mutation.scheduledAt);
     }
     else if (mutation.action === 'delete') await this.ctx.storage.deleteAlarm();
-    return mutation;
+    return {
+      mutation,
+      sqlRowsRead: nextCursor.rowsRead,
+      storageRowsRead: 1,
+    };
   }
 }
