@@ -37,6 +37,7 @@ import 'widgets/food_form_theme.dart';
 import 'widgets/food_quantity_unit_field.dart';
 import 'widgets/food_feature_chrome.dart';
 import 'widgets/food_saved_floating_hud.dart';
+import '../themes/base_camp/base_camp_retro_terminal.dart';
 
 class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
@@ -386,97 +387,123 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
 
   Widget _foodDatabaseSurface() => Column(
     children: [
-      DecoratedBox(
-        key: const ValueKey('food-database-controls-glass'),
-        decoration: BoxDecoration(
-          color: const Color(0x66141B24),
-          border: Border.all(color: const Color(0x99304659)),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
-              child: Row(
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(right: 8),
-                    child: Icon(
-                      Icons.search,
-                      size: 19,
-                      color: FoodFormMetrics.caption,
-                    ),
-                  ),
-                  Expanded(
-                    child: OperationTextField(
-                      key: const ValueKey('food-catalog-search'),
-                      controller: _search,
-                      label: 'SEARCH NAME / BRAND / BARCODE',
-                      glass: true,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                  ),
-                ],
+      Builder(
+        builder: (context) {
+          final palette = BaseCampTerminalPaletteScope.maybeOf(context);
+          return DecoratedBox(
+            key: const ValueKey('food-database-controls-glass'),
+            decoration: BoxDecoration(
+              color: palette?.field ?? const Color(0x66141B24),
+              border: Border.all(
+                color: palette?.auxiliaryText ?? const Color(0x99304659),
               ),
+              borderRadius: BorderRadius.circular(palette == null ? 14 : 4),
             ),
-            const Divider(height: 1, color: FoodFormMetrics.separator),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 7),
-              child: _categoryFilter(),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+                  child: Row(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Icon(
+                          Icons.search,
+                          size: 19,
+                          color:
+                              palette?.auxiliaryText ?? FoodFormMetrics.caption,
+                        ),
+                      ),
+                      Expanded(
+                        child: OperationTextField(
+                          key: const ValueKey('food-catalog-search'),
+                          controller: _search,
+                          label: 'SEARCH NAME / BRAND / BARCODE',
+                          glass: true,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(
+                  height: 1,
+                  color: palette?.auxiliaryText ?? FoodFormMetrics.separator,
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 7),
+                  child: _categoryFilter(),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
       const SizedBox(height: 10),
       Expanded(child: _body()),
     ],
   );
 
-  Widget _categoryFilter() => Semantics(
-    label: 'CATEGORY FILTER',
-    child: SingleChildScrollView(
-      key: const ValueKey('food-category-filter-scroll'),
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Row(
-        children: [
-          _categoryChoice(label: 'ALL', category: null, keyName: 'all'),
-          const SizedBox(width: AppSpacing.sm),
-          _categoryChoice(
-            label: '食材',
-            category: FoodCatalogCategory.ingredient,
-            keyName: 'ingredient',
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          _categoryChoice(
-            label: '調理済み',
-            category: FoodCatalogCategory.preparedFood,
-            keyName: 'preparedFood',
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          _categoryChoice(
-            label: '市販・包装品',
-            category: FoodCatalogCategory.packagedFood,
-            keyName: 'packagedFood',
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          _categoryChoice(
-            label: '飲料',
-            category: FoodCatalogCategory.beverage,
-            keyName: 'beverage',
-          ),
-        ],
+  Widget _categoryFilter() => Builder(
+    builder: (terminalContext) => Semantics(
+      label: 'CATEGORY FILTER',
+      child: SingleChildScrollView(
+        key: const ValueKey('food-category-filter-scroll'),
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+          children: [
+            _categoryChoice(
+              context: terminalContext,
+              label: 'ALL',
+              category: null,
+              keyName: 'all',
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            _categoryChoice(
+              context: terminalContext,
+              label: '食材',
+              category: FoodCatalogCategory.ingredient,
+              keyName: 'ingredient',
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            _categoryChoice(
+              context: terminalContext,
+              label: '調理済み',
+              category: FoodCatalogCategory.preparedFood,
+              keyName: 'preparedFood',
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            _categoryChoice(
+              context: terminalContext,
+              label: '市販・包装品',
+              category: FoodCatalogCategory.packagedFood,
+              keyName: 'packagedFood',
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            _categoryChoice(
+              context: terminalContext,
+              label: '飲料',
+              category: FoodCatalogCategory.beverage,
+              keyName: 'beverage',
+            ),
+          ],
+        ),
       ),
     ),
   );
 
   Widget _categoryChoice({
+    required BuildContext context,
     required String label,
     required FoodCatalogCategory? category,
     required String keyName,
   }) {
     final selected = _selectedCategory == category;
     final colorScheme = Theme.of(context).colorScheme;
+    final palette = BaseCampTerminalPaletteScope.maybeOf(context);
+    final selectedBackground = palette?.primaryText;
+    final selectedForeground = palette?.background;
     return Semantics(
       button: true,
       selected: selected,
@@ -492,10 +519,16 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
         side: BorderSide(
           color: selected ? colorScheme.primary : colorScheme.outlineVariant,
         ),
-        selectedColor: colorScheme.primaryContainer.withValues(alpha: 0.55),
-        backgroundColor: colorScheme.surface.withValues(alpha: 0.35),
+        selectedColor:
+            selectedBackground ??
+            colorScheme.primaryContainer.withValues(alpha: 0.55),
+        backgroundColor:
+            palette?.field ?? colorScheme.surface.withValues(alpha: 0.35),
+        checkmarkColor: selectedForeground,
         labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: selected ? colorScheme.primary : colorScheme.onSurface,
+          color: selected
+              ? selectedForeground ?? colorScheme.primary
+              : palette?.primaryText ?? colorScheme.onSurface,
         ),
       ),
     );
@@ -631,20 +664,23 @@ class _FoodCatalogListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.maybeOf(context);
     final metadata = [
       if (entry.brand?.isNotEmpty ?? false) entry.brand!,
       foodCatalogCategoryLabel(entry.category),
       FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
     ].join('  ');
     return Material(
-      color: const Color(0xA8141B24),
+      color: palette?.field ?? const Color(0xA8141B24),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0x88304659)),
+        borderRadius: BorderRadius.circular(palette == null ? 14 : 4),
+        side: BorderSide(
+          color: palette?.auxiliaryText ?? const Color(0x88304659),
+        ),
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(palette == null ? 14 : 4),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -692,9 +728,12 @@ class _FoodCatalogListCard extends StatelessWidget {
                   const Icon(Icons.chevron_right, size: 18),
                 ],
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 10),
-                child: Divider(height: 1, color: Color(0xFF2C4050)),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Divider(
+                  height: 1,
+                  color: palette?.auxiliaryText ?? const Color(0xFF2C4050),
+                ),
               ),
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -706,30 +745,36 @@ class _FoodCatalogListCard extends StatelessWidget {
                         kcal: true,
                       ),
                       unit: entry.nutrition.calories == null ? '' : 'kcal',
-                      valueColor: const Color(0xFFF1F7FF),
+                      valueColor:
+                          palette?.primaryText ?? const Color(0xFFF1F7FF),
                     ),
                     _NutritionCell(
                       label: 'P',
                       number: _nutritionNumber(entry.nutrition.protein),
                       unit: entry.nutrition.protein == null ? '' : 'g',
-                      valueColor: foodDetailProteinColor,
-                      labelColor: FoodFormMetrics.protein,
+                      valueColor:
+                          palette?.primaryText ?? foodDetailProteinColor,
+                      labelColor:
+                          palette?.auxiliaryText ?? FoodFormMetrics.protein,
                       numericFontSize: 13,
                     ),
                     _NutritionCell(
                       label: 'F',
                       number: _nutritionNumber(entry.nutrition.fat),
                       unit: entry.nutrition.fat == null ? '' : 'g',
-                      valueColor: foodDetailFatColor,
-                      labelColor: FoodFormMetrics.fat,
+                      valueColor: palette?.primaryText ?? foodDetailFatColor,
+                      labelColor: palette?.auxiliaryText ?? FoodFormMetrics.fat,
                       numericFontSize: 13,
                     ),
                     _NutritionCell(
                       label: 'C',
                       number: _nutritionNumber(entry.nutrition.carbohydrate),
                       unit: entry.nutrition.carbohydrate == null ? '' : 'g',
-                      valueColor: foodDetailCarbohydrateColor,
-                      labelColor: FoodFormMetrics.carbohydrate,
+                      valueColor:
+                          palette?.primaryText ?? foodDetailCarbohydrateColor,
+                      labelColor:
+                          palette?.auxiliaryText ??
+                          FoodFormMetrics.carbohydrate,
                       numericFontSize: 13,
                     ),
                   ];
@@ -1647,121 +1692,140 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     onQuantityChanged: onTextChanged ?? (_) {},
   );
 
-  Widget _nutritionEditorPanel() => Container(
-    key: const ValueKey('food-catalog-nutrition-panel'),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: FoodFormMetrics.nutritionSurface,
-      border: Border.all(color: FoodFormMetrics.separator),
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'NUTRITION DATA',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: FoodFormMetrics.caption,
-            letterSpacing: .6,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Row(
-          children: [
-            Expanded(
-              child: Theme(
-                // CALORIES uses the existing PFC numeric size after the
-                // requested typography exchange.
-                data: FoodFormMetrics.numericValueTheme(
-                  Theme.of(context),
-                  FoodFormMetrics.pfcNumericFontSize,
-                ),
-                child: _CatalogNutritionFocusField(
-                  focusNode: _caloriesFocusNode,
-                  nextFocusNode: _proteinFocusNode,
-                  child: OperationTextField(
-                    controller: _calories,
-                    label: 'CALORIES',
-                    keyboardType: TextInputType.number,
-                    focusNode: _caloriesFocusNode,
-                    onChanged: (_) => setState(() => _rawCalories = null),
-                  ),
-                ),
-              ),
+  Widget _nutritionEditorPanel() {
+    return Builder(
+      builder: (terminalContext) {
+        final palette = BaseCampTerminalPaletteScope.maybeOf(terminalContext);
+        return Container(
+          key: const ValueKey('food-catalog-nutrition-panel'),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: palette?.field ?? FoodFormMetrics.nutritionSurface,
+            border: Border.all(
+              color: palette?.auxiliaryText ?? FoodFormMetrics.separator,
             ),
-            const SizedBox(width: AppSpacing.sm),
-            Text('kcal', style: Theme.of(context).textTheme.labelLarge),
-          ],
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
-          child: Divider(height: 1, color: FoodFormMetrics.separator),
-        ),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final fields = [
-              _macroNutritionField(
-                controller: _protein,
-                label: 'PROTEIN',
-                color: FoodFormMetrics.protein,
-                onChanged: () => setState(() => _rawProtein = null),
-                focusNode: _proteinFocusNode,
-                previousFocusNode: _caloriesFocusNode,
-                nextFocusNode: _fatFocusNode,
+            borderRadius: BorderRadius.circular(palette == null ? 14 : 4),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'NUTRITION DATA',
+                style: Theme.of(terminalContext).textTheme.labelSmall?.copyWith(
+                  color: palette?.auxiliaryText ?? FoodFormMetrics.caption,
+                  letterSpacing: .6,
+                ),
               ),
-              _macroNutritionField(
-                controller: _fat,
-                label: 'FAT',
-                color: FoodFormMetrics.fat,
-                onChanged: () => setState(() => _rawFat = null),
-                focusNode: _fatFocusNode,
-                previousFocusNode: _proteinFocusNode,
-                nextFocusNode: _carbsFocusNode,
-              ),
-              _macroNutritionField(
-                controller: _carbs,
-                label: 'CARBOHYDRATE',
-                color: FoodFormMetrics.carbohydrate,
-                onChanged: () => setState(() => _rawCarbohydrate = null),
-                focusNode: _carbsFocusNode,
-                previousFocusNode: _fatFocusNode,
-              ),
-            ];
-            if (constraints.maxWidth >= 250) {
-              return Row(
+              const SizedBox(height: AppSpacing.xs),
+              Row(
                 children: [
-                  for (var index = 0; index < fields.length; index++) ...[
-                    Expanded(child: fields[index]),
-                    if (index != fields.length - 1)
-                      const SizedBox(width: AppSpacing.xs),
-                  ],
+                  Expanded(
+                    child: Theme(
+                      // CALORIES uses the existing PFC numeric size after the
+                      // requested typography exchange.
+                      data: FoodFormMetrics.numericValueTheme(
+                        Theme.of(terminalContext),
+                        FoodFormMetrics.pfcNumericFontSize,
+                      ),
+                      child: _CatalogNutritionFocusField(
+                        focusNode: _caloriesFocusNode,
+                        nextFocusNode: _proteinFocusNode,
+                        child: OperationTextField(
+                          controller: _calories,
+                          label: 'CALORIES',
+                          keyboardType: TextInputType.number,
+                          focusNode: _caloriesFocusNode,
+                          onChanged: (_) => setState(() => _rawCalories = null),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'kcal',
+                    style: Theme.of(terminalContext).textTheme.labelLarge,
+                  ),
                 ],
-              );
-            }
-            final width = (constraints.maxWidth - AppSpacing.xs) / 2;
-            return Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final field in fields)
-                  SizedBox(width: width, child: field),
-              ],
-            );
-          },
-        ),
-        FoodNutritionFocusToolbar(
-          nodes: [
-            _caloriesFocusNode,
-            _proteinFocusNode,
-            _fatFocusNode,
-            _carbsFocusNode,
-          ],
-        ),
-      ],
-    ),
-  );
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Divider(
+                  height: 1,
+                  color: palette?.auxiliaryText ?? FoodFormMetrics.separator,
+                ),
+              ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final fields = [
+                    _macroNutritionField(
+                      terminalContext: terminalContext,
+                      controller: _protein,
+                      label: 'PROTEIN',
+                      color: FoodFormMetrics.protein,
+                      onChanged: () => setState(() => _rawProtein = null),
+                      focusNode: _proteinFocusNode,
+                      previousFocusNode: _caloriesFocusNode,
+                      nextFocusNode: _fatFocusNode,
+                    ),
+                    _macroNutritionField(
+                      terminalContext: terminalContext,
+                      controller: _fat,
+                      label: 'FAT',
+                      color: FoodFormMetrics.fat,
+                      onChanged: () => setState(() => _rawFat = null),
+                      focusNode: _fatFocusNode,
+                      previousFocusNode: _proteinFocusNode,
+                      nextFocusNode: _carbsFocusNode,
+                    ),
+                    _macroNutritionField(
+                      terminalContext: terminalContext,
+                      controller: _carbs,
+                      label: 'CARBOHYDRATE',
+                      color: FoodFormMetrics.carbohydrate,
+                      onChanged: () => setState(() => _rawCarbohydrate = null),
+                      focusNode: _carbsFocusNode,
+                      previousFocusNode: _fatFocusNode,
+                    ),
+                  ];
+                  if (constraints.maxWidth >= 250) {
+                    return Row(
+                      children: [
+                        for (var index = 0; index < fields.length; index++) ...[
+                          Expanded(child: fields[index]),
+                          if (index != fields.length - 1)
+                            const SizedBox(width: AppSpacing.xs),
+                        ],
+                      ],
+                    );
+                  }
+                  final width = (constraints.maxWidth - AppSpacing.xs) / 2;
+                  return Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      for (final field in fields)
+                        SizedBox(width: width, child: field),
+                    ],
+                  );
+                },
+              ),
+              FoodNutritionFocusToolbar(
+                nodes: [
+                  _caloriesFocusNode,
+                  _proteinFocusNode,
+                  _fatFocusNode,
+                  _carbsFocusNode,
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Widget _macroNutritionField({
+    required BuildContext terminalContext,
     required TextEditingController controller,
     required String label,
     required Color color,
@@ -1770,8 +1834,10 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     FocusNode? previousFocusNode,
     FocusNode? nextFocusNode,
   }) {
+    final palette = BaseCampTerminalPaletteScope.maybeOf(terminalContext);
+    final effectiveColor = palette?.auxiliaryText ?? color;
     final theme = FoodFormMetrics.numericValueTheme(
-      Theme.of(context),
+      Theme.of(terminalContext),
       // PFC uses the existing CALORIES numeric size after the exchange.
       FoodFormMetrics.caloriesNumericFontSize,
     );
@@ -1779,11 +1845,11 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
       data: theme.copyWith(
         inputDecorationTheme: theme.inputDecorationTheme.copyWith(
           labelStyle: theme.inputDecorationTheme.labelStyle?.copyWith(
-            color: color,
+            color: effectiveColor,
             fontSize: 9.5,
           ),
           floatingLabelStyle: theme.inputDecorationTheme.floatingLabelStyle
-              ?.copyWith(color: color, fontSize: 9.5),
+              ?.copyWith(color: effectiveColor, fontSize: 9.5),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 6,
             vertical: 8,
@@ -2094,97 +2160,121 @@ class FoodCatalogDetailPage extends StatelessWidget {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _FoodDetailSurface(
-              key: const ValueKey('food-detail-information-card'),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        child: Builder(
+          builder: (terminalContext) {
+            final palette = BaseCampTerminalPaletteScope.maybeOf(
+              terminalContext,
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _FoodDetailSurface(
+                  key: const ValueKey('food-detail-information-card'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: const Color(0xCC172330),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF304659)),
-                        ),
-                        child: FoodThumbnail(
-                          visualKey: entry.visualKey,
-                          size: 52,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Text(
-                          entry.name,
-                          key: const ValueKey('food-detail-name'),
-                          style: const TextStyle(
-                            color: Color(0xFFF1F7FF),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            height: 1.3,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color:
+                                  palette?.background ??
+                                  const Color(0xCC172330),
+                              borderRadius: BorderRadius.circular(
+                                palette == null ? 12 : 4,
+                              ),
+                              border: Border.all(
+                                color:
+                                    palette?.auxiliaryText ??
+                                    const Color(0xFF304659),
+                              ),
+                            ),
+                            child: FoodThumbnail(
+                              visualKey: entry.visualKey,
+                              size: 52,
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Text(
+                              entry.name,
+                              key: const ValueKey('food-detail-name'),
+                              style: TextStyle(
+                                color:
+                                    palette?.primaryText ??
+                                    const Color(0xFFF1F7FF),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: AppSpacing.md),
+                      Divider(
+                        color:
+                            palette?.auxiliaryText ?? const Color(0xFF2A4254),
+                        height: 1,
+                      ),
+                      if (entry.brand != null) _detail('BRAND', entry.brand!),
+                      _detail(
+                        'CATEGORY',
+                        foodCatalogCategoryLabel(entry.category),
+                      ),
+                      _detail(
+                        'NUTRITION BASIS',
+                        '${_basis(entry.baseQuantity)} PER BASIS',
+                      ),
+                      if (entry.packageQuantity != null)
+                        _detail(
+                          'PACKAGE SIZE',
+                          '${_format(entry.packageQuantity!)}${_unit(entry.packageUnit!)}',
+                        ),
+                      if (entry.barcodeValue != null)
+                        _detail(
+                          'BARCODE / JAN',
+                          entry.barcodeValue!,
+                          selectable: true,
+                        ),
+                      if (entry.memo != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        _MetadataChip(label: 'MEMO', value: entry.memo!),
+                      ],
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  const Divider(color: Color(0xFF2A4254), height: 1),
-                  if (entry.brand != null) _detail('BRAND', entry.brand!),
-                  _detail('CATEGORY', foodCatalogCategoryLabel(entry.category)),
-                  _detail(
-                    'NUTRITION BASIS',
-                    '${_basis(entry.baseQuantity)} PER BASIS',
+                ),
+                if (hasChart) ...[
+                  AppSpacing.gapMD,
+                  FoodPfcBalanceCard(
+                    nutrition: nutrition,
+                    style: FoodPfcBalanceStyle.foodDetail,
                   ),
-                  if (entry.packageQuantity != null)
-                    _detail(
-                      'PACKAGE SIZE',
-                      '${_format(entry.packageQuantity!)}${_unit(entry.packageUnit!)}',
-                    ),
-                  if (entry.barcodeValue != null)
-                    _detail(
-                      'BARCODE / JAN',
-                      entry.barcodeValue!,
-                      selectable: true,
-                    ),
-                  if (entry.memo != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    _MetadataChip(label: 'MEMO', value: entry.memo!),
-                  ],
                 ],
-              ),
-            ),
-            if (hasChart) ...[
-              AppSpacing.gapMD,
-              FoodPfcBalanceCard(
-                nutrition: nutrition,
-                style: FoodPfcBalanceStyle.foodDetail,
-              ),
-            ],
-            if (!appInitializationController.value.isReadOnly) ...[
-              AppSpacing.gapMD,
-              _FoodDetailActionButton(
-                icon: Icons.edit,
-                text: 'EDIT',
-                onPressed: () => _edit(context),
-                backgroundColor: const Color(0xFF1D3244),
-                borderColor: const Color(0xFF3B7A9C),
-                foregroundColor: const Color(0xFFF1F7FF),
-              ),
-              AppSpacing.gapSM,
-              _FoodDetailActionButton(
-                icon: Icons.delete_outline,
-                text: 'DELETE',
-                onPressed: () => _delete(context),
-                backgroundColor: const Color(0xFF151B24),
-                borderColor: const Color(0xFF47323C),
-                foregroundColor: const Color(0xFFE7ADB8),
-              ),
-            ],
-          ],
+                if (!appInitializationController.value.isReadOnly) ...[
+                  AppSpacing.gapMD,
+                  _FoodDetailActionButton(
+                    icon: Icons.edit,
+                    text: 'EDIT',
+                    onPressed: () => _edit(terminalContext),
+                    backgroundColor: const Color(0xFF1D3244),
+                    borderColor: const Color(0xFF3B7A9C),
+                    foregroundColor: const Color(0xFFF1F7FF),
+                  ),
+                  AppSpacing.gapSM,
+                  _FoodDetailActionButton(
+                    icon: Icons.delete_outline,
+                    text: 'DELETE',
+                    onPressed: () => _delete(terminalContext),
+                    backgroundColor: const Color(0xFF151B24),
+                    borderColor: const Color(0xFF47323C),
+                    foregroundColor: const Color(0xFFE7ADB8),
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -2204,19 +2294,27 @@ class _FoodDetailSurface extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xCC101821), Color(0xCC172330)],
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.maybeOf(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: palette?.field,
+        gradient: palette == null
+            ? const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xCC101821), Color(0xCC172330)],
+              )
+            : null,
+        borderRadius: BorderRadius.circular(palette == null ? 19 : 4),
+        border: Border.all(
+          color: palette?.auxiliaryText ?? const Color(0xFF304659),
+        ),
       ),
-      borderRadius: BorderRadius.circular(19),
-      border: Border.all(color: const Color(0xFF304659)),
-    ),
-    padding: AppSpacing.cardPadding,
-    child: child,
-  );
+      padding: AppSpacing.cardPadding,
+      child: child,
+    );
+  }
 }
 
 class _FoodDetailInformationRow extends StatelessWidget {
@@ -2231,43 +2329,44 @@ class _FoodDetailInformationRow extends StatelessWidget {
   final bool selectable;
 
   @override
-  Widget build(BuildContext context) => Container(
-    key: ValueKey('food-detail-row-$label'),
-    constraints: const BoxConstraints(minHeight: 43),
-    padding: const EdgeInsets.symmetric(vertical: 10),
-    decoration: const BoxDecoration(
-      border: Border(bottom: BorderSide(color: Color(0xFF273D4B))),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 135,
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF7898AB),
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: .55,
-            ),
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.maybeOf(context);
+    final labelStyle = TextStyle(
+      color: palette?.auxiliaryText ?? const Color(0xFF7898AB),
+      fontSize: 10.5,
+      fontWeight: FontWeight.w700,
+      letterSpacing: .55,
+    );
+    final valueStyle = TextStyle(
+      color: palette?.primaryText ?? const Color(0xFFF1F7FF),
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      height: 1.35,
+    );
+    return Container(
+      key: ValueKey('food-detail-row-$label'),
+      constraints: const BoxConstraints(minHeight: 43),
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: palette?.auxiliaryText ?? const Color(0xFF273D4B),
           ),
         ),
-        Expanded(
-          child: selectable
-              ? SelectableText(value, style: _valueStyle)
-              : Text(value, style: _valueStyle),
-        ),
-      ],
-    ),
-  );
-
-  static const _valueStyle = TextStyle(
-    color: Color(0xFFF1F7FF),
-    fontSize: 13,
-    fontWeight: FontWeight.w600,
-    height: 1.35,
-  );
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 135, child: Text(label, style: labelStyle)),
+          Expanded(
+            child: selectable
+                ? SelectableText(value, style: valueStyle)
+                : Text(value, style: valueStyle),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MetadataChip extends StatelessWidget {
@@ -2277,35 +2376,43 @@ class _MetadataChip extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-    decoration: BoxDecoration(
-      color: const Color(0xCC17212C),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFF304659)),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF7898AB),
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-          ),
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.maybeOf(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: palette?.background ?? const Color(0xCC17212C),
+        borderRadius: BorderRadius.circular(palette == null ? 12 : 4),
+        border: Border.all(
+          color: palette?.auxiliaryText ?? const Color(0xFF304659),
         ),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            value,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFF91AEB8), fontSize: 11),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: palette?.auxiliaryText ?? const Color(0xFF7898AB),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette?.primaryText ?? const Color(0xFF91AEB8),
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _FoodDetailActionButton extends StatelessWidget {
@@ -2326,23 +2433,29 @@ class _FoodDetailActionButton extends StatelessWidget {
   final Color foregroundColor;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 60,
-    child: ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, color: foregroundColor),
-      label: Text(text),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: backgroundColor,
-        foregroundColor: foregroundColor,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(15),
-          side: BorderSide(color: borderColor),
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.maybeOf(context);
+    final effectiveBackground = palette?.field ?? backgroundColor;
+    final effectiveBorder = palette?.auxiliaryText ?? borderColor;
+    final effectiveForeground = palette?.primaryText ?? foregroundColor;
+    return SizedBox(
+      height: 60,
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, color: effectiveForeground),
+        label: Text(text),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: effectiveBackground,
+          foregroundColor: effectiveForeground,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(palette == null ? 15 : 4),
+            side: BorderSide(color: effectiveBorder),
+          ),
         ),
-      ),
-    ).actionableFeedback(role: ActionableFeedbackRole.command),
-  );
+      ).actionableFeedback(role: ActionableFeedbackRole.command),
+    );
+  }
 }
 
 String _basis(FoodQuantityDefinition quantity) =>

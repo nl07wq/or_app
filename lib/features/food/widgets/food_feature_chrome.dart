@@ -40,7 +40,12 @@ class FoodFeatureScaffold extends StatelessWidget {
             const RepaintBoundary(child: FoodAmbientComparison()),
           Padding(
             padding: EdgeInsets.only(top: appBarHeight),
-            child: body,
+            child: baseCamp
+                ? BaseCampTerminalDisplay(
+                    margin: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                    child: body,
+                  )
+                : body,
           ),
         ],
       ),

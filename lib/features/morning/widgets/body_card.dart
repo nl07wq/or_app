@@ -5,6 +5,8 @@ import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../themes/base_camp/base_camp_retro_theme.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
+import 'base_camp_status_style.dart';
 
 class BodyCard extends StatelessWidget {
   const BodyCard({
@@ -42,6 +44,12 @@ class BodyCard extends StatelessWidget {
         const SizedBox(height: 20),
         if (weightUnmeasured)
           const _Unmeasured('Weight')
+        else if (isBaseCampStatus(c))
+          _BaseCampWeightTuner(
+            key: const ValueKey('status-weight-radio-tuner'),
+            controller: weightController,
+            initiallyExpanded: initiallyExpanded,
+          )
         else
           _WeightHud(
             key: const ValueKey('status-weight-hud'),
@@ -51,6 +59,12 @@ class BodyCard extends StatelessWidget {
         const SizedBox(height: 28),
         if (weightUnmeasured)
           const _Unmeasured('Body Fat')
+        else if (isBaseCampStatus(c))
+          _BaseCampBodyFatMeter(
+            key: const ValueKey('status-body-fat-segment-meter'),
+            controller: bodyFatController,
+            initiallyExpanded: initiallyExpanded,
+          )
         else
           _BodyFatRing(
             key: const ValueKey('status-body-fat-ring'),
@@ -60,6 +74,555 @@ class BodyCard extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _BaseCampWeightTuner extends StatefulWidget {
+  const _BaseCampWeightTuner({
+    super.key,
+    required this.controller,
+    required this.initiallyExpanded,
+  });
+
+  final TextEditingController controller;
+  final bool initiallyExpanded;
+
+  @override
+  State<_BaseCampWeightTuner> createState() => _BaseCampWeightTunerState();
+}
+
+class _BaseCampWeightTunerState extends State<_BaseCampWeightTuner> {
+  static const double _minimum = 40;
+  static const double _maximum = 180;
+  static const double _pixelsPerTenth = 16;
+  late bool _editing;
+  double _value = 100;
+  double _gestureStartValue = 100;
+  double _gestureStartX = 0;
+  double _dialStartAngle = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _editing =
+        widget.initiallyExpanded ||
+        double.tryParse(widget.controller.text) == null;
+    _read();
+    widget.controller.addListener(_read);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_read);
+    super.dispose();
+  }
+
+  void _read() {
+    final next = (double.tryParse(widget.controller.text) ?? _value)
+        .clamp(_minimum, _maximum)
+        .toDouble();
+    if (next != _value && mounted) setState(() => _value = next);
+  }
+
+  void _set(double next) {
+    final quantized = ((next.clamp(_minimum, _maximum) * 10).round() / 10)
+        .toStringAsFixed(1);
+    if (widget.controller.text != quantized) widget.controller.text = quantized;
+  }
+
+  void _step(int tenths) => _set(((_value * 10).round() + tenths) / 10);
+
+  double _angleFor(Offset local, Size size) =>
+      math.atan2(local.dy - size.height / 2, local.dx - size.width / 2);
+
+  double _shortestAngle(double current, double start) {
+    var delta = current - start;
+    while (delta > math.pi) {
+      delta -= math.pi * 2;
+    }
+    while (delta < -math.pi) {
+      delta += math.pi * 2;
+    }
+    return delta;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    if (!_editing && widget.controller.text.isNotEmpty) {
+      return _CollapsedStatusValue(
+        key: const ValueKey('status-weight-collapsed'),
+        label: 'Weight',
+        value: '${_value.toStringAsFixed(1)} kg',
+        onTap: () => setState(() => _editing = true),
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.field,
+        border: Border.all(color: palette.auxiliaryText),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+        child: Column(
+          children: [
+            Text(
+              '${_value.toStringAsFixed(1)} kg',
+              key: const ValueKey('status-weight-radio-readout'),
+              maxLines: 1,
+              style: baseCampStatusReadoutStyle(
+                context,
+                Theme.of(context).textTheme.headlineMedium,
+                fontSize: 28,
+              ),
+            ),
+            const SizedBox(height: 10),
+            LayoutBuilder(
+              builder: (context, constraints) => Semantics(
+                slider: true,
+                label: 'Weight',
+                value: '${_value.toStringAsFixed(1)} kilograms',
+                increasedValue: _value >= _maximum
+                    ? null
+                    : '${(_value + .1).toStringAsFixed(1)} kilograms',
+                decreasedValue: _value <= _minimum
+                    ? null
+                    : '${(_value - .1).toStringAsFixed(1)} kilograms',
+                onIncrease: _value >= _maximum ? null : () => _step(1),
+                onDecrease: _value <= _minimum ? null : () => _step(-1),
+                child: GestureDetector(
+                  key: const ValueKey('status-weight-radio-scale'),
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragStart: (details) {
+                    _gestureStartValue = _value;
+                    _gestureStartX = details.localPosition.dx;
+                  },
+                  onHorizontalDragUpdate: (details) => _set(
+                    _gestureStartValue -
+                        (details.localPosition.dx - _gestureStartX) /
+                            _pixelsPerTenth /
+                            10,
+                  ),
+                  child: SizedBox(
+                    height: 82,
+                    width: double.infinity,
+                    child: CustomPaint(
+                      painter: _RadioScalePainter(
+                        value: _value,
+                        palette: palette,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _RetroStepButton(
+                  key: const ValueKey('status-weight-minus'),
+                  icon: Icons.remove,
+                  tooltip: 'Decrease weight by 0.1kg',
+                  onPressed: _value <= _minimum ? null : () => _step(-1),
+                ),
+                const SizedBox(width: 16),
+                Semantics(
+                  label: 'Weight fine tuning dial',
+                  value: '${_value.toStringAsFixed(1)} kilograms',
+                  child: GestureDetector(
+                    key: const ValueKey('status-weight-rotary-dial'),
+                    behavior: HitTestBehavior.opaque,
+                    onPanStart: (details) {
+                      _gestureStartValue = _value;
+                      _dialStartAngle = _angleFor(
+                        details.localPosition,
+                        const Size.square(72),
+                      );
+                    },
+                    onPanUpdate: (details) {
+                      final angle = _angleFor(
+                        details.localPosition,
+                        const Size.square(72),
+                      );
+                      final detents =
+                          (_shortestAngle(angle, _dialStartAngle) /
+                                  (math.pi / 12))
+                              .round();
+                      _set(_gestureStartValue + detents / 10);
+                    },
+                    child: SizedBox.square(
+                      dimension: 72,
+                      child: CustomPaint(
+                        painter: _RotaryDialPainter(
+                          value: _value,
+                          palette: palette,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                _RetroStepButton(
+                  key: const ValueKey('status-weight-plus'),
+                  icon: Icons.add,
+                  tooltip: 'Increase weight by 0.1kg',
+                  onPressed: _value >= _maximum ? null : () => _step(1),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                key: const ValueKey('status-weight-done'),
+                onPressed: () => setState(() => _editing = false),
+                icon: const Icon(Icons.lock_outline, size: 15),
+                label: const Text('完了'),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RadioScalePainter extends CustomPainter {
+  const _RadioScalePainter({required this.value, required this.palette});
+
+  final double value;
+  final BaseCampTerminalPalette palette;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final border = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = palette.primaryText;
+    canvas.drawRect(rect.deflate(.5), border);
+    final centerX = size.width / 2;
+    final centerTenths = (value * 10).round();
+    const pixelsPerTenth = _BaseCampWeightTunerState._pixelsPerTenth;
+    final visible = (size.width / pixelsPerTenth / 2).ceil() + 2;
+    final tick = Paint()..strokeCap = StrokeCap.square;
+    for (var delta = -visible; delta <= visible; delta++) {
+      final tenths = centerTenths + delta;
+      if (tenths < 400 || tenths > 1800) continue;
+      final x = centerX + delta * pixelsPerTenth;
+      final major = tenths % 10 == 0;
+      final half = !major && tenths % 5 == 0;
+      final height = major
+          ? 27.0
+          : half
+          ? 20.0
+          : 12.0;
+      tick
+        ..strokeWidth = major ? 1.5 : 1
+        ..color = palette.primaryText;
+      canvas.drawLine(Offset(x, 48 - height), Offset(x, 48), tick);
+      if (major) {
+        final label = TextPainter(
+          text: TextSpan(
+            text: '${tenths ~/ 10}',
+            style: TextStyle(
+              color: palette.primaryText,
+              fontFamily: baseCampPixelFontFamily,
+              fontSize: 7,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        label.paint(canvas, Offset(x - label.width / 2, 57));
+      }
+    }
+    final needle = Paint()
+      ..color = const Color(0xffe67d30)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.square;
+    canvas.drawLine(Offset(centerX, 7), Offset(centerX, 58), needle);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RadioScalePainter oldDelegate) =>
+      oldDelegate.value != value ||
+      oldDelegate.palette.negative != palette.negative;
+}
+
+class _RotaryDialPainter extends CustomPainter {
+  const _RotaryDialPainter({required this.value, required this.palette});
+
+  final double value;
+  final BaseCampTerminalPalette palette;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2 - 3;
+    final outer = Paint()
+      ..style = PaintingStyle.fill
+      ..color = BaseCampTerminalPalette.housing;
+    canvas.drawCircle(center, radius, outer);
+    final ridge = Paint()
+      ..strokeWidth = 2
+      ..color = BaseCampTerminalPalette.housingEdge;
+    for (var index = 0; index < 20; index++) {
+      final angle = index * math.pi * 2 / 20;
+      canvas.drawLine(
+        center + Offset(math.cos(angle), math.sin(angle)) * (radius - 5),
+        center + Offset(math.cos(angle), math.sin(angle)) * radius,
+        ridge,
+      );
+    }
+    canvas.drawCircle(
+      center,
+      radius - 8,
+      Paint()
+        ..color = palette.field
+        ..style = PaintingStyle.fill,
+    );
+    final angle =
+        -math.pi * .75 + ((value * 10).round() % 30) / 29 * math.pi * 1.5;
+    canvas.drawLine(
+      center,
+      center + Offset(math.cos(angle), math.sin(angle)) * (radius - 13),
+      Paint()
+        ..color = palette.primaryText
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.square,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RotaryDialPainter oldDelegate) =>
+      oldDelegate.value != value ||
+      oldDelegate.palette.negative != palette.negative;
+}
+
+class _BaseCampBodyFatMeter extends StatefulWidget {
+  const _BaseCampBodyFatMeter({
+    super.key,
+    required this.controller,
+    required this.initiallyExpanded,
+  });
+
+  final TextEditingController controller;
+  final bool initiallyExpanded;
+
+  @override
+  State<_BaseCampBodyFatMeter> createState() => _BaseCampBodyFatMeterState();
+}
+
+class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
+  static const double _minimum = 0;
+  static const double _maximum = 60;
+  late bool _editing;
+  double _value = 20;
+
+  @override
+  void initState() {
+    super.initState();
+    _editing =
+        widget.initiallyExpanded ||
+        double.tryParse(widget.controller.text) == null;
+    _read();
+    widget.controller.addListener(_read);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_read);
+    super.dispose();
+  }
+
+  void _read() {
+    final next = (double.tryParse(widget.controller.text) ?? _value)
+        .clamp(_minimum, _maximum)
+        .toDouble();
+    if (next != _value && mounted) setState(() => _value = next);
+  }
+
+  void _step(int tenths) {
+    final next = (((_value * 10).round() + tenths).clamp(0, 600)) / 10;
+    widget.controller.text = next.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_editing && widget.controller.text.isNotEmpty) {
+      return _CollapsedStatusValue(
+        key: const ValueKey('status-body-fat-collapsed'),
+        label: 'Body Fat',
+        value: '${_value.toStringAsFixed(1)} %',
+        onTap: () => setState(() => _editing = true),
+      );
+    }
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    final localMin = (_value.floorToDouble() - 1).clamp(0, 57).toDouble();
+    const localSpan = 3.0;
+    final fraction = ((_value - localMin) / localSpan).clamp(0.0, 1.0);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.field,
+        border: Border.all(color: palette.auxiliaryText),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                _RetroStepButton(
+                  key: const ValueKey('status-body-fat-minus'),
+                  icon: Icons.remove,
+                  tooltip: 'Decrease body fat by 0.1%',
+                  onPressed: _value <= _minimum ? null : () => _step(-1),
+                ),
+                Expanded(
+                  child: Text(
+                    '${_value.toStringAsFixed(1)} %',
+                    key: const ValueKey('status-body-fat-lcd-readout'),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    style: baseCampStatusReadoutStyle(
+                      context,
+                      Theme.of(context).textTheme.headlineMedium,
+                      fontSize: 26,
+                    ),
+                  ),
+                ),
+                _RetroStepButton(
+                  key: const ValueKey('status-body-fat-plus'),
+                  icon: Icons.add,
+                  tooltip: 'Increase body fat by 0.1%',
+                  onPressed: _value >= _maximum ? null : () => _step(1),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _SegmentMeter(
+              key: const ValueKey('status-body-fat-segments'),
+              segmentCount: 20,
+              filledCount: (fraction * 20).round(),
+              palette: palette,
+            ),
+            const SizedBox(height: 5),
+            Row(
+              children: [
+                Text(
+                  '${localMin.toStringAsFixed(1)}%',
+                  style: baseCampStatusReadoutStyle(
+                    context,
+                    Theme.of(context).textTheme.labelSmall,
+                    fontSize: 7,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'STEP 0.1%',
+                  style: baseCampStatusReadoutStyle(
+                    context,
+                    Theme.of(context).textTheme.labelSmall,
+                    fontSize: 7,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${(localMin + localSpan).toStringAsFixed(1)}%',
+                  style: baseCampStatusReadoutStyle(
+                    context,
+                    Theme.of(context).textTheme.labelSmall,
+                    fontSize: 7,
+                  ),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                key: const ValueKey('status-body-fat-done'),
+                onPressed: () => setState(() => _editing = false),
+                child: const Text('完了'),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SegmentMeter extends StatelessWidget {
+  const _SegmentMeter({
+    super.key,
+    required this.segmentCount,
+    required this.filledCount,
+    required this.palette,
+  });
+
+  final int segmentCount;
+  final int filledCount;
+  final BaseCampTerminalPalette palette;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 20,
+    child: Row(
+      children: List<Widget>.generate(segmentCount, (index) {
+        final filled = index < filledCount;
+        return Expanded(
+          child: Container(
+            key: ValueKey('segment-$index-${filled ? 'filled' : 'empty'}'),
+            margin: EdgeInsets.only(right: index == segmentCount - 1 ? 0 : 2),
+            decoration: BoxDecoration(
+              color: filled ? palette.primaryText : palette.background,
+              border: Border.all(color: palette.auxiliaryText, width: .8),
+            ),
+          ),
+        );
+      }),
+    ),
+  );
+}
+
+class _RetroStepButton extends StatelessWidget {
+  const _RetroStepButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    final enabled = onPressed != null;
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox.square(
+        dimension: 44,
+        child: Material(
+          color: enabled ? palette.field : palette.auxiliaryText,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: BorderSide(color: palette.primaryText),
+          ),
+          child: InkWell(
+            onTap: onPressed,
+            child: Icon(
+              icon,
+              color: enabled ? palette.primaryText : palette.background,
+            ),
+          ),
+        ),
+      ),
+    ).actionableFeedback(enabled: enabled, role: ActionableFeedbackRole.cursor);
+  }
 }
 
 class _WeightHud extends StatefulWidget {
@@ -1124,6 +1687,7 @@ class _CollapsedStatusValue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.primary;
+    final baseCamp = isBaseCampStatus(context);
     return Semantics(
       button: true,
       label: '$label $value 再編集',
@@ -1150,11 +1714,17 @@ class _CollapsedStatusValue extends StatelessWidget {
               ),
               Text(
                 value,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'ShareTechMono',
-                ),
+                style: baseCamp
+                    ? baseCampStatusReadoutStyle(
+                        context,
+                        Theme.of(context).textTheme.titleLarge,
+                        color: color,
+                      )
+                    : Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'ShareTechMono',
+                      ),
               ),
               Icon(Icons.edit_outlined, size: 18, color: color),
             ],
@@ -1267,18 +1837,30 @@ class _Toggle extends StatelessWidget {
   @override
   Widget build(BuildContext c) {
     final baseCamp = BaseCampRetroTheme.isApplied(Theme.of(c));
-    return ChoiceChip(
-      label: Text(
-        '未計測',
-        style: baseCamp
-            ? BaseCampRetroTheme.japaneseControl(
-                Theme.of(c).textTheme.labelLarge,
-              )
-            : null,
-      ),
-      selected: selected,
-      onSelected: (_) => onPressed(),
-    ).actionableFeedback(role: ActionableFeedbackRole.cursor);
+    final controlColors = isBaseCampStatus(c)
+        ? BaseCampStatusControlColors.resolve(c, selected: selected)
+        : null;
+    final label = Text(
+      '未計測',
+      style: baseCamp
+          ? BaseCampRetroTheme.japaneseControl(
+              Theme.of(c).textTheme.labelLarge,
+            ).copyWith(color: controlColors?.foreground)
+          : null,
+    );
+    final chip = isBaseCampStatus(c)
+        ? baseCampStatusChoiceChip(
+            context: c,
+            label: label,
+            selected: selected,
+            onSelected: (_) => onPressed(),
+          )
+        : ChoiceChip(
+            label: label,
+            selected: selected,
+            onSelected: (_) => onPressed(),
+          );
+    return chip.actionableFeedback(role: ActionableFeedbackRole.cursor);
   }
 }
 
