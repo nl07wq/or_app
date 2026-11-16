@@ -140,19 +140,43 @@ class _WebIndexedDbDatabase implements IndexedDbDatabase {
       names.length == 1 ? names.single : names,
       mode == IndexedDbTransactionMode.readOnly ? 'readonly' : 'readwrite',
     );
-    final completed = transaction.completed;
+    Object? completionError;
+    StackTrace? completionStackTrace;
+    // Observe the browser transaction outcome immediately. If [action]
+    // fails and we abort below, `transaction.completed` completes with the
+    // raw DOM Event(type: abort). Leaving that future unobserved reports a
+    // second, unrelated WINDOW_ERROR after the original operation has
+    // already been handled by its caller.
+    final completed = transaction.completed.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) {
+        completionError = error;
+        completionStackTrace = stackTrace;
+      },
+    );
+
+    late final T result;
     try {
-      final result = await action(_WebIndexedDbTransaction(transaction, names));
-      await completed;
-      return result;
-    } catch (_) {
+      result = await action(_WebIndexedDbTransaction(transaction, names));
+    } catch (error, stackTrace) {
       try {
         transaction.abort();
       } catch (_) {
         // The browser may have already completed or aborted the transaction.
       }
-      rethrow;
+      await completed;
+      Error.throwWithStackTrace(error, stackTrace);
     }
+
+    await completed;
+    final transactionError = completionError;
+    if (transactionError != null) {
+      Error.throwWithStackTrace(
+        transactionError,
+        completionStackTrace ?? StackTrace.current,
+      );
+    }
+    return result;
   }
 }
 
