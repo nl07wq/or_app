@@ -34,15 +34,45 @@
 
   <title>or_app</title>
   <link rel="manifest" href="manifest.json">
-  <!-- The pinned dart2js build uses CanvasKit from Flutter's gstatic origin.
-       Establishing the connection while the HTML shell is parsed overlaps
-       DNS/TLS with main.dart.js acquisition without blocking bootstrap. -->
-  <link rel="dns-prefetch" href="//www.gstatic.com">
-  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <script>
     // In-memory startup marks: no synchronous storage write is introduced on
     // the critical path. Dart records the values in the existing diagnostics.
     window.__orAppStartupTiming = { documentStartMs: 0 };
+    // Record the browser's actual first paint separately from Flutter BOOT.
+    // This observer is passive and never gates loader or application work.
+    try {
+      new PerformanceObserver(function (list) {
+        for (const entry of list.getEntries()) {
+          if (entry.name === 'first-contentful-paint') {
+            window.__orAppStartupTiming.firstContentfulPaintMs = entry.startTime;
+          }
+        }
+      }).observe({ type: 'paint', buffered: true });
+    } catch (_) {}
+
+    // The build already ships the exact pinned CanvasKit revision under the
+    // application base path. Start acquiring the variant Flutter will select
+    // while main.dart.js is loading, avoiding a later cross-origin DNS/TLS and
+    // fetch start inside initializeEngine().
+    (function () {
+      const supportsChromiumVariant =
+        typeof ImageDecoder !== 'undefined' &&
+        typeof Intl.v8BreakIterator !== 'undefined' &&
+        typeof Intl.Segmenter !== 'undefined';
+      const variant = supportsChromiumVariant ? 'canvaskit/chromium/' : 'canvaskit/';
+      const module = document.createElement('link');
+      module.rel = 'modulepreload';
+      module.href = variant + 'canvaskit.js';
+      const wasm = document.createElement('link');
+      wasm.rel = 'preload';
+      wasm.as = 'fetch';
+      wasm.type = 'application/wasm';
+      wasm.crossOrigin = 'anonymous';
+      wasm.href = variant + 'canvaskit.wasm';
+      document.head.append(module, wasm);
+      window.__orAppStartupTiming.canvasKitPreloadVariant = variant;
+      window.__orAppStartupTiming.canvasKitPreloadRequestedMs = performance.now();
+    })();
     // Keep a tiny, bounded pre-Dart record. If WebKit suspends or terminates
     // startup before Dart runs, the next successful launch can still export
     // the last observable browser boundary. This is independent of the
@@ -92,9 +122,82 @@
     flutter-view, flt-glass-pane, flt-scene-host {
       background: #101010;
     }
+    #or-app-preflutter {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      box-sizing: border-box;
+      padding: 24px;
+      pointer-events: none;
+      background: #101010;
+      color: #d8ded8;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .08em;
+    }
+    .or-preflight-panel {
+      width: min(320px, 100%);
+      border: 1px solid #687068;
+      background: #171b17;
+      box-shadow: inset 0 0 0 3px #0c0f0c;
+      padding: 18px;
+    }
+    .or-preflight-id {
+      color: #8f988f;
+      font-size: 10px;
+      margin-bottom: 8px;
+    }
+    .or-preflight-title {
+      font-size: 18px;
+      line-height: 1.4;
+      margin-bottom: 18px;
+    }
+    .or-preflight-state {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 10px;
+      color: #aeb6ae;
+    }
+    .or-preflight-track {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+      margin-top: 9px;
+    }
+    .or-preflight-track span {
+      height: 5px;
+      border: 1px solid #5d655d;
+      background: #252b25;
+    }
+    .or-preflight-track span:first-child {
+      background: #aeb6ae;
+    }
+    #or-app-preflutter[data-state="failed"] .or-preflight-state {
+      color: #e3a49c;
+    }
+    #or-app-preflutter[data-state="complete"] {
+      visibility: hidden;
+    }
   </style>
 </head>
 <body>
+  <div id="or-app-preflutter" role="status" aria-live="polite">
+    <div class="or-preflight-panel">
+      <div class="or-preflight-id">OPERATION REBOOT</div>
+      <div class="or-preflight-title">PRE-FLIGHT SYSTEM</div>
+      <div class="or-preflight-state">
+        <span>FLUTTER CORE</span><span>INITIALIZING</span>
+      </div>
+      <div class="or-preflight-track" aria-hidden="true">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+  <script>
+    window.__orAppStartupTiming.preFlutterHostCreatedMs = performance.now();
+  </script>
   <script>
     // Temporary startup-lifecycle diagnostic. It deliberately records only
     // document/presentation metadata and is bounded so it remains harmless.
@@ -280,6 +383,14 @@
         window.__orAppMarkPreDart('bootstrap_loaded', {
           bootstrapScriptLoadedMs: window.__orAppStartupTiming.bootstrapScriptLoadedMs
         });
+      }, { once: true });
+      bootstrap.addEventListener('error', function () {
+        const host = document.getElementById('or-app-preflutter');
+        if (host) {
+          host.dataset.state = 'failed';
+          const state = host.querySelector('.or-preflight-state span:last-child');
+          if (state) state.textContent = 'STARTUP FAILED';
+        }
       }, { once: true });
       document.body.appendChild(bootstrap);
     });

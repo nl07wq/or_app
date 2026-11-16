@@ -21,6 +21,7 @@ Future<void> main() async {
     ..beginSession()
     ..installGlobalErrorHandlers()
     ..installNavigationBoundaryHandlers()
+    ..installStartupTimingHandlers()
     ..recordBrowserStartupTiming()
     ..record('APPLICATION', 'DART_MAIN_ENTER');
   _installFlutterErrorDiagnostics(systemDiagnostics);

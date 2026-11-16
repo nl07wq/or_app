@@ -9,6 +9,11 @@ const markStartup = (event, fields = {}) => {
 };
 
 _flutter.loader.load({
+  config: {
+    // The loader starts CanvasKit before onEntrypointLoaded runs, so this
+    // setting must live here rather than in initializeEngine().
+    canvasKitBaseUrl: 'canvaskit/',
+  },
   onEntrypointLoaded: async function(engineInitializer) {
     startupTiming.entrypointLoadedMs = performance.now();
     markStartup('entrypoint_loaded', {
@@ -23,7 +28,7 @@ _flutter.loader.load({
     startupTiming.engineInitializeCompleteMs = performance.now();
     const engineResources = performance.getEntriesByType('resource')
       .filter((entry) => /flutter-canvaskit|canvaskit/i.test(entry.name))
-      .slice(-12)
+      .slice(-16)
       .map((entry) => {
         let resource = 'unknown';
         try {
@@ -31,12 +36,27 @@ _flutter.loader.load({
         } catch (_) {}
         return {
           resource,
+          source: entry.name.includes(location.origin)
+            ? 'same_origin'
+            : 'cross_origin',
           initiatorType: entry.initiatorType || 'unknown',
           startMs: Math.round(entry.startTime),
+          responseEndMs: Math.round(entry.responseEnd),
           durationMs: Math.round(entry.duration),
+          fetchWaitMs:
+            entry.responseStart > 0
+              ? Math.round(entry.responseStart - entry.fetchStart)
+              : null,
+          downloadMs:
+            entry.responseStart > 0
+              ? Math.round(entry.responseEnd - entry.responseStart)
+              : null,
           transferBytes: entry.transferSize || 0,
           encodedBytes: entry.encodedBodySize || 0,
           decodedBytes: entry.decodedBodySize || 0,
+          cacheStatus: entry.transferSize === 0 && entry.decodedBodySize > 0
+            ? 'reused'
+            : 'transferred',
           protocol: entry.nextHopProtocol || 'unknown',
         };
       });
@@ -52,8 +72,11 @@ _flutter.loader.load({
     });
     await appRunner.runApp();
     startupTiming.runAppCompleteMs = performance.now();
+    const preFlutterHost = document.getElementById('or-app-preflutter');
+    if (preFlutterHost) preFlutterHost.dataset.state = 'complete';
     markStartup('flutter_run_app_complete', {
       runAppCompleteMs: startupTiming.runAppCompleteMs,
     });
+    window.dispatchEvent(new CustomEvent('or-app-run-app-complete'));
   },
 });
