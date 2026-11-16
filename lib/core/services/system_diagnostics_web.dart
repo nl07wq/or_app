@@ -537,6 +537,17 @@ class SystemDiagnostics {
           ),
           'mainPreloadRequestedMs': _jsNumber(timing, 'mainPreloadRequestedMs'),
           'mainPreloadLoadedMs': _jsNumber(timing, 'mainPreloadLoadedMs'),
+          'entrypointLoadedMs': _jsNumber(timing, 'entrypointLoadedMs'),
+          'engineInitializeStartMs': _jsNumber(
+            timing,
+            'engineInitializeStartMs',
+          ),
+          'engineInitializeCompleteMs': _jsNumber(
+            timing,
+            'engineInitializeCompleteMs',
+          ),
+          'runAppStartMs': _jsNumber(timing, 'runAppStartMs'),
+          'runAppCompleteMs': _jsNumber(timing, 'runAppCompleteMs'),
           'dartMainMs': dartMainMs,
           'documentToDartMainMs': dartMainMs,
         },

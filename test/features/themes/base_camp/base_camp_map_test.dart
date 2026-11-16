@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -252,6 +253,61 @@ void main() {
     expect(source, contains("'schedulingStrategy':"));
     expect(source, contains("'cacheReuseCount':"));
     expect(source, contains("'frameTimings':"));
+  });
+
+  test('asset acquisition is bounded and cache reuse uses real status', () {
+    final helpers = File(
+      'lib/features/themes/base_camp/base_camp_facility_assets.dart',
+    ).readAsStringSync();
+    final map = File(
+      'lib/features/themes/base_camp/widgets/base_camp_map.dart',
+    ).readAsStringSync();
+
+    expect(helpers, contains('baseCampAssetAcquisitionConcurrency = 4'));
+    expect(helpers, contains('baseCampAcquireAssetBytes'));
+    expect(map, contains("cache['cacheReused'] == true"));
+    expect(map, isNot(contains("cache['cacheStatus'] != 'miss'")));
+    expect(map, contains("'acquisitionMs': acquisition.durationMs"));
+  });
+
+  test(
+    'compressed asset acquisition enforces the shared concurrency bound',
+    () async {
+      var active = 0;
+      var maximumActive = 0;
+      final result = await baseCampAcquireAssetBytes(
+        List<String>.generate(12, (index) => 'asset-$index'),
+        loader: (asset) async {
+          active++;
+          maximumActive = math.max(maximumActive, active);
+          await Future<void>.delayed(const Duration(milliseconds: 2));
+          active--;
+          if (asset == 'asset-7') {
+            throw StateError('synthetic acquisition miss');
+          }
+          return ByteData(1);
+        },
+      );
+
+      expect(maximumActive, baseCampAssetAcquisitionConcurrency);
+      expect(result.assetCount, 12);
+      expect(result.loadedCount, 11);
+      expect(result.failedCount, 1);
+    },
+  );
+
+  test('facility alpha masks do not wait for throttled rendered frames', () {
+    final source = File(
+      'lib/features/themes/base_camp/widgets/base_camp_map.dart',
+    ).readAsStringSync();
+    final start = source.indexOf(
+      'Future<T> _scheduleAlphaDecode<T>(Future<T> Function() decode)',
+    );
+    final end = source.indexOf('\n  void invalidate(', start);
+    final method = source.substring(start, end);
+
+    expect(method, contains('await Future<void>.value()'));
+    expect(method, isNot(contains('SchedulerBinding.instance.endOfFrame')));
   });
 
   testWidgets('WATER V3B overlay is clipped to masks and protected land', (

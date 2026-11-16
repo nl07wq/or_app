@@ -748,7 +748,7 @@ class _BreathingSoldierCompartmentState
           _riflePrecacheInFlight = false;
           return;
         }
-        if (cache['cacheStatus'] != 'miss') cacheReuseCount++;
+        if (cache['cacheReused'] == true) cacheReuseCount++;
         await baseCampPrecacheImage(provider, context);
         _readyRifleFrames.add(asset);
         _failedRifleFrames.remove(asset);

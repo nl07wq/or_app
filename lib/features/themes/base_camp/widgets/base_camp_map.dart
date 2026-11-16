@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import 'package:or_app/core/services/system_diagnostics.dart';
@@ -789,14 +788,19 @@ class _BaseCampMapState extends State<BaseCampMap>
     var cacheReuseCount = 0;
     var eventLoopYieldMs = 0;
     final frameTimings = <Map<String, Object?>>[];
+    late BaseCampAssetAcquisitionResult acquisition;
     try {
+      acquisition = await baseCampAcquireAssetBytes(
+        baseCampWaterV3BFrameAssets,
+      );
+      if (!mounted) return;
       for (var index = 0; index < baseCampWaterV3BFrameAssets.length; index++) {
         final asset = baseCampWaterV3BFrameAssets[index];
         final frameWatch = Stopwatch()..start();
         final provider = AssetImage(asset);
         final cache = await baseCampImageCacheFields(provider, context);
         if (!mounted) return;
-        if (cache['cacheStatus'] != 'miss') cacheReuseCount++;
+        if (cache['cacheReused'] == true) cacheReuseCount++;
         await baseCampPrecacheImage(provider, context);
         if (!mounted) return;
         frameTimings.add(<String, Object?>{
@@ -850,6 +854,10 @@ class _BaseCampMapState extends State<BaseCampMap>
             4 *
             baseCampWaterV3BFrameCount,
         'cacheReuseCount': cacheReuseCount,
+        'acquisitionAssetCount': acquisition.assetCount,
+        'acquisitionLoadedCount': acquisition.loadedCount,
+        'acquisitionFailedCount': acquisition.failedCount,
+        'acquisitionMs': acquisition.durationMs,
         'eventLoopYieldMs': eventLoopYieldMs,
         'schedulingStrategy': 'sequential_decode_event_loop_yield_every_4',
         'frameTimings': frameTimings,
@@ -968,6 +976,12 @@ class _BaseCampMapState extends State<BaseCampMap>
       },
     );
 
+    final bundledAssets = _visibleFacilityObjects()
+        .map((object) => baseCampObjectAssets[object.assetId])
+        .whereType<String>();
+    final acquisition = await baseCampAcquireAssetBytes(bundledAssets);
+    if (!mounted) return;
+
     while (mounted) {
       final objects = _visibleFacilityObjects();
       for (final object in objects) {
@@ -1060,6 +1074,10 @@ class _BaseCampMapState extends State<BaseCampMap>
         'failedCount': failedCount,
         'startedBeforeMapDisplay': _facilityPreparationStartedBeforeMapDisplay,
         'eventLoopYieldMs': eventLoopYieldMs,
+        'acquisitionAssetCount': acquisition.assetCount,
+        'acquisitionLoadedCount': acquisition.loadedCount,
+        'acquisitionFailedCount': acquisition.failedCount,
+        'acquisitionMs': acquisition.durationMs,
         'schedulingStrategy': 'sequential_decode_event_loop_yield',
         'objectTimings': objectTimings,
         'durationMs': watch.elapsedMilliseconds,
@@ -1172,6 +1190,8 @@ class _BaseCampMapState extends State<BaseCampMap>
     var eventLoopYieldMs = 0;
     final frameTimings = <Map<String, Object?>>[];
     final assets = baseCampWalkerWarmupAssets;
+    final acquisition = await baseCampAcquireAssetBytes(assets);
+    if (!mounted) return;
     for (var index = 0; index < assets.length; index++) {
       final yieldWatch = Stopwatch()..start();
       await Future<void>.value();
@@ -1183,7 +1203,7 @@ class _BaseCampMapState extends State<BaseCampMap>
         final provider = baseCampWalkerFrameProvider(asset);
         final cache = await baseCampImageCacheFields(provider, context);
         if (!mounted) return;
-        if (cache['cacheStatus'] != 'miss') cacheReuseCount++;
+        if (cache['cacheReused'] == true) cacheReuseCount++;
         await baseCampPrecacheImage(provider, context);
         loaded++;
         recordBaseCampAssetReady(asset);
@@ -1229,6 +1249,10 @@ class _BaseCampMapState extends State<BaseCampMap>
         'loadedFrames': loaded,
         'frameCount': assets.length,
         'cacheReuseCount': cacheReuseCount,
+        'acquisitionAssetCount': acquisition.assetCount,
+        'acquisitionLoadedCount': acquisition.loadedCount,
+        'acquisitionFailedCount': acquisition.failedCount,
+        'acquisitionMs': acquisition.durationMs,
         'eventLoopYieldMs': eventLoopYieldMs,
         'schedulingStrategy': 'sequential_decode_event_loop_yield',
         'frameTimings': frameTimings,
@@ -2340,7 +2364,11 @@ class BaseCampMapAssetResolver {
   Future<T> _scheduleAlphaDecode<T>(Future<T> Function() decode) {
     final result = Completer<T>();
     _alphaDecodeTail = _alphaDecodeTail.then((_) async {
-      await SchedulerBinding.instance.endOfFrame;
+      // Keep alpha decoding serialized to bound peak memory, but do not gate
+      // each facility on a rendered frame. iOS may throttle those frames after
+      // an idle reopen, turning six harmless pacing waits into seconds before
+      // the atomic facility reveal can complete.
+      await Future<void>.value();
       try {
         result.complete(await decode());
       } catch (error, stackTrace) {

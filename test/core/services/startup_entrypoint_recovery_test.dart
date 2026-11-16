@@ -78,4 +78,17 @@ void main() {
     expect(source, contains("'main_preload_loaded'"));
     expect(source, contains("'main_preload_failed'"));
   });
+
+  test('custom Flutter bootstrap separates evaluation and engine timing', () {
+    final source = File('web/flutter_bootstrap.js').readAsStringSync();
+
+    expect(source, contains('onEntrypointLoaded'));
+    expect(source, contains('entrypointLoadedMs'));
+    expect(source, contains('engineInitializeStartMs'));
+    expect(source, contains('engineInitializeCompleteMs'));
+    expect(source, contains('runAppStartMs'));
+    expect(source, contains('runAppCompleteMs'));
+    expect(source, contains('await engineInitializer.initializeEngine()'));
+    expect(source, contains('await appRunner.runApp()'));
+  });
 }
