@@ -14,7 +14,7 @@ void main() {
   setUpAll(() async {
     await _loadFont('PressStart2P', 'assets/fonts/PressStart2P-Regular.ttf');
     await _loadFont('DotGothic16', 'assets/fonts/DotGothic16-Regular.ttf');
-    await _loadFont('MPlus1Code', 'assets/fonts/MPLUS1Code[wght].ttf');
+    await _loadFont('MPlus1Code', 'assets/fonts/MPLUS1Code-wght.ttf');
   });
 
   test('mixed-script rule splits only Japanese plus Latin content', () {

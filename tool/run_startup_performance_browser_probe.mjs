@@ -10,6 +10,10 @@ const port = Number(process.argv[4] ?? '8775');
 const debugPort = Number(process.argv[5] ?? '9345');
 const buildRoot = process.argv[6] ?? 'build/web';
 const candidateMode = (process.argv[7] ?? 'candidate') === 'candidate';
+const cpuThrottleRate = Number(process.argv[8] ?? '1');
+const cacheRunCount = Number(process.argv[9] ?? '4');
+const networkLatencyMs = Number(process.argv[10] ?? '0');
+const downloadKbps = Number(process.argv[11] ?? '0');
 const appUrl = `http://127.0.0.1:${port}/or_app/`;
 const chrome = process.env.OR_APP_CHROME ??
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
@@ -28,6 +32,7 @@ class Cdp {
     this.socket = new WebSocket(url);
     this.nextId = 1;
     this.pending = new Map();
+    this.listeners = new Map();
   }
   async open() {
     await new Promise((resolve, reject) => {
@@ -36,13 +41,23 @@ class Cdp {
     });
     this.socket.addEventListener('message', (event) => {
       const message = JSON.parse(event.data);
-      if (message.id == null) return;
+      if (message.id == null) {
+        for (const listener of this.listeners.get(message.method) ?? []) {
+          listener(message.params ?? {});
+        }
+        return;
+      }
       const pending = this.pending.get(message.id);
       if (!pending) return;
       this.pending.delete(message.id);
       message.error ? pending.reject(new Error(JSON.stringify(message.error)))
         : pending.resolve(message.result);
     });
+  }
+  on(method, listener) {
+    const listeners = this.listeners.get(method) ?? [];
+    listeners.push(listener);
+    this.listeners.set(method, listeners);
   }
   send(method, params = {}) {
     const id = this.nextId++;
@@ -106,20 +121,67 @@ async function openPage() {
   await cdp.send('Page.enable');
   await cdp.send('Runtime.enable');
   await cdp.send('Network.enable');
-  await cdp.send('Page.navigate', { url: appUrl });
+  if (networkLatencyMs > 0 || downloadKbps > 0) {
+    await cdp.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: networkLatencyMs,
+      downloadThroughput: downloadKbps > 0
+        ? (downloadKbps * 1024) / 8
+        : -1,
+      uploadThroughput: -1,
+      connectionType: 'cellular4g',
+    });
+  }
+  await cdp.send('Performance.enable');
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: cpuThrottleRate });
+  await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
+    source: `window.__orAppLongTasks = [];
+      try {
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            window.__orAppLongTasks.push({
+              startMs: Math.round(entry.startTime),
+              durationMs: Math.round(entry.duration)
+            });
+            if (window.__orAppLongTasks.length > 32) {
+              window.__orAppLongTasks.shift();
+            }
+          }
+        }).observe({ type: 'longtask', buffered: true });
+      } catch (_) {}`,
+  });
   return cdp;
 }
-async function measure(label, screenshotPath) {
+async function measure(label) {
   await launch();
   const cdp = await openPage();
-  if (screenshotPath && candidateMode) {
-    await waitFor('pre-Flutter host', () => cdp.evaluate(`
-      document.querySelector('#or-app-preflutter') && !document.querySelector('flutter-view')
-    `));
-    const capture = await cdp.send('Page.captureScreenshot', { format: 'png' });
-    await mkdir(dirname(screenshotPath), { recursive: true });
-    await writeFile(screenshotPath, Buffer.from(capture.data, 'base64'));
-  }
+  const requests = new Map();
+  cdp.on('Network.requestWillBeSent', ({ requestId, request, timestamp, type }) => {
+    requests.set(requestId, {
+      url: new URL(request.url).pathname,
+      type,
+      requestTimestamp: timestamp,
+    });
+  });
+  cdp.on('Network.responseReceived', ({ requestId, response, timestamp }) => {
+    const record = requests.get(requestId);
+    if (!record) return;
+    Object.assign(record, {
+      responseTimestamp: timestamp,
+      status: response.status,
+      fromDiskCache: response.fromDiskCache,
+      fromServiceWorker: response.fromServiceWorker,
+      protocol: response.protocol,
+      mimeType: response.mimeType,
+      encodedDataLength: response.encodedDataLength,
+    });
+  });
+  cdp.on('Network.loadingFinished', ({ requestId, timestamp, encodedDataLength }) => {
+    const record = requests.get(requestId);
+    if (!record) return;
+    Object.assign(record, { finishedTimestamp: timestamp, encodedDataLength });
+  });
+  await cdp.send('Page.navigate', { url: appUrl });
   const timing = await waitFor('runApp complete', () => cdp.evaluate(`
     window.__orAppStartupTiming?.runAppCompleteMs
       ? JSON.parse(JSON.stringify(window.__orAppStartupTiming))
@@ -137,6 +199,16 @@ async function measure(label, screenshotPath) {
   const mainRequests = await cdp.evaluate(`performance.getEntriesByType('resource')
     .filter((entry) => entry.name.includes('main.dart.js'))
     .map((entry) => entry.name)`);
+  const longTasks = await cdp.evaluate(`window.__orAppLongTasks ?? []`);
+  const metricsResult = await cdp.send('Performance.getMetrics');
+  const performanceMetrics = Object.fromEntries(
+    metricsResult.metrics
+      .filter(({ name }) => [
+        'TaskDuration', 'ScriptDuration', 'LayoutDuration',
+        'RecalcStyleDuration', 'JSHeapUsedSize', 'JSHeapTotalSize',
+      ].includes(name))
+      .map(({ name, value }) => [name, value]),
+  );
   const surface = await cdp.evaluate(`(() => {
     const host = document.querySelector('#or-app-preflutter');
     return {
@@ -152,11 +224,21 @@ async function measure(label, screenshotPath) {
     throw new Error(`Release-matched main bundle contract failed: ${mainRequests}`);
   }
   if (candidateMode &&
-      (surface.hostVisibility !== 'hidden' || surface.flutterViewCount !== 1)) {
+      (surface.hostVisibility !== 'absent' || surface.flutterViewCount !== 1)) {
     throw new Error(`Pre-Flutter transition failed: ${JSON.stringify(surface)}`);
   }
   await closeBrowser(cdp);
-  return { label, timing, resources, mainRequests, surface };
+  return {
+    label,
+    cpuThrottleRate,
+    timing,
+    resources,
+    networkRequests: [...requests.values()],
+    mainRequests,
+    longTasks,
+    performanceMetrics,
+    surface,
+  };
 }
 
 try {
@@ -166,15 +248,14 @@ try {
     stdio: 'ignore',
   });
   await waitFor('server', async () => (await fetch(appUrl).catch(() => null))?.ok);
-  const screenshot = join(dirname(output), 'pre_flutter_loading_390.png');
   const runs = [];
-  runs.push(await measure('cold', candidateMode ? screenshot : null));
-  for (let index = 1; index <= 4; index++) {
-    runs.push(await measure(`cache_preserved_${index}`, null));
+  runs.push(await measure('cold'));
+  for (let index = 1; index <= cacheRunCount; index++) {
+    runs.push(await measure(`cache_preserved_${index}`));
   }
   await mkdir(dirname(output), { recursive: true });
   await writeFile(output, JSON.stringify({ release, appUrl, runs }, null, 2));
-  console.log(JSON.stringify({ output, screenshot, runs }, null, 2));
+  console.log(JSON.stringify({ output, runs }, null, 2));
 } finally {
   browser?.kill();
   server?.kill();

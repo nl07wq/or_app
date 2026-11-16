@@ -7,7 +7,7 @@
 - Upstream author project: https://github.com/coz-m/MPLUS_FONTS
 - License: SIL Open Font License 1.1
 - Copyright: Copyright 2021 The M+ FONTS Project Authors
-- Bundled asset: `assets/fonts/MPLUS1Code[wght].ttf` (variable `wght` 100–700)
+- Bundled asset: `assets/fonts/MPLUS1Code-wght.ttf` (variable `wght` 100–700)
 - License copy: `assets/fonts/licenses/OFL-MPLUS1Code.txt`
 - Source metadata copy: `assets/fonts/licenses/MPLUS1Code-METADATA.pb`
 

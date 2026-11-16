@@ -123,15 +123,9 @@ flutter:
     # Japanese UI text local and avoids a runtime font-provider request.
     - family: MPlus1Code
       fonts:
-        - asset: assets/fonts/MPLUS1Code[wght].ttf
+        - asset: assets/fonts/MPLUS1Code-wght.ttf
           weight: 400
-        - asset: assets/fonts/MPLUS1Code[wght].ttf
-          weight: 600
-    - family: KleeOne
-      fonts:
-        - asset: assets/fonts/KleeOne-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/KleeOne-SemiBold.ttf
+        - asset: assets/fonts/MPLUS1Code-wght.ttf
           weight: 600
     - family: ShareTechMono
       fonts:

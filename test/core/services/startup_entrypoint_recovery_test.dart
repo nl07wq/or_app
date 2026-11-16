@@ -70,15 +70,13 @@ void main() {
     expect(source, contains("wasm.href = variant + 'canvaskit.wasm'"));
   });
 
-  test('pre-Flutter host is neutral, inline, and has no artificial hold', () {
+  test('startup host has no additional pre-Flutter presentation', () {
     final source = File('web/index.html').readAsStringSync();
 
-    expect(source, contains('id="or-app-preflutter"'));
-    expect(source, contains('OPERATION REBOOT'));
-    expect(source, contains('PRE-FLIGHT SYSTEM'));
-    expect(source, contains('preFlutterHostCreatedMs'));
+    expect(source, isNot(contains('id="or-app-preflutter"')));
+    expect(source, isNot(contains('PRE-FLIGHT SYSTEM')));
+    expect(source, isNot(contains('preFlutterHostCreatedMs')));
     expect(source, contains('firstContentfulPaintMs'));
-    expect(source, contains('#or-app-preflutter[data-state="complete"]'));
     expect(source, isNot(contains('setTimeout')));
   });
 
@@ -112,7 +110,7 @@ void main() {
     expect(source, contains('runAppStartMs'));
     expect(source, contains('runAppCompleteMs'));
     expect(source, contains("new CustomEvent('or-app-run-app-complete')"));
-    expect(source, contains("preFlutterHost.dataset.state = 'complete'"));
+    expect(source, isNot(contains('or-app-preflutter')));
     expect(source, contains('await engineInitializer.initializeEngine()'));
     expect(source, contains('await appRunner.runApp()'));
   });

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +7,14 @@ import 'package:or_app/core/services/font_readiness_service.dart';
 import 'package:or_app/core/theme/app_theme.dart';
 
 void main() {
+  test('web font manifest source excludes unused and URL-unsafe faces', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+
+    expect(pubspec, isNot(contains('family: KleeOne')));
+    expect(pubspec, isNot(contains('MPLUS1Code[wght].ttf')));
+    expect(pubspec, contains('MPLUS1Code-wght.ttf'));
+  });
+
   test(
     'Japanese UI default selects M PLUS 1 Code without replacing specialty faces',
     () {
@@ -15,7 +25,7 @@ void main() {
       expect(FontReadinessService.fontFamily, 'MPlus1Code');
       expect(
         FontReadinessService.fontAsset,
-        'assets/fonts/MPLUS1Code[wght].ttf',
+        'assets/fonts/MPLUS1Code-wght.ttf',
       );
       expect(FontReadinessService.baseCampLatinFontFamily, 'PressStart2P');
       expect(FontReadinessService.baseCampJapaneseFontFamily, 'DotGothic16');

@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('bundled M PLUS 1 Code cmap covers representative Japanese UI text', () {
     final cmap = _Format12Cmap.fromTtf(
-      File('assets/fonts/MPLUS1Code[wght].ttf').readAsBytesSync(),
+      File('assets/fonts/MPLUS1Code-wght.ttf').readAsBytesSync(),
     );
     const requiredSamples = [
       '過去の食事履歴を確認・編集できます。',

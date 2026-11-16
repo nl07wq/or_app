@@ -15,7 +15,7 @@ class FontReadinessService extends ChangeNotifier {
   /// Kept public so tests and asset audits use exactly the face that the
   /// application theme selects. This is a bundled font, never a CDN request.
   static const fontFamily = 'MPlus1Code';
-  static const fontAsset = 'assets/fonts/MPLUS1Code[wght].ttf';
+  static const fontAsset = 'assets/fonts/MPLUS1Code-wght.ttf';
   static const baseCampLatinFontFamily = 'PressStart2P';
   static const baseCampLatinFontAsset = 'assets/fonts/PressStart2P-Regular.ttf';
   static const baseCampJapaneseFontFamily = 'DotGothic16';

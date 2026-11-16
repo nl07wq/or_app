@@ -72,8 +72,6 @@ _flutter.loader.load({
     });
     await appRunner.runApp();
     startupTiming.runAppCompleteMs = performance.now();
-    const preFlutterHost = document.getElementById('or-app-preflutter');
-    if (preFlutterHost) preFlutterHost.dataset.state = 'complete';
     markStartup('flutter_run_app_complete', {
       runAppCompleteMs: startupTiming.runAppCompleteMs,
     });
