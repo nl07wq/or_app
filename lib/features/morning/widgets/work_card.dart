@@ -8,6 +8,7 @@ import '../../../core/services/shift_preset_preferences.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/base_camp_retro_theme.dart';
 import 'base_camp_status_style.dart';
 import '../../../core/services/work_calculator.dart';
 import '../../schedule/widgets/shared_time_picker.dart';
@@ -241,21 +242,13 @@ class _WorkCardState extends State<WorkCard> {
 
             Row(
               children: [
-                for (var index = 0; index < _presets.length; index++) ...[
-                  if (index > 0) const SizedBox(width: 4),
+                for (final preset in _presets)
                   Expanded(
-                    child: ChoiceChip(
-                      label: Text(
-                        _presets[index].name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                      selected: false,
-                      onSelected: (_) => _applyPreset(_presets[index]),
-                    ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: _shiftPresetControl(context, preset),
+                    ),
                   ),
-                ],
               ],
             ),
 
@@ -336,6 +329,45 @@ class _WorkCardState extends State<WorkCard> {
         ],
       ),
     );
+  }
+
+  Widget _shiftPresetControl(BuildContext context, ShiftPreset preset) {
+    final selected =
+        widget.startController.text == preset.startTime &&
+        widget.endController.text == preset.endTime &&
+        widget.breakController.text == preset.breakTime;
+    final baseCamp = isBaseCampStatus(context);
+    final label = Text(
+      preset.name,
+      maxLines: 1,
+      softWrap: false,
+      overflow: TextOverflow.clip,
+      textAlign: TextAlign.center,
+      style: baseCamp
+          ? BaseCampRetroTheme.japaneseControl(
+              Theme.of(context).textTheme.labelLarge,
+            ).copyWith(fontSize: 11)
+          : null,
+    );
+    final chip = baseCamp
+        ? baseCampStatusChoiceChip(
+            context: context,
+            label: label,
+            selected: selected,
+            labelPadding: EdgeInsets.zero,
+            onSelected: (_) => _applyPreset(preset),
+          )
+        : ChoiceChip(
+            label: label,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+            selected: selected,
+            onSelected: (_) => _applyPreset(preset),
+          );
+    return SizedBox(
+      key: ValueKey('work-shift-preset-${preset.id}'),
+      width: double.infinity,
+      child: chip,
+    ).actionableFeedback(role: ActionableFeedbackRole.cursor);
   }
 }
 

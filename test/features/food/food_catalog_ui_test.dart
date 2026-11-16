@@ -273,6 +273,35 @@ void main() {
     expect(find.text('食品が見つかりません'), findsOneWidget);
   });
 
+  testWidgets('database controls use the normal item gap before first card', (
+    tester,
+  ) async {
+    const id = '11111111-1111-4111-8111-111111111111';
+    final repository = _MemoryCatalogRepository([_entry(id: id, name: 'Rice')]);
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(home: FoodCatalogPage(repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    final controls = tester.getRect(
+      find.byKey(const ValueKey('food-database-controls-glass')),
+    );
+    final firstCard = tester.getRect(
+      find.byKey(const ValueKey('food-catalog-card-$id')),
+    );
+    expect(firstCard.top - controls.bottom, closeTo(10, .01));
+
+    await tester.enterText(
+      find.byKey(const ValueKey('food-catalog-search')),
+      'missing',
+    );
+    await tester.pump();
+    expect(find.text('食品が見つかりません'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'food category filters combine with catalog search and reset on view change',
     (tester) async {

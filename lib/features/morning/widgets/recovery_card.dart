@@ -358,6 +358,82 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
         onTap: () => setState(() => _editing = true),
       );
     }
+    if (isBaseCampStatus(context)) {
+      return Container(
+        height: 144,
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+        decoration: BoxDecoration(
+          color: c.surfaceContainer,
+          border: Border.all(color: c.outline),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.title, style: Theme.of(context).textTheme.labelMedium),
+            const SizedBox(height: 4),
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$_value',
+                    style: baseCampStatusReadoutStyle(
+                      context,
+                      Theme.of(context).textTheme.headlineLarge,
+                      fontSize: 28,
+                    ),
+                  ),
+                  TextSpan(
+                    text: ' /100',
+                    style: baseCampStatusReadoutStyle(
+                      context,
+                      Theme.of(context).textTheme.labelMedium,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+              key: const ValueKey('status-sleep-score-lcd-readout'),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+            ),
+            const SizedBox(height: 7),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) => Semantics(
+                  slider: true,
+                  label: 'Sleep score $_value',
+                  child: GestureDetector(
+                    key: const ValueKey('status-sleep-score-ruler'),
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (details) => _set(
+                      details.localPosition.dx / constraints.maxWidth * 100,
+                    ),
+                    onHorizontalDragUpdate: (details) => _set(
+                      details.localPosition.dx / constraints.maxWidth * 100,
+                    ),
+                    child: Center(
+                      child: BaseCampLcdRuler(
+                        position: _value / 100,
+                        markerKey: const ValueKey('status-sleep-score-marker'),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                key: const ValueKey('status-sleep-score-done'),
+                onPressed: () => setState(() => _editing = false),
+                child: const Text('完了'),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+            ),
+          ],
+        ),
+      );
+    }
     return SizedBox(
       height: 144,
       child: Column(

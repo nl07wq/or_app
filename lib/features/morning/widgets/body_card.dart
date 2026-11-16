@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
@@ -98,7 +99,9 @@ class _BaseCampWeightTunerState extends State<_BaseCampWeightTuner> {
   double _value = 100;
   double _gestureStartValue = 100;
   double _gestureStartX = 0;
-  double _dialStartAngle = 0;
+  double _dialPreviousAngle = 0;
+  double _dialDetentRemainder = 0;
+  double _dialVisualAngle = 0;
 
   @override
   void initState() {
@@ -230,32 +233,52 @@ class _BaseCampWeightTunerState extends State<_BaseCampWeightTuner> {
                 Semantics(
                   label: 'Weight fine tuning dial',
                   value: '${_value.toStringAsFixed(1)} kilograms',
-                  child: GestureDetector(
+                  child: RawGestureDetector(
                     key: const ValueKey('status-weight-rotary-dial'),
                     behavior: HitTestBehavior.opaque,
-                    onPanStart: (details) {
-                      _gestureStartValue = _value;
-                      _dialStartAngle = _angleFor(
-                        details.localPosition,
-                        const Size.square(72),
-                      );
-                    },
-                    onPanUpdate: (details) {
-                      final angle = _angleFor(
-                        details.localPosition,
-                        const Size.square(72),
-                      );
-                      final detents =
-                          (_shortestAngle(angle, _dialStartAngle) /
-                                  (math.pi / 12))
-                              .round();
-                      _set(_gestureStartValue + detents / 10);
+                    gestures: <Type, GestureRecognizerFactory>{
+                      _RotaryPanGestureRecognizer:
+                          GestureRecognizerFactoryWithHandlers<
+                            _RotaryPanGestureRecognizer
+                          >(_RotaryPanGestureRecognizer.new, (
+                            _RotaryPanGestureRecognizer recognizer,
+                          ) {
+                            recognizer
+                              ..onStart = (details) {
+                                _dialPreviousAngle = _angleFor(
+                                  details.localPosition,
+                                  const Size.square(72),
+                                );
+                                _dialDetentRemainder = 0;
+                              }
+                              ..onUpdate = (details) {
+                                final angle = _angleFor(
+                                  details.localPosition,
+                                  const Size.square(72),
+                                );
+                                final delta = _shortestAngle(
+                                  angle,
+                                  _dialPreviousAngle,
+                                );
+                                _dialPreviousAngle = angle;
+                                _dialVisualAngle += delta;
+                                _dialDetentRemainder += delta;
+                                const detentAngle = math.pi / 12;
+                                final detents =
+                                    _dialDetentRemainder ~/ detentAngle;
+                                if (detents != 0) {
+                                  _dialDetentRemainder -= detents * detentAngle;
+                                  _step(detents);
+                                }
+                                if (mounted) setState(() {});
+                              };
+                          }),
                     },
                     child: SizedBox.square(
                       dimension: 72,
                       child: CustomPaint(
                         painter: _RotaryDialPainter(
-                          value: _value,
+                          angle: _dialVisualAngle,
                           palette: palette,
                         ),
                       ),
@@ -284,6 +307,14 @@ class _BaseCampWeightTunerState extends State<_BaseCampWeightTuner> {
         ),
       ),
     );
+  }
+}
+
+class _RotaryPanGestureRecognizer extends PanGestureRecognizer {
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolve(GestureDisposition.accepted);
   }
 }
 
@@ -350,52 +381,77 @@ class _RadioScalePainter extends CustomPainter {
 }
 
 class _RotaryDialPainter extends CustomPainter {
-  const _RotaryDialPainter({required this.value, required this.palette});
+  const _RotaryDialPainter({required this.angle, required this.palette});
 
-  final double value;
+  final double angle;
   final BaseCampTerminalPalette palette;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
-    final radius = size.shortestSide / 2 - 3;
-    final outer = Paint()
-      ..style = PaintingStyle.fill
-      ..color = BaseCampTerminalPalette.housing;
-    canvas.drawCircle(center, radius, outer);
+    final radius = size.shortestSide / 2 - 2;
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()..color = BaseCampTerminalPalette.housingEdge,
+    );
+    canvas.drawCircle(
+      center,
+      radius - 3,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = BaseCampTerminalPalette.housing,
+    );
     final ridge = Paint()
-      ..strokeWidth = 2
-      ..color = BaseCampTerminalPalette.housingEdge;
-    for (var index = 0; index < 20; index++) {
-      final angle = index * math.pi * 2 / 20;
+      ..strokeWidth = 1.7
+      ..strokeCap = StrokeCap.square
+      ..color = palette.auxiliaryText;
+    for (var index = 0; index < 32; index++) {
+      final grooveAngle = index * math.pi * 2 / 32;
       canvas.drawLine(
-        center + Offset(math.cos(angle), math.sin(angle)) * (radius - 5),
-        center + Offset(math.cos(angle), math.sin(angle)) * radius,
+        center +
+            Offset(math.cos(grooveAngle), math.sin(grooveAngle)) * (radius - 6),
+        center +
+            Offset(math.cos(grooveAngle), math.sin(grooveAngle)) * (radius - 1),
         ridge,
       );
     }
-    canvas.drawCircle(
-      center,
-      radius - 8,
+    canvas.drawCircle(center, radius - 8, Paint()..color = palette.field);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - 9),
+      -math.pi * .85,
+      math.pi * .85,
+      false,
       Paint()
-        ..color = palette.field
-        ..style = PaintingStyle.fill,
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = palette.background.withValues(alpha: .7),
     );
-    final angle =
-        -math.pi * .75 + ((value * 10).round() % 30) / 29 * math.pi * 1.5;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - 10),
+      math.pi * .15,
+      math.pi * .85,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = palette.primaryText.withValues(alpha: .45),
+    );
+    canvas.drawCircle(center, 7, Paint()..color = palette.background);
     canvas.drawLine(
-      center,
-      center + Offset(math.cos(angle), math.sin(angle)) * (radius - 13),
+      center + Offset(math.cos(angle), math.sin(angle)) * 11,
+      center + Offset(math.cos(angle), math.sin(angle)) * (radius - 11),
       Paint()
         ..color = palette.primaryText
-        ..strokeWidth = 2.5
+        ..strokeWidth = 2.2
         ..strokeCap = StrokeCap.square,
     );
   }
 
   @override
   bool shouldRepaint(covariant _RotaryDialPainter oldDelegate) =>
-      oldDelegate.value != value ||
+      oldDelegate.angle != angle ||
       oldDelegate.palette.negative != palette.negative;
 }
 
@@ -417,7 +473,10 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
   static const double _minimum = 0;
   static const double _maximum = 60;
   late bool _editing;
-  double _value = 20;
+  int _valueTenths = 200;
+  int _windowMinTenths = 190;
+
+  double get _value => _valueTenths / 10;
 
   @override
   void initState() {
@@ -436,14 +495,30 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
   }
 
   void _read() {
-    final next = (double.tryParse(widget.controller.text) ?? _value)
-        .clamp(_minimum, _maximum)
-        .toDouble();
-    if (next != _value && mounted) setState(() => _value = next);
+    final nextTenths =
+        ((double.tryParse(widget.controller.text) ?? _value) * 10)
+            .round()
+            .clamp(0, 600);
+    final nextWindow = _windowFor(nextTenths, _windowMinTenths);
+    if ((nextTenths != _valueTenths || nextWindow != _windowMinTenths) &&
+        mounted) {
+      setState(() {
+        _valueTenths = nextTenths;
+        _windowMinTenths = nextWindow;
+      });
+    }
+  }
+
+  int _windowFor(int valueTenths, int currentMin) {
+    const span = 30;
+    if (valueTenths >= currentMin && valueTenths <= currentMin + span) {
+      return currentMin;
+    }
+    return ((valueTenths - 15) ~/ 10 * 10).clamp(0, 600 - span);
   }
 
   void _step(int tenths) {
-    final next = (((_value * 10).round() + tenths).clamp(0, 600)) / 10;
+    final next = ((_valueTenths + tenths).clamp(0, 600)) / 10;
     widget.controller.text = next.toStringAsFixed(1);
   }
 
@@ -458,9 +533,8 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
       );
     }
     final palette = BaseCampTerminalPaletteScope.of(context);
-    final localMin = (_value.floorToDouble() - 1).clamp(0, 57).toDouble();
-    const localSpan = 3.0;
-    final fraction = ((_value - localMin) / localSpan).clamp(0.0, 1.0);
+    const localSpanTenths = 30;
+    final fraction = (_valueTenths - _windowMinTenths) / localSpanTenths;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: palette.field,
@@ -501,17 +575,17 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
               ],
             ),
             const SizedBox(height: 10),
-            _SegmentMeter(
+            BaseCampLcdRuler(
               key: const ValueKey('status-body-fat-segments'),
               segmentCount: 20,
-              filledCount: (fraction * 20).round(),
-              palette: palette,
+              position: fraction,
+              markerKey: const ValueKey('status-body-fat-marker'),
             ),
             const SizedBox(height: 5),
             Row(
               children: [
                 Text(
-                  '${localMin.toStringAsFixed(1)}%',
+                  '${(_windowMinTenths / 10).toStringAsFixed(1)}%',
                   style: baseCampStatusReadoutStyle(
                     context,
                     Theme.of(context).textTheme.labelSmall,
@@ -529,7 +603,7 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
                 ),
                 const Spacer(),
                 Text(
-                  '${(localMin + localSpan).toStringAsFixed(1)}%',
+                  '${((_windowMinTenths + localSpanTenths) / 10).toStringAsFixed(1)}%',
                   style: baseCampStatusReadoutStyle(
                     context,
                     Theme.of(context).textTheme.labelSmall,
@@ -551,39 +625,6 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
       ),
     );
   }
-}
-
-class _SegmentMeter extends StatelessWidget {
-  const _SegmentMeter({
-    super.key,
-    required this.segmentCount,
-    required this.filledCount,
-    required this.palette,
-  });
-
-  final int segmentCount;
-  final int filledCount;
-  final BaseCampTerminalPalette palette;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 20,
-    child: Row(
-      children: List<Widget>.generate(segmentCount, (index) {
-        final filled = index < filledCount;
-        return Expanded(
-          child: Container(
-            key: ValueKey('segment-$index-${filled ? 'filled' : 'empty'}'),
-            margin: EdgeInsets.only(right: index == segmentCount - 1 ? 0 : 2),
-            decoration: BoxDecoration(
-              color: filled ? palette.primaryText : palette.background,
-              border: Border.all(color: palette.auxiliaryText, width: .8),
-            ),
-          ),
-        );
-      }),
-    ),
-  );
 }
 
 class _RetroStepButton extends StatelessWidget {

@@ -77,3 +77,43 @@ ChoiceChip baseCampStatusChoiceChip({
     color: WidgetStatePropertyAll<Color>(colors.background),
   );
 }
+
+/// Fixed-geometry LCD ruler shared by BASE CAMP STATUS instruments.
+/// Only the marker moves; the ruler never fills from one side.
+class BaseCampLcdRuler extends StatelessWidget {
+  const BaseCampLcdRuler({
+    super.key,
+    required this.position,
+    this.segmentCount = 20,
+    this.markerKey,
+  });
+
+  final double position;
+  final int segmentCount;
+  final Key? markerKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    final markerIndex = (position.clamp(0.0, 1.0) * (segmentCount - 1)).round();
+    return SizedBox(
+      height: 22,
+      child: Row(
+        children: List<Widget>.generate(segmentCount, (index) {
+          final marker = index == markerIndex;
+          return Expanded(
+            child: Container(
+              key: marker ? markerKey : null,
+              height: index % 5 == 0 ? 22 : 17,
+              margin: EdgeInsets.only(right: index == segmentCount - 1 ? 0 : 2),
+              decoration: BoxDecoration(
+                color: marker ? palette.primaryText : palette.background,
+                border: Border.all(color: palette.auxiliaryText, width: .8),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}

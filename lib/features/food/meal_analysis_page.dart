@@ -345,15 +345,11 @@ class _ContributionCard extends StatelessWidget {
           title: 'FOOD CONTRIBUTION',
         ),
         AppSpacing.gapSM,
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
+        NutritionContributorGrid(
+          key: const ValueKey('meal-analysis-contributor-grid'),
           children: [
             for (final metric in _metrics)
-              SizedBox(
-                width: 165,
-                child: _ContributionMetric(metric: metric, items: items),
-              ),
+              _ContributionMetric(metric: metric, items: items),
           ],
         ),
       ],

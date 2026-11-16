@@ -3,11 +3,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/models/shift_preset.dart';
 import 'package:or_app/core/models/work_type.dart';
 import 'package:or_app/core/services/shift_preset_preferences.dart';
+import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/morning/widgets/work_card.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_retro_terminal.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    DeviceSettingsController.instance.resetForTesting(const DeviceSettings());
+  });
 
   testWidgets('dynamic preset tap applies stored start end and break values', (
     tester,
@@ -322,7 +329,111 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  for (final width in <double>[320, 375, 390, 430]) {
+    for (final negative in <bool>[false, true]) {
+      testWidgets('BASE CAMP four shifts fit ${width}dp INV=$negative', (
+        tester,
+      ) async {
+        await ShiftPresetPreferences.save(_fourJapanesePresets);
+        DeviceSettingsController.instance.update(
+          DeviceSettingsController.instance.value.copyWith(
+            baseCampLcdNegative: negative,
+          ),
+        );
+        final start = TextEditingController(text: '07:00');
+        final end = TextEditingController(text: '18:00');
+        final workBreak = TextEditingController(text: '01:00');
+        addTearDown(start.dispose);
+        addTearDown(end.dispose);
+        addTearDown(workBreak.dispose);
+        await tester.binding.setSurfaceSize(Size(width, 1200));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: BaseCampRetroTheme.apply(ThemeData.light()),
+            home: BaseCampPresentation(
+              screen: BaseCampScreen.morning,
+              child: BaseCampRetroTerminalScreen(
+                screenKey: 'shift-layout-test',
+                child: Scaffold(
+                  body: BaseCampTerminalDisplay(
+                    child: SingleChildScrollView(
+                      child: WorkCard(
+                        workType: WorkType.work,
+                        onChanged: (_) {},
+                        startController: start,
+                        endController: end,
+                        breakController: workBreak,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final rects = <Rect>[
+          for (final preset in _fourJapanesePresets)
+            tester.getRect(
+              find.byKey(ValueKey('work-shift-preset-${preset.id}')),
+            ),
+        ];
+        for (final rect in rects.skip(1)) {
+          expect(rect.width, closeTo(rects.first.width, .01));
+          expect(rect.top, closeTo(rects.first.top, .01));
+        }
+        for (final preset in _fourJapanesePresets) {
+          final label = tester.widget<Text>(find.text(preset.name));
+          expect(label.maxLines, 1);
+          expect(label.style?.fontFamily, 'DotGothic16');
+        }
+        final selected = tester.widget<ChoiceChip>(
+          find.ancestor(of: find.text('早番'), matching: find.byType(ChoiceChip)),
+        );
+        expect(selected.selected, isTrue);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 }
+
+const _fourJapanesePresets = <ShiftPreset>[
+  ShiftPreset(
+    id: 'shift_early',
+    name: '早番',
+    startTime: '07:00',
+    endTime: '18:00',
+    breakTime: '01:00',
+    order: 0,
+  ),
+  ShiftPreset(
+    id: 'shift_morning',
+    name: '朝番',
+    startTime: '09:00',
+    endTime: '18:00',
+    breakTime: '01:00',
+    order: 1,
+  ),
+  ShiftPreset(
+    id: 'shift_middle',
+    name: '中番',
+    startTime: '11:00',
+    endTime: '18:00',
+    breakTime: '01:00',
+    order: 2,
+  ),
+  ShiftPreset(
+    id: 'shift_late',
+    name: '遅番',
+    startTime: '15:15',
+    endTime: '00:15',
+    breakTime: '01:00',
+    order: 3,
+  ),
+];
 
 List<Finder> _shiftChips(WidgetTester tester) {
   return [
