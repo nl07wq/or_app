@@ -15,6 +15,7 @@ class BaseCampTerminalPalette {
   static const Color housing = Color(0xff1a2016);
   static const Color housingEdge = Color(0xff77745b);
   static const Color housingShadow = Color(0xff0b0f09);
+  static const Color housingForeground = Color(0xffaeb894);
 
   Color get background =>
       negative ? const Color(0xff273326) : const Color(0xffaeb894);
@@ -324,7 +325,7 @@ ThemeData _terminalTheme(ThemeData base, BaseCampTerminalPalette palette) {
     ),
     appBarTheme: base.appBarTheme.copyWith(
       backgroundColor: BaseCampTerminalPalette.housing,
-      foregroundColor: palette.background,
+      foregroundColor: BaseCampTerminalPalette.housingForeground,
       surfaceTintColor: Colors.transparent,
       shadowColor: BaseCampTerminalPalette.housingShadow,
     ),

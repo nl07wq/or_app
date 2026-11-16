@@ -66,6 +66,12 @@ void main() {
     expect(scope.palette.negative, isFalse);
     expect(scope.palette.background.toARGB32(), 0xffaeb894);
     expect(scope.palette.primaryText.toARGB32(), 0xff273326);
+    expect(
+      Theme.of(
+        tester.element(find.text('STATUS ENTRY')),
+      ).appBarTheme.foregroundColor?.toARGB32(),
+      0xffaeb894,
+    );
     expect((grain.painter! as BaseCampLcdGrainPainter).negative, isFalse);
 
     DeviceSettingsController.instance.update(
@@ -85,6 +91,12 @@ void main() {
     expect(scope.palette.background.toARGB32(), 0xff273326);
     expect(scope.palette.primaryText.toARGB32(), 0xffaeb894);
     expect(scope.palette.auxiliaryText.toARGB32(), 0xff788a66);
+    expect(
+      Theme.of(
+        tester.element(find.text('STATUS ENTRY')),
+      ).appBarTheme.foregroundColor?.toARGB32(),
+      0xffaeb894,
+    );
     expect((grain.painter! as BaseCampLcdGrainPainter).negative, isTrue);
   });
 

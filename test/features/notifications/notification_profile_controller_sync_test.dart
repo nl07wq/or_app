@@ -21,6 +21,37 @@ void main() {
   tearDown(AppRepositoryRegistry.resetForTesting);
 
   test(
+    'unconfigured repository reconciliation settles without retrying',
+    () async {
+      final controller = NotificationProfileController(
+        bridge: _RecordingPushBridge(),
+        apiBase: 'https://notifications.example.test',
+      );
+
+      await controller.reconcileFromRepositories().timeout(
+        const Duration(seconds: 1),
+      );
+      await controller.reconcileFromRepositories().timeout(
+        const Duration(seconds: 1),
+      );
+
+      expect(controller.value.profile, 'missing');
+      controller.dispose();
+    },
+  );
+
+  test('reconciliation before repository readiness settles safely', () async {
+    final controller = await _configuredController(_RecordingPushBridge());
+
+    await controller.reconcileFromRepositories().timeout(
+      const Duration(seconds: 1),
+    );
+
+    expect(controller.value.profile, 'configured');
+    controller.dispose();
+  });
+
+  test(
     'newer outbox generation survives an older in-flight reconciliation',
     () async {
       final bridge = _RecordingPushBridge(holdFirstReconcile: true);

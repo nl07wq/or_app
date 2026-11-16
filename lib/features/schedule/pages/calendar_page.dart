@@ -6067,7 +6067,7 @@ class _MonthGridState extends State<_MonthGrid> {
                                       if (isToday)
                                         Padding(
                                           padding: const EdgeInsets.only(
-                                            left: 2,
+                                            left: 1,
                                           ),
                                           child: Icon(
                                             Icons.circle,

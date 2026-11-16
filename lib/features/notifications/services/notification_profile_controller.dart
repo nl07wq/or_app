@@ -286,7 +286,15 @@ class NotificationProfileController
 
   Future<void> _drainRepositoryReconciliations() async {
     await initialize();
-    if (!configured || !AppRepositoryRegistry.hasContainer || _disposed) return;
+    if (!configured || !AppRepositoryRegistry.hasContainer || _disposed) {
+      // A direct reconciliation request can arrive before notification setup
+      // or repository readiness (Calendar does this after its first load).
+      // Leaving the request set makes whenComplete immediately start another
+      // drain, creating an unbounded microtask loop. Repository readiness and
+      // profile setup have their own listeners which request a fresh pass.
+      _reconcileRequested = false;
+      return;
+    }
     while (_reconcileRequested && !_disposed) {
       _reconcileRequested = false;
       try {
