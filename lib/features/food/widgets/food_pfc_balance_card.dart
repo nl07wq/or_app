@@ -481,3 +481,33 @@ class _PfcPainter extends CustomPainter {
       oldDelegate.inset != inset ||
       oldDelegate.drawTrack != drawTrack;
 }
+
+/// Shared 2×2 contributor layout used by daily and meal analysis.
+class NutritionContributorGrid extends StatelessWidget {
+  const NutritionContributorGrid({
+    super.key,
+    required this.children,
+    this.gap = 8,
+  }) : assert(children.length == 4);
+
+  final List<Widget> children;
+  final double gap;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      _row(children[0], children[1]),
+      SizedBox(height: gap),
+      _row(children[2], children[3]),
+    ],
+  );
+
+  Widget _row(Widget left, Widget right) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(child: left),
+      SizedBox(width: gap),
+      Expanded(child: right),
+    ],
+  );
+}

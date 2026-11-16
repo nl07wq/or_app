@@ -65,6 +65,13 @@ class _FootCardState extends State<FootCard> {
     widget.controller.text = value.toString();
   }
 
+  String _painExplanation(int value) => switch (value) {
+    <= 2 => '軽度',
+    <= 4 => '監視',
+    <= 6 => '保護検討',
+    _ => '強保護候補',
+  };
+
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.primary;
@@ -307,6 +314,18 @@ class _FootCardState extends State<FootCard> {
                         context,
                         Theme.of(context).textTheme.labelSmall,
                         fontSize: 7,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _painExplanation(value),
+                      key: const ValueKey('foot-pain-explanation'),
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      style: baseCampStatusReadoutStyle(
+                        context,
+                        Theme.of(context).textTheme.bodySmall,
+                        fontSize: 9,
                       ),
                     ),
                     Align(

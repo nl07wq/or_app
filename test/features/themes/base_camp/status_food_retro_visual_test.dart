@@ -3,6 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/food/food_catalog_page.dart';
 import 'package:or_app/features/food/models/food_catalog_models.dart';
+import 'package:or_app/features/food/models/food_provenance_models.dart';
+import 'package:or_app/features/food/models/food_quantity_models.dart';
+import 'package:or_app/features/food/models/nutrition_models.dart';
 import 'package:or_app/features/food/repository/food_catalog_repository.dart';
 import 'package:or_app/features/morning/widgets/body_card.dart';
 import 'package:or_app/features/morning/widgets/foot_card.dart';
@@ -78,6 +81,39 @@ void main() {
         matchesGoldenFile('goldens/food_add_lcd_$mode.png'),
       );
     });
+
+    testWidgets('captures FOOD database rhythm $mode', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      DeviceSettingsController.instance.update(
+        DeviceSettingsController.instance.value.copyWith(
+          baseCampLcdNegative: negative,
+        ),
+      );
+      await tester.pumpWidget(
+        _baseCampHarness(
+          BaseCampScreen.food,
+          FoodCatalogPage(
+            repository: _EmptyCatalogRepository(<FoodCatalogEntry>[
+              _catalogEntry(
+                id: '11111111-1111-4111-8111-111111111111',
+                name: '焼き鮭と玄米のセット',
+              ),
+              _catalogEntry(
+                id: '22222222-2222-4222-8222-222222222222',
+                name: 'PROTEIN BAR',
+              ),
+            ]),
+          ),
+          direct: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(BaseCampRetroTerminalPanel),
+        matchesGoldenFile('goldens/food_database_lcd_$mode.png'),
+      );
+    });
   }
 }
 
@@ -107,6 +143,10 @@ Widget _baseCampHarness(
 );
 
 class _EmptyCatalogRepository implements FoodCatalogRepository {
+  _EmptyCatalogRepository([this.entries = const <FoodCatalogEntry>[]]);
+
+  final List<FoodCatalogEntry> entries;
+
   @override
   Future<void> archive(String foodId) async {}
 
@@ -120,8 +160,37 @@ class _EmptyCatalogRepository implements FoodCatalogRepository {
   Future<FoodCatalogEntry?> readById(String foodId) async => null;
 
   @override
-  Future<List<FoodCatalogEntry>> list() async => const [];
+  Future<List<FoodCatalogEntry>> list() async => entries;
 
   @override
   Future<void> update(FoodCatalogEntry entry) async {}
+}
+
+FoodCatalogEntry _catalogEntry({required String id, required String name}) {
+  final timestamp = DateTime.utc(2026, 11, 16);
+  return FoodCatalogEntry(
+    foodId: id,
+    name: name,
+    category: FoodCatalogCategory.packagedFood,
+    baseQuantity: FoodQuantityDefinition(
+      value: 100,
+      unit: FoodQuantityUnit.gram,
+    ),
+    nutrition: NutritionSnapshot(
+      calories: 286,
+      protein: 12.2,
+      fat: 9.3,
+      carbohydrate: 36.2,
+    ),
+    nutritionStatus: NutritionStatus.declared,
+    provenance: FoodDataProvenance(
+      sourceType: FoodProvenanceSourceType.userInput,
+      capturedAt: timestamp,
+    ),
+    isArchived: false,
+    packageQuantity: 1,
+    packageUnit: FoodQuantityUnit.pack,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  );
 }

@@ -559,6 +559,8 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
     final entries = _visible;
     if (entries.isEmpty) return const Center(child: Text('食品が見つかりません'));
     return ListView.separated(
+      primary: false,
+      padding: EdgeInsets.zero,
       itemCount: entries.length,
       separatorBuilder: (_, _) => AppSpacing.gapSM,
       itemBuilder: (context, index) {
@@ -577,6 +579,8 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
       return const Center(child: Text('RECIPE NOT FOUND'));
     }
     return ListView.separated(
+      primary: false,
+      padding: EdgeInsets.zero,
       itemCount: recipes.length,
       separatorBuilder: (_, _) => AppSpacing.gapSM,
       itemBuilder: (context, index) {
@@ -619,6 +623,8 @@ class _FoodCatalogPageState extends State<FoodCatalogPage> {
     final meals = _visibleMeals;
     if (meals.isEmpty) return const Center(child: Text('MEAL NOT FOUND'));
     return ListView.separated(
+      primary: false,
+      padding: EdgeInsets.zero,
       itemCount: meals.length,
       separatorBuilder: (_, _) => AppSpacing.gapSM,
       itemBuilder: (context, index) {
@@ -671,6 +677,7 @@ class _FoodCatalogListCard extends StatelessWidget {
       FoodNutritionFormatter.compactQuantity(entry.baseQuantity),
     ].join('  ');
     return Material(
+      key: ValueKey('food-catalog-card-${entry.foodId}'),
       color: palette?.field ?? const Color(0xA8141B24),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(palette == null ? 14 : 4),

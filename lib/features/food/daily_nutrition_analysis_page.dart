@@ -790,18 +790,14 @@ class _FoodContributionCard extends StatelessWidget {
             title: 'TOP FOOD CONTRIBUTORS',
           ),
           AppSpacing.gapSM,
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
+          NutritionContributorGrid(
+            key: const ValueKey('nutrition-analysis-contributor-grid'),
             children: [
               for (final metric in _metrics)
-                SizedBox(
-                  width: 165,
-                  child: _RankedFoods(
-                    metric: metric,
-                    entries: entries,
-                    dailyTotal: metric.selectDaily(dailyNutrition),
-                  ),
+                _RankedFoods(
+                  metric: metric,
+                  entries: entries,
+                  dailyTotal: metric.selectDaily(dailyNutrition),
                 ),
             ],
           ),

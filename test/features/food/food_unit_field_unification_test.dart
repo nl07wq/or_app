@@ -64,6 +64,17 @@ void main() {
           expect(valueBounds.right, lessThanOrEqualTo(moduleBounds.right));
           expect(valueBounds.top, greaterThanOrEqualTo(moduleBounds.top));
           expect(valueBounds.bottom, lessThanOrEqualTo(moduleBounds.bottom));
+          for (final header in <String>[
+            'PACKAGE QUANTITY',
+            'PACKAGE UNIT',
+            'NUTRITION BASIS',
+            'BASIS UNIT',
+          ]) {
+            final text = tester.widget<Text>(find.text(header));
+            expect(text.maxLines, 1);
+            expect(text.softWrap, isFalse);
+            expect(text.overflow, TextOverflow.clip);
+          }
           expect(tester.takeException(), isNull);
         },
       );

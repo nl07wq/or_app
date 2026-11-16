@@ -78,22 +78,25 @@ class FoodQuantityUnitField<T> extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        label,
+                      flex: 4,
+                      child: _QuantityHeaderLabel(
+                        text: label,
                         key: ValueKey('food-entry-$group-group-label'),
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          fontSize: 10.5,
-                          letterSpacing: .55,
-                          color: captionColor,
-                        ),
+                        color: captionColor,
+                        maximumFontSize: 10.5,
                       ),
                     ),
-                    Text(
-                      group == 'package' ? 'PACKAGE UNIT' : 'BASIS UNIT',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontSize: 10,
-                        letterSpacing: .45,
-                        color: labelColor,
+                    Expanded(
+                      flex: 6,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 10),
+                        child: _QuantityHeaderLabel(
+                          text: group == 'package'
+                              ? 'PACKAGE UNIT'
+                              : 'BASIS UNIT',
+                          color: labelColor,
+                          maximumFontSize: 10,
+                        ),
                       ),
                     ),
                   ],
@@ -248,6 +251,80 @@ class FoodQuantityUnitField<T> extends StatelessWidget {
       ),
     );
   }
+}
+
+class _QuantityHeaderLabel extends StatelessWidget {
+  const _QuantityHeaderLabel({
+    super.key,
+    required this.text,
+    required this.color,
+    required this.maximumFontSize,
+  });
+
+  final String text;
+  final Color color;
+  final double maximumFontSize;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final source = Theme.of(context).textTheme.labelSmall?.copyWith(
+        letterSpacing: .45,
+        color: color,
+        height: 1,
+      );
+      final size = _fitHeaderFontSize(
+        text: text,
+        style: source,
+        maxWidth: constraints.maxWidth,
+        maxHeight: constraints.maxHeight,
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maximum: maximumFontSize,
+        minimum: 7,
+      );
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          text,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.clip,
+          style: source?.copyWith(fontSize: size),
+        ),
+      );
+    },
+  );
+}
+
+double _fitHeaderFontSize({
+  required String text,
+  required TextStyle? style,
+  required double maxWidth,
+  required double maxHeight,
+  required TextDirection textDirection,
+  required TextScaler textScaler,
+  required double maximum,
+  required double minimum,
+}) {
+  var fontSize = maximum;
+  bool fits(double candidate) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: style?.copyWith(fontSize: candidate, height: 1),
+      ),
+      textDirection: textDirection,
+      textScaler: textScaler,
+      maxLines: 1,
+    )..layout();
+    return painter.width <= maxWidth && painter.height <= maxHeight;
+  }
+
+  while (fontSize > minimum && !fits(fontSize)) {
+    fontSize -= .2;
+  }
+  return fontSize.clamp(minimum, maximum);
 }
 
 double fitFoodUnitSelectedFontSize({
