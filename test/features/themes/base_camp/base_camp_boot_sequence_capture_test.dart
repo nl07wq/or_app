@@ -114,12 +114,16 @@ Future<void> _renderAndCapture(
   debugPaintSizeEnabled = false;
   final boundary =
       boundaryKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-  boundary.markNeedsPaint();
+  _markPaintTreeDirty(boundary);
   await tester.pump();
   expect(debugPaintBaselinesEnabled, isFalse);
   expect(tester.takeException(), isNull);
 
   await tester.runAsync(() async {
+    debugPaintBaselinesEnabled = false;
+    debugPaintSizeEnabled = false;
+    _markPaintTreeDirty(boundary);
+    RendererBinding.instance.drawFrame();
     final image = await boundary.toImage(pixelRatio: 2);
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     await File(
@@ -130,4 +134,9 @@ Future<void> _renderAndCapture(
   initialization.dispose();
   tester.view.resetPhysicalSize();
   tester.view.resetDevicePixelRatio();
+}
+
+void _markPaintTreeDirty(RenderObject object) {
+  object.markNeedsPaint();
+  object.visitChildren(_markPaintTreeDirty);
 }
