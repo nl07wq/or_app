@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'diagnostic_sanitizer.dart';
+import 'slow_start_evidence.dart';
 
 class SystemDiagnostics {
   SystemDiagnostics({
@@ -11,9 +12,11 @@ class SystemDiagnostics {
     this.sessionLimit = 5,
     List<Map<String, Object?>> initialSessions = const [],
     List<Map<String, Object?>> initialUriIncidents = const [],
+    List<Map<String, Object?>> initialSlowStartupIncidents = const [],
   }) {
     _sessions.addAll(initialSessions);
     _uriIncidents.addAll(initialUriIncidents);
+    _slowStartupIncidents.addAll(initialSlowStartupIncidents);
   }
 
   factory SystemDiagnostics.testing({
@@ -21,11 +24,13 @@ class SystemDiagnostics {
     int sessionLimit = 5,
     List<Map<String, Object?>> initialSessions = const [],
     List<Map<String, Object?>> initialUriIncidents = const [],
+    List<Map<String, Object?>> initialSlowStartupIncidents = const [],
   }) => SystemDiagnostics(
     eventLimit: eventLimit,
     sessionLimit: sessionLimit,
     initialSessions: initialSessions,
     initialUriIncidents: initialUriIncidents,
+    initialSlowStartupIncidents: initialSlowStartupIncidents,
   );
 
   static final SystemDiagnostics instance = SystemDiagnostics();
@@ -38,7 +43,10 @@ class SystemDiagnostics {
   final List<Map<String, Object?>> _recentNavigation = [];
   final List<Map<String, Object?>> _navigationMessages = [];
   final List<Map<String, Object?>> _uriIncidents = [];
+  final List<Map<String, Object?>> _slowStartupIncidents = [];
   final Stopwatch _monotonicClock = Stopwatch()..start();
+  double? _dartMainMonotonicMs;
+  double? _documentToDartMainMs;
   int _navigationSequence = 0;
   String? _lastStartupPhase;
   String? _lastMapPhase;
@@ -48,6 +56,20 @@ class SystemDiagnostics {
   String? get sessionId => _current?['sessionId'] as String?;
   bool get uriEvidenceOperational => true;
   int get uriIncidentCount => _uriIncidents.length;
+  bool get slowStartupEvidenceOperational => true;
+  int get slowStartupIncidentCount => _slowStartupIncidents.length;
+  List<Map<String, Object?>> get slowStartupIncidentSummaries =>
+      _slowStartupIncidents
+          .map(
+            (incident) => <String, Object?>{
+              'incidentId': incident['incidentId'],
+              'timestamp': incident['timestamp'],
+              'captureCompleteness': incident['captureCompleteness'],
+              'status': incident['status'],
+              'triggers': incident['triggers'],
+            },
+          )
+          .toList(growable: false);
   List<Map<String, Object?>> get uriIncidentSummaries => _uriIncidents
       .map(
         (incident) => <String, Object?>{
@@ -90,8 +112,24 @@ class SystemDiagnostics {
   }) {
     beginSession();
     _trackPhase(layer, event);
+    if (event == 'DART_MAIN_ENTER') {
+      _dartMainMonotonicMs = _monotonicClock.elapsedMicroseconds / 1000;
+    }
+    if (event == 'BROWSER_STARTUP_TIMING') {
+      final value = fields['documentToDartMainMs'];
+      if (value is num) _documentToDartMainMs = value.toDouble();
+    }
+    final nowMonotonicMs = _monotonicClock.elapsedMicroseconds / 1000;
     final effectiveFields = <String, Object?>{
       ...fields,
+      if (event == 'DASHBOARD_INTERACTIVE' && _dartMainMonotonicMs != null)
+        'dartMainToDashboardInteractiveMs':
+            nowMonotonicMs - _dartMainMonotonicMs!,
+      if (event == 'DASHBOARD_INTERACTIVE' &&
+          _documentToDartMainMs != null &&
+          _dartMainMonotonicMs != null)
+        'documentToDashboardInteractiveMs':
+            _documentToDartMainMs! + nowMonotonicMs - _dartMainMonotonicMs!,
       if (event == 'SLOW_FRAME_BATCH') ..._phaseFields,
     };
     final events = _current!['events']! as List<Map<String, Object?>>;
@@ -102,6 +140,7 @@ class SystemDiagnostics {
       if (effectiveFields.isNotEmpty) 'fields': effectiveFields,
     });
     _trimEvents(events);
+    _updateSlowStartupEvidence(event, effectiveFields);
   }
 
   String get lifecycleState => _lifecycleState;
@@ -369,6 +408,7 @@ class SystemDiagnostics {
     _recentNavigation.clear();
     _navigationMessages.clear();
     _uriIncidents.clear();
+    _slowStartupIncidents.clear();
     _lastStartupPhase = null;
     _lastMapPhase = null;
     _lifecycleState = 'unknown';
@@ -424,7 +464,53 @@ class SystemDiagnostics {
           'captureOperational': true,
           'incidents': _uriIncidents,
         },
+        'slowStartupEvidence': <String, Object?>{
+          'schemaVersion': slowStartupEvidenceSchemaVersion,
+          'captureOperational': true,
+          'retentionLimit': slowStartupIncidentLimit,
+          'incidents': _slowStartupIncidents,
+        },
+        'preDartEvidence': const <String, Object?>{
+          'schemaVersion': 1,
+          'records': <Map<String, Object?>>[],
+        },
       });
+
+  String copySlowStartupEvidenceText() =>
+      const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+        'title': 'OR-APP SLOW STARTUP EVIDENCE',
+        'schemaVersion': slowStartupEvidenceSchemaVersion,
+        'captureOperational': true,
+        'retentionLimit': slowStartupIncidentLimit,
+        'incidents': _slowStartupIncidents,
+        'preDartEvidence': const <Map<String, Object?>>[],
+      });
+
+  void _updateSlowStartupEvidence(String event, Map<String, Object?> fields) {
+    final trigger = slowStartupTrigger(event, fields);
+    if (trigger != null) {
+      upsertSlowStartupIncident(
+        incidents: _slowStartupIncidents,
+        session: _current!,
+        trigger: trigger,
+        lifecycleState: _lifecycleState,
+        build: const <String, Object?>{'appReleaseCommit': 'test'},
+        platform: const <String, Object?>{'runtime': 'dart-vm'},
+      );
+      return;
+    }
+    final incident = _slowStartupIncidents.lastOrNull;
+    if (incident?['sessionId'] == sessionId &&
+        shouldRefreshSlowStartupIncident(event)) {
+      refreshSlowStartupIncident(
+        incident: incident!,
+        session: _current!,
+        lifecycleState: _lifecycleState,
+        build: const <String, Object?>{'appReleaseCommit': 'test'},
+        platform: const <String, Object?>{'runtime': 'dart-vm'},
+      );
+    }
+  }
 
   String copyUriEvidenceText() =>
       const JsonEncoder.withIndent('  ').convert(<String, Object?>{

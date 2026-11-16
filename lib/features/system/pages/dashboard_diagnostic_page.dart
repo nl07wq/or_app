@@ -48,6 +48,18 @@ class _DashboardDiagnosticPageState extends State<DashboardDiagnosticPage> {
     );
   }
 
+  Future<void> _copySlowStartupEvidence() async {
+    await Clipboard.setData(
+      ClipboardData(
+        text: SystemDiagnostics.instance.copySlowStartupEvidenceText(),
+      ),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('SLOW STARTUP EVIDENCE COPIED')),
+    );
+  }
+
   Future<void> _export() async {
     final exported = await SystemDiagnostics.instance.export();
     if (!mounted) return;
@@ -125,6 +137,41 @@ class _DashboardDiagnosticPageState extends State<DashboardDiagnosticPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
+                  diagnostics.slowStartupEvidenceOperational
+                      ? 'SLOW STARTUP CAPTURE  OPERATIONAL'
+                      : 'SLOW STARTUP CAPTURE  UNAVAILABLE',
+                  key: const ValueKey('slow-startup-evidence-status'),
+                ),
+                AppSpacing.gapSM,
+                Text(
+                  'RETAINED INCIDENTS  '
+                  '${diagnostics.slowStartupIncidentCount} / 5',
+                  key: const ValueKey('slow-startup-incident-count'),
+                ),
+                if (diagnostics.slowStartupIncidentSummaries.isNotEmpty) ...[
+                  AppSpacing.gapSM,
+                  ...diagnostics.slowStartupIncidentSummaries.map(
+                    (incident) => Text(
+                      '${incident['timestamp']}  '
+                      '${incident['captureCompleteness']}  '
+                      '${incident['status']}',
+                    ),
+                  ),
+                ],
+                AppSpacing.gapSM,
+                const Text(
+                  'Slow launches are retained separately from routine session '
+                  'rotation and URI evidence. Export is local and bounded.',
+                ),
+              ],
+            ),
+          ),
+          AppSpacing.gapMD,
+          OperationCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
                   diagnostics.uriEvidenceOperational
                       ? 'URI CAPTURE  OPERATIONAL'
                       : 'URI CAPTURE  UNAVAILABLE',
@@ -165,6 +212,13 @@ class _DashboardDiagnosticPageState extends State<DashboardDiagnosticPage> {
             text: 'COPY URI EVIDENCE',
             icon: Icons.link_outlined,
             onPressed: _copyUriEvidence,
+          ),
+          AppSpacing.gapSM,
+          OperationButton(
+            key: const ValueKey('slow-startup-evidence-copy'),
+            text: 'COPY SLOW STARTUP EVIDENCE',
+            icon: Icons.timer_outlined,
+            onPressed: _copySlowStartupEvidence,
           ),
           AppSpacing.gapSM,
           OperationButton(

@@ -786,17 +786,32 @@ class _BaseCampMapState extends State<BaseCampMap>
         'frameDurationMs': baseCampWaterV3BFrameDuration.inMilliseconds,
       },
     );
+    var cacheReuseCount = 0;
+    var eventLoopYieldMs = 0;
+    final frameTimings = <Map<String, Object?>>[];
     try {
       for (var index = 0; index < baseCampWaterV3BFrameAssets.length; index++) {
-        await baseCampPrecacheImage(
-          AssetImage(baseCampWaterV3BFrameAssets[index]),
-          context,
-        );
+        final asset = baseCampWaterV3BFrameAssets[index];
+        final frameWatch = Stopwatch()..start();
+        final provider = AssetImage(asset);
+        final cache = await baseCampImageCacheFields(provider, context);
         if (!mounted) return;
-        // Spread nonessential decodes across frames so the approved overlay
-        // never competes with MAP/facility first presentation.
+        if (cache['cacheStatus'] != 'miss') cacheReuseCount++;
+        await baseCampPrecacheImage(provider, context);
+        if (!mounted) return;
+        frameTimings.add(<String, Object?>{
+          'index': index,
+          'asset': asset,
+          'durationMs': frameWatch.elapsedMilliseconds,
+          ...cache,
+        });
+        // Yield to pending input/microtasks without tying preparation to the
+        // next rendered frame. iOS can throttle frame delivery after an idle
+        // reopen, which previously converted six pacing yields into seconds.
         if ((index + 1) % 4 == 0) {
-          await SchedulerBinding.instance.endOfFrame;
+          final yieldWatch = Stopwatch()..start();
+          await Future<void>.value();
+          eventLoopYieldMs += yieldWatch.elapsedMilliseconds;
           if (!mounted) return;
         }
       }
@@ -834,6 +849,10 @@ class _BaseCampMapState extends State<BaseCampMap>
             baseCampWaterV3BSourceSize.height.toInt() *
             4 *
             baseCampWaterV3BFrameCount,
+        'cacheReuseCount': cacheReuseCount,
+        'eventLoopYieldMs': eventLoopYieldMs,
+        'schedulingStrategy': 'sequential_decode_event_loop_yield_every_4',
+        'frameTimings': frameTimings,
         'durationMs': watch.elapsedMilliseconds,
       },
     );
@@ -939,6 +958,8 @@ class _BaseCampMapState extends State<BaseCampMap>
     var readyCount = 0;
     var failedCount = 0;
     final watch = Stopwatch()..start();
+    var eventLoopYieldMs = 0;
+    final objectTimings = <Map<String, Object?>>[];
     diagnostics.record(
       'ASSET',
       'FACILITY_OBJECTS_ATOMIC_PREPARE_START',
@@ -953,14 +974,19 @@ class _BaseCampMapState extends State<BaseCampMap>
         final identity = _facilityObjectIdentity(object);
         if (!prepared.add(identity)) continue;
         if (readyCount + failedCount > 0) {
-          await SchedulerBinding.instance.endOfFrame;
+          final yieldWatch = Stopwatch()..start();
+          await Future<void>.value();
+          eventLoopYieldMs += yieldWatch.elapsedMilliseconds;
           if (!mounted) return;
         }
         final bundledAsset = baseCampObjectAssets[object.assetId];
+        final objectWatch = Stopwatch()..start();
         try {
+          final acquisitionWatch = Stopwatch()..start();
           final storedAsset = bundledAsset == null
               ? await _assetResolver.read(object.assetId)
               : null;
+          final acquisitionMs = acquisitionWatch.elapsedMilliseconds;
           if (bundledAsset == null && storedAsset == null) {
             throw StateError('missing stored asset');
           }
@@ -970,9 +996,13 @@ class _BaseCampMapState extends State<BaseCampMap>
           if (!mounted) return;
           final cache = await baseCampImageCacheFields(provider, context);
           if (!mounted) return;
+          final decodeWatch = Stopwatch()..start();
           await baseCampPrecacheImage(provider, context);
+          final decodeMs = decodeWatch.elapsedMilliseconds;
           if (!mounted) return;
+          final maskWatch = Stopwatch()..start();
           await _assetResolver._alphaMask(object);
+          final alphaMaskMs = maskWatch.elapsedMilliseconds;
           if (!mounted) return;
           readyCount++;
           final asset = bundledAsset ?? object.assetId;
@@ -984,9 +1014,22 @@ class _BaseCampMapState extends State<BaseCampMap>
               'objectId': object.id,
               'assetId': object.assetId,
               'asset': asset,
+              'acquisitionMs': acquisitionMs,
+              'decodeMs': decodeMs,
+              'alphaMaskMs': alphaMaskMs,
+              'durationMs': objectWatch.elapsedMilliseconds,
               ...cache,
             },
           );
+          objectTimings.add(<String, Object?>{
+            'objectId': object.id,
+            'assetId': object.assetId,
+            'acquisitionMs': acquisitionMs,
+            'decodeMs': decodeMs,
+            'alphaMaskMs': alphaMaskMs,
+            'durationMs': objectWatch.elapsedMilliseconds,
+            ...cache,
+          });
         } catch (error) {
           failedCount++;
           diagnostics.record(
@@ -1016,6 +1059,9 @@ class _BaseCampMapState extends State<BaseCampMap>
         'readyCount': readyCount,
         'failedCount': failedCount,
         'startedBeforeMapDisplay': _facilityPreparationStartedBeforeMapDisplay,
+        'eventLoopYieldMs': eventLoopYieldMs,
+        'schedulingStrategy': 'sequential_decode_event_loop_yield',
+        'objectTimings': objectTimings,
         'durationMs': watch.elapsedMilliseconds,
       },
     );
@@ -1122,18 +1168,31 @@ class _BaseCampMapState extends State<BaseCampMap>
       },
     );
     var loaded = 0;
+    var cacheReuseCount = 0;
+    var eventLoopYieldMs = 0;
+    final frameTimings = <Map<String, Object?>>[];
     final assets = baseCampWalkerWarmupAssets;
     for (var index = 0; index < assets.length; index++) {
-      await SchedulerBinding.instance.endOfFrame;
+      final yieldWatch = Stopwatch()..start();
+      await Future<void>.value();
+      eventLoopYieldMs += yieldWatch.elapsedMilliseconds;
       if (!mounted) return;
       final asset = assets[index];
+      final frameWatch = Stopwatch()..start();
       try {
-        await baseCampPrecacheImage(
-          baseCampWalkerFrameProvider(asset),
-          context,
-        );
+        final provider = baseCampWalkerFrameProvider(asset);
+        final cache = await baseCampImageCacheFields(provider, context);
+        if (!mounted) return;
+        if (cache['cacheStatus'] != 'miss') cacheReuseCount++;
+        await baseCampPrecacheImage(provider, context);
         loaded++;
         recordBaseCampAssetReady(asset);
+        frameTimings.add(<String, Object?>{
+          'index': index,
+          'asset': asset,
+          'durationMs': frameWatch.elapsedMilliseconds,
+          ...cache,
+        });
       } catch (error, stackTrace) {
         diagnostics.record(
           'ASSET',
@@ -1169,6 +1228,10 @@ class _BaseCampMapState extends State<BaseCampMap>
       fields: <String, Object?>{
         'loadedFrames': loaded,
         'frameCount': assets.length,
+        'cacheReuseCount': cacheReuseCount,
+        'eventLoopYieldMs': eventLoopYieldMs,
+        'schedulingStrategy': 'sequential_decode_event_loop_yield',
+        'frameTimings': frameTimings,
         'durationMs': watch.elapsedMilliseconds,
       },
     );
@@ -1200,9 +1263,9 @@ class _BaseCampMapState extends State<BaseCampMap>
 
     // Each lane decodes sequentially, so at most two expensive image decodes
     // are in flight. WATER receives the first slot, then WALKER starts on the
-    // next frame instead of blocking WATER behind all 25 walker frames.
+    // next event-loop turn instead of blocking WATER behind all 25 frames.
     final waterPreparation = _initializeWaterFx();
-    await SchedulerBinding.instance.endOfFrame;
+    await Future<void>.value();
     if (!mounted) return;
     final walkerPreparation = _warmWalkerFrames();
     await Future.wait<void>(<Future<void>>[

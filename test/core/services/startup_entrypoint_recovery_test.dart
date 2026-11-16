@@ -62,5 +62,20 @@ void main() {
     expect(bootstrap, greaterThan(versionedMain));
     expect(source, contains("mainPreload.as = 'script'"));
     expect(source, contains("mainPreload.fetchPriority = 'high'"));
+    expect(source, contains('mainPreloadRequestedMs'));
+    expect(source, contains('mainPreloadLoadedMs'));
+  });
+
+  test('pre-Dart evidence is bounded and survives an interrupted launch', () {
+    final source = File('web/index.html').readAsStringSync();
+
+    expect(source, contains('or_app.pre_dart_evidence.v1'));
+    expect(source, contains('records.slice(-5)'));
+    expect(source, contains("status: 'document_started'"));
+    expect(source, contains("window.__orAppMarkPreDart = function"));
+    expect(source, contains("'bootstrap_requested'"));
+    expect(source, contains("'bootstrap_loaded'"));
+    expect(source, contains("'main_preload_loaded'"));
+    expect(source, contains("'main_preload_failed'"));
   });
 }

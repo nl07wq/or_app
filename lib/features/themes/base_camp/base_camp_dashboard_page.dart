@@ -91,12 +91,22 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
     final worst = delayed
         .map((timing) => timing.buildDuration + timing.rasterDuration)
         .reduce((a, b) => a > b ? a : b);
+    final worstBuild = delayed
+        .map((timing) => timing.buildDuration)
+        .reduce((a, b) => a > b ? a : b);
+    final worstRaster = delayed
+        .map((timing) => timing.rasterDuration)
+        .reduce((a, b) => a > b ? a : b);
     SystemDiagnostics.instance.record(
       'PERFORMANCE',
       'SLOW_FRAME_BATCH',
       fields: <String, Object?>{
         'count': delayed.length,
         'worstFrameMs': worst.inMicroseconds / 1000,
+        'worstBuildMs': worstBuild.inMicroseconds / 1000,
+        'worstRasterMs': worstRaster.inMicroseconds / 1000,
+        'lifecycle': SystemDiagnostics.instance.lifecycleState,
+        'measurement': 'flutter_frame_timing_build_plus_raster',
       },
     );
   }
@@ -717,19 +727,37 @@ class _BreathingSoldierCompartmentState
         'retry': _failedRifleFrames.isNotEmpty,
       },
     );
+    var cacheReuseCount = 0;
+    var eventLoopYieldMs = 0;
+    final frameTimings = <Map<String, Object?>>[];
     for (final asset in pendingAssets) {
       if (!manualPriority && !_rifleManualPriorityRequested) {
-        await SchedulerBinding.instance.endOfFrame;
+        final yieldWatch = Stopwatch()..start();
+        await Future<void>.value();
+        eventLoopYieldMs += yieldWatch.elapsedMilliseconds;
       }
       if (!mounted || !_active) {
         _riflePrecacheInFlight = false;
         return;
       }
       try {
-        await baseCampPrecacheImage(AssetImage(asset), context);
+        final frameWatch = Stopwatch()..start();
+        final provider = AssetImage(asset);
+        final cache = await baseCampImageCacheFields(provider, context);
+        if (!mounted || !_active) {
+          _riflePrecacheInFlight = false;
+          return;
+        }
+        if (cache['cacheStatus'] != 'miss') cacheReuseCount++;
+        await baseCampPrecacheImage(provider, context);
         _readyRifleFrames.add(asset);
         _failedRifleFrames.remove(asset);
         recordBaseCampAssetReady(asset);
+        frameTimings.add(<String, Object?>{
+          'asset': asset,
+          'durationMs': frameWatch.elapsedMilliseconds,
+          ...cache,
+        });
       } catch (error, stackTrace) {
         _failedRifleFrames.add(asset);
         diagnostics.record(
@@ -766,6 +794,12 @@ class _BreathingSoldierCompartmentState
         'readyFrames': _readyRifleFrames.length,
         'frameCount': baseCampRifleRegripAssets.length,
         'failedAssets': _failedRifleFrames.toList(growable: false),
+        'cacheReuseCount': cacheReuseCount,
+        'eventLoopYieldMs': eventLoopYieldMs,
+        'schedulingStrategy': manualPriority
+            ? 'manual_priority_sequential_decode'
+            : 'sequential_decode_event_loop_yield',
+        'frameTimings': frameTimings,
         'durationMs': watch.elapsedMilliseconds,
       },
     );

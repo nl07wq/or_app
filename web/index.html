@@ -38,6 +38,42 @@
     // In-memory startup marks: no synchronous storage write is introduced on
     // the critical path. Dart records the values in the existing diagnostics.
     window.__orAppStartupTiming = { documentStartMs: 0 };
+    // Keep a tiny, bounded pre-Dart record. If WebKit suspends or terminates
+    // startup before Dart runs, the next successful launch can still export
+    // the last observable browser boundary. This is independent of the
+    // verbose startup trace and performs only bounded scalar writes.
+    (function () {
+      const key = 'or_app.pre_dart_evidence.v1';
+      const id = 'pre-dart-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      function read() {
+        try {
+          const value = JSON.parse(localStorage.getItem(key) || '{}');
+          return Array.isArray(value.records) ? value.records.slice(-4) : [];
+        } catch (_) { return []; }
+      }
+      const record = {
+        recordId: id,
+        startedAt: new Date().toISOString(),
+        status: 'document_started',
+        release: '__OR_APP_RELEASE__',
+        visibility: document.visibilityState,
+        navigationType: (performance.getEntriesByType('navigation')[0] || {}).type || 'unknown'
+      };
+      function write() {
+        try {
+          const records = read().filter(function (item) { return item.recordId !== id; });
+          records.push(record);
+          localStorage.setItem(key, JSON.stringify({ schemaVersion: 1, records: records.slice(-5) }));
+        } catch (_) {}
+      }
+      window.__orAppMarkPreDart = function (event, fields) {
+        record.status = event;
+        record.lastMarkMs = performance.now();
+        if (fields) Object.assign(record, fields);
+        queueMicrotask(write);
+      };
+      queueMicrotask(write);
+    })();
   </script>
   <style>
     /* Keep the document surface continuous with Flutter's Boot canvas. */
@@ -209,6 +245,9 @@
     // main.dart.js release token as well.
     window.__orAppStartupRecovery.finally(function () {
       window.__orAppStartupTiming.bootstrapRequestedMs = performance.now();
+      window.__orAppMarkPreDart('bootstrap_requested', {
+        bootstrapRequestedMs: window.__orAppStartupTiming.bootstrapRequestedMs
+      });
       // Begin acquiring the release-matched Dart bundle while the generated
       // Flutter bootstrap initializes the engine. This runs only after legacy
       // service-worker recovery, so an obsolete worker cannot satisfy it.
@@ -217,12 +256,25 @@
       mainPreload.as = 'script';
       mainPreload.fetchPriority = 'high';
       mainPreload.href = 'main.dart.js?or_app_release=__OR_APP_RELEASE__';
+      window.__orAppStartupTiming.mainPreloadRequestedMs = performance.now();
+      mainPreload.addEventListener('load', function () {
+        window.__orAppStartupTiming.mainPreloadLoadedMs = performance.now();
+        window.__orAppMarkPreDart('main_preload_loaded', {
+          mainPreloadLoadedMs: window.__orAppStartupTiming.mainPreloadLoadedMs
+        });
+      }, { once: true });
+      mainPreload.addEventListener('error', function () {
+        window.__orAppMarkPreDart('main_preload_failed', {});
+      }, { once: true });
       document.head.appendChild(mainPreload);
       const bootstrap = document.createElement('script');
       bootstrap.async = true;
       bootstrap.src = 'flutter_bootstrap.js?or_app_release=__OR_APP_RELEASE__';
       bootstrap.addEventListener('load', function () {
         window.__orAppStartupTiming.bootstrapScriptLoadedMs = performance.now();
+        window.__orAppMarkPreDart('bootstrap_loaded', {
+          bootstrapScriptLoadedMs: window.__orAppStartupTiming.bootstrapScriptLoadedMs
+        });
       }, { once: true });
       document.body.appendChild(bootstrap);
     });

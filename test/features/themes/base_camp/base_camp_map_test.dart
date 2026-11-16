@@ -221,10 +221,7 @@ void main() {
       'lib/features/themes/base_camp/widgets/base_camp_map.dart',
     ).readAsStringSync();
     final start = source.indexOf('void _startInitialFacilityBatchIfReady()');
-    final end = source.indexOf(
-      '_facilityBatchStarted = true;',
-      start,
-    );
+    final end = source.indexOf('_facilityBatchStarted = true;', start);
     final method = source.substring(start, end);
 
     expect(method, contains('!_dependenciesReady'));
@@ -235,6 +232,26 @@ void main() {
       contains("'startedBeforeMapDisplay':"),
       reason: 'production diagnostics must prove whether preparation overlaps',
     );
+  });
+
+  test('asset staging yields to events instead of throttled render frames', () {
+    final source = File(
+      'lib/features/themes/base_camp/widgets/base_camp_map.dart',
+    ).readAsStringSync();
+    for (final methodName in <String>[
+      'Future<void> _initializeWaterFx()',
+      'Future<void> _prepareInitialFacilityBatch()',
+      'Future<void> _warmWalkerFrames()',
+    ]) {
+      final start = source.indexOf(methodName);
+      final end = source.indexOf('\n  Future<', start + methodName.length);
+      final method = source.substring(start, end < 0 ? source.length : end);
+      expect(method, contains('Future<void>.value()'));
+      expect(method, isNot(contains('SchedulerBinding.instance.endOfFrame')));
+    }
+    expect(source, contains("'schedulingStrategy':"));
+    expect(source, contains("'cacheReuseCount':"));
+    expect(source, contains("'frameTimings':"));
   });
 
   testWidgets('WATER V3B overlay is clipped to masks and protected land', (

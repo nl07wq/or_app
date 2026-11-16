@@ -49,7 +49,15 @@ void main() {
 
     expect(find.textContaining('SAVED SESSIONS'), findsOneWidget);
     expect(find.text('URI CAPTURE  OPERATIONAL'), findsOneWidget);
-    expect(find.text('RETAINED INCIDENTS  0 / 5'), findsOneWidget);
+    expect(find.text('SLOW STARTUP CAPTURE  OPERATIONAL'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('uri-evidence-incident-count')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('slow-startup-incident-count')),
+      findsOneWidget,
+    );
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('dashboard-diagnostic-copy')),
       250,
@@ -64,6 +72,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('uri-evidence-copy')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('slow-startup-evidence-copy')),
+      findsOneWidget,
+    );
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('dashboard-diagnostic-clear')),
       250,

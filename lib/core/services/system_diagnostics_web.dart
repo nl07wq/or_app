@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'diagnostic_sanitizer.dart';
+import 'slow_start_evidence.dart';
 
 class SystemDiagnostics {
   SystemDiagnostics({this.eventLimit = 200, this.sessionLimit = 5});
@@ -17,6 +18,8 @@ class SystemDiagnostics {
   static final SystemDiagnostics instance = SystemDiagnostics();
   static const storageKey = 'or_app.system_diagnostics.v2';
   static const uriEvidenceStorageKey = 'or_app.uri_exception_evidence.v2';
+  static const slowStartupEvidenceStorageKey = 'or_app.slow_start_evidence.v1';
+  static const preDartEvidenceStorageKey = 'or_app.pre_dart_evidence.v1';
   static const uriEvidenceSchemaVersion = 2;
   static const _uriIncidentLimit = 5;
   static const _navigationMessageLimit = 24;
@@ -30,9 +33,13 @@ class SystemDiagnostics {
   final List<Map<String, Object?>> _recentNavigation = [];
   final List<Map<String, Object?>> _navigationMessages = [];
   final List<Map<String, Object?>> _uriIncidents = [];
+  final List<Map<String, Object?>> _slowStartupIncidents = [];
   final Stopwatch _monotonicClock = Stopwatch()..start();
   int _navigationSequence = 0;
   bool _uriEvidenceLoaded = false;
+  bool _slowStartupEvidenceLoaded = false;
+  double? _dartMainMonotonicMs;
+  double? _documentToDartMainMs;
   Map<String, Object?>? _current;
   Timer? _flushTimer;
   Timer? _heartbeatTimer;
@@ -61,6 +68,27 @@ class SystemDiagnostics {
             'timestamp': incident['timestamp'],
             'captureCompleteness': incident['captureCompleteness'],
             'status': incident['status'],
+          },
+        )
+        .toList(growable: false);
+  }
+
+  bool get slowStartupEvidenceOperational => true;
+  int get slowStartupIncidentCount {
+    _loadSlowStartupEvidenceIfNeeded();
+    return _slowStartupIncidents.length;
+  }
+
+  List<Map<String, Object?>> get slowStartupIncidentSummaries {
+    _loadSlowStartupEvidenceIfNeeded();
+    return _slowStartupIncidents
+        .map(
+          (incident) => <String, Object?>{
+            'incidentId': incident['incidentId'],
+            'timestamp': incident['timestamp'],
+            'captureCompleteness': incident['captureCompleteness'],
+            'status': incident['status'],
+            'triggers': incident['triggers'],
           },
         )
         .toList(growable: false);
@@ -110,8 +138,24 @@ class SystemDiagnostics {
     try {
       beginSession();
       _trackPhase(layer, event);
+      if (event == 'DART_MAIN_ENTER') {
+        _dartMainMonotonicMs = _monotonicClock.elapsedMicroseconds / 1000;
+      }
+      if (event == 'BROWSER_STARTUP_TIMING') {
+        final value = fields['documentToDartMainMs'];
+        if (value is num) _documentToDartMainMs = value.toDouble();
+      }
+      final nowMonotonicMs = _monotonicClock.elapsedMicroseconds / 1000;
       final effectiveFields = <String, Object?>{
         ...fields,
+        if (event == 'DASHBOARD_INTERACTIVE' && _dartMainMonotonicMs != null)
+          'dartMainToDashboardInteractiveMs':
+              nowMonotonicMs - _dartMainMonotonicMs!,
+        if (event == 'DASHBOARD_INTERACTIVE' &&
+            _documentToDartMainMs != null &&
+            _dartMainMonotonicMs != null)
+          'documentToDashboardInteractiveMs':
+              _documentToDartMainMs! + nowMonotonicMs - _dartMainMonotonicMs!,
         if (event == 'SLOW_FRAME_BATCH') ..._phaseFields,
       };
       final events = _current!['events']! as List<Map<String, Object?>>;
@@ -123,6 +167,7 @@ class SystemDiagnostics {
       });
       _trimEvents(events);
       _current!['lastAliveAt'] = DateTime.now().toIso8601String();
+      _updateSlowStartupEvidence(event, effectiveFields);
       _scheduleWrite();
     } catch (_) {
       // Diagnostics must always fail open.
@@ -479,6 +524,7 @@ class SystemDiagnostics {
       );
       if (timing == null) return;
       final dartMainMs = html.window.performance.now();
+      _markPreDartEvidenceReachedDart(dartMainMs);
       record(
         'BROWSER',
         'BROWSER_STARTUP_TIMING',
@@ -489,6 +535,8 @@ class SystemDiagnostics {
             timing,
             'bootstrapScriptLoadedMs',
           ),
+          'mainPreloadRequestedMs': _jsNumber(timing, 'mainPreloadRequestedMs'),
+          'mainPreloadLoadedMs': _jsNumber(timing, 'mainPreloadLoadedMs'),
           'dartMainMs': dartMainMs,
           'documentToDartMainMs': dartMainMs,
         },
@@ -712,6 +760,18 @@ class SystemDiagnostics {
     });
   }
 
+  String copySlowStartupEvidenceText() {
+    _loadSlowStartupEvidenceIfNeeded();
+    return const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+      'title': 'OR-APP SLOW STARTUP EVIDENCE',
+      'schemaVersion': slowStartupEvidenceSchemaVersion,
+      'captureOperational': true,
+      'retentionLimit': slowStartupIncidentLimit,
+      'incidents': _slowStartupIncidents,
+      'preDartEvidence': _readPreDartEvidence(),
+    });
+  }
+
   void clear() {
     _flushTimer?.cancel();
     _sessions.clear();
@@ -730,6 +790,7 @@ class SystemDiagnostics {
   String copyText() {
     _loadIfNeeded();
     _loadUriEvidenceIfNeeded();
+    _loadSlowStartupEvidenceIfNeeded();
     return const JsonEncoder.withIndent(' ').convert(<String, Object?>{
       'title': 'OR-APP SYSTEM DIAGNOSTICS',
       'sessions': _sessions,
@@ -738,7 +799,132 @@ class SystemDiagnostics {
         'captureOperational': true,
         'incidents': _uriIncidents,
       },
+      'slowStartupEvidence': <String, Object?>{
+        'schemaVersion': slowStartupEvidenceSchemaVersion,
+        'captureOperational': true,
+        'retentionLimit': slowStartupIncidentLimit,
+        'incidents': _slowStartupIncidents,
+      },
+      'preDartEvidence': <String, Object?>{
+        'schemaVersion': 1,
+        'records': _readPreDartEvidence(),
+      },
     });
+  }
+
+  void _updateSlowStartupEvidence(String event, Map<String, Object?> fields) {
+    _loadSlowStartupEvidenceIfNeeded();
+    final trigger = slowStartupTrigger(event, fields);
+    if (trigger != null) {
+      upsertSlowStartupIncident(
+        incidents: _slowStartupIncidents,
+        session: _current!,
+        trigger: trigger,
+        lifecycleState: _lifecycleState,
+        build: const <String, Object?>{
+          'appReleaseCommit': String.fromEnvironment(
+            'OR_APP_RELEASE_COMMIT',
+            defaultValue: 'NOT AVAILABLE',
+          ),
+        },
+        platform: <String, Object?>{
+          'userAgent': _bounded(html.window.navigator.userAgent, 500),
+          'language': html.window.navigator.language,
+        },
+        preDartEvidence: _readPreDartEvidence(),
+      );
+      _flushSlowStartupEvidenceNow();
+      return;
+    }
+    final incident = _slowStartupIncidents.lastOrNull;
+    if (incident?['sessionId'] == sessionId &&
+        shouldRefreshSlowStartupIncident(event)) {
+      refreshSlowStartupIncident(
+        incident: incident!,
+        session: _current!,
+        lifecycleState: _lifecycleState,
+        build: const <String, Object?>{
+          'appReleaseCommit': String.fromEnvironment(
+            'OR_APP_RELEASE_COMMIT',
+            defaultValue: 'NOT AVAILABLE',
+          ),
+        },
+        platform: <String, Object?>{
+          'userAgent': _bounded(html.window.navigator.userAgent, 500),
+          'language': html.window.navigator.language,
+        },
+        preDartEvidence: _readPreDartEvidence(),
+      );
+      _flushSlowStartupEvidenceNow();
+    }
+  }
+
+  void _loadSlowStartupEvidenceIfNeeded() {
+    if (_slowStartupEvidenceLoaded) return;
+    _slowStartupEvidenceLoaded = true;
+    try {
+      final raw = html.window.localStorage[slowStartupEvidenceStorageKey];
+      if (raw == null) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map || decoded['incidents'] is! List) return;
+      _slowStartupIncidents.addAll(
+        (decoded['incidents'] as List).whereType<Map>().map(
+          (incident) =>
+              incident.map((key, value) => MapEntry(key.toString(), value)),
+        ),
+      );
+      if (_slowStartupIncidents.length > slowStartupIncidentLimit) {
+        _slowStartupIncidents.removeRange(
+          0,
+          _slowStartupIncidents.length - slowStartupIncidentLimit,
+        );
+      }
+    } catch (_) {}
+  }
+
+  void _flushSlowStartupEvidenceNow() {
+    try {
+      html.window.localStorage[slowStartupEvidenceStorageKey] =
+          jsonEncode(<String, Object?>{
+            'schemaVersion': slowStartupEvidenceSchemaVersion,
+            'incidents': _slowStartupIncidents,
+          });
+    } catch (_) {}
+  }
+
+  List<Map<String, Object?>> _readPreDartEvidence() {
+    try {
+      final raw = html.window.localStorage[preDartEvidenceStorageKey];
+      if (raw == null) return const [];
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map || decoded['records'] is! List) return const [];
+      return (decoded['records'] as List)
+          .whereType<Map>()
+          .map(
+            (record) =>
+                record.map((key, value) => MapEntry(key.toString(), value)),
+          )
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  void _markPreDartEvidenceReachedDart(double dartMainMs) {
+    try {
+      final records = _readPreDartEvidence();
+      if (records.isEmpty) return;
+      records.last
+        ..['dartMainMs'] = dartMainMs
+        ..['status'] = 'dart_reached';
+      html.window.localStorage[preDartEvidenceStorageKey] =
+          jsonEncode(<String, Object?>{
+            'schemaVersion': 1,
+            'records': records.length <= 5
+                ? records
+                : records.sublist(records.length - 5),
+          });
+    } catch (_) {}
   }
 
   void _loadUriEvidenceIfNeeded() {
