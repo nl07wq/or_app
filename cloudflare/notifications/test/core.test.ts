@@ -10,6 +10,10 @@ import {
   retryDelayMs,
   validateProjection,
 } from '../src/core';
+import {
+  projectionSetFingerprint,
+  requiredAlarmMutation,
+} from '../src/reconciliation';
 
 const base = {
   id: 'schedule:item@2026-10-08:-15',
@@ -133,5 +137,43 @@ describe('notification backend contracts', () => {
   it('rejects malformed projection timestamps and IDs', () => {
     expect(() => validateProjection({ ...base, id: 'contains space' })).toThrow('invalid_projection');
     expect(() => validateProjection({ ...base, triggerAt: 'not-a-time' })).toThrow('invalid_projection');
+  });
+
+  it('fingerprints identical authoritative projection sets independent of generation and order', async () => {
+    const first = validateProjection(base);
+    const second = validateProjection({
+      ...base,
+      id: 'reminder:item@2026-10-08:-5',
+      entityType: 'reminder',
+    });
+    expect(await projectionSetFingerprint([first, second])).toBe(
+      await projectionSetFingerprint([second, first]),
+    );
+    expect(await projectionSetFingerprint([first])).not.toBe(
+      await projectionSetFingerprint([{ ...first, title: 'Changed' }]),
+    );
+  });
+
+  it('does not rewrite an alarm already scheduled for the next required execution', () => {
+    const now = Date.UTC(2026, 10, 16, 0, 0, 0);
+    const due = now + 60_000;
+    expect(requiredAlarmMutation(due, due, now)).toEqual({ action: 'none' });
+    expect(requiredAlarmMutation(null, null, now)).toEqual({ action: 'none' });
+    expect(requiredAlarmMutation(due, null, now)).toEqual({ action: 'delete' });
+    expect(requiredAlarmMutation(null, due, now)).toEqual({
+      action: 'set',
+      scheduledAt: due,
+    });
+  });
+
+  it('keeps an existing imminent alarm for overdue work instead of postponing it', () => {
+    const now = Date.UTC(2026, 10, 16, 0, 0, 0);
+    expect(requiredAlarmMutation(now + 500, now - 30_000, now)).toEqual({
+      action: 'none',
+    });
+    expect(requiredAlarmMutation(now + 30_000, now - 30_000, now)).toEqual({
+      action: 'set',
+      scheduledAt: now + 1000,
+    });
   });
 });

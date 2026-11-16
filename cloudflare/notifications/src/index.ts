@@ -15,6 +15,19 @@ import {
   validateProjection,
   type ProjectionInput,
 } from './core';
+import {
+  activeProjectionIdsSql,
+  cancelProjectionSql,
+  installationUpsertSql,
+  nextProjectionAlarmSql,
+  projectionFingerprintStorageKey,
+  projectionSetFingerprint,
+  projectionUpsertBindings,
+  projectionUpsertSql,
+  requiredAlarmMutation,
+  subscriptionUpsertSql,
+  type AlarmMutation,
+} from './reconciliation';
 
 interface Env {
   PROFILES: DurableObjectNamespace<NotificationProfile>;
@@ -209,14 +222,14 @@ export class NotificationProfile extends DurableObject<Env> {
     return !!row && constantTimeEqual(await secretDigest(secret, this.env.PROFILE_PEPPER), row.recovery_hash);
   }
 
-  private upsertInstallation(id: string, label?: string): void {
+  private upsertInstallation(id: string, label?: string): number {
     if (!/^[A-Za-z0-9_-]{20,100}$/.test(id)) throw new Error('invalid_installation');
     const now = Date.now();
-    this.ctx.storage.sql.exec(
-      `INSERT INTO installations(id, label, created_at, updated_at) VALUES(?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET label = excluded.label, updated_at = excluded.updated_at`,
+    const cursor = this.ctx.storage.sql.exec(
+      installationUpsertSql,
       id, typeof label === 'string' ? label.slice(0, 80) : null, now, now,
     );
+    return cursor.rowsWritten;
   }
 
   private async subscription(request: Request, installationId: string): Promise<Response> {
@@ -230,16 +243,19 @@ export class NotificationProfile extends DurableObject<Env> {
     if (!body.endpoint?.startsWith('https://') || !body.keys?.p256dh || !body.keys.auth) {
       return json({ error: 'invalid_subscription' }, 400);
     }
-    this.upsertInstallation(installationId, body.label);
-    this.ctx.storage.sql.exec(
-      `INSERT INTO subscriptions(installation_id, endpoint, p256dh, auth, updated_at, failure_count, last_result)
-       VALUES(?, ?, ?, ?, ?, 0, NULL)
-       ON CONFLICT(installation_id) DO UPDATE SET endpoint=excluded.endpoint, p256dh=excluded.p256dh,
-       auth=excluded.auth, updated_at=excluded.updated_at, failure_count=0, last_result=NULL`,
+    const installationRowsWritten = this.upsertInstallation(installationId, body.label);
+    const subscriptionCursor = this.ctx.storage.sql.exec(
+      subscriptionUpsertSql,
       installationId, body.endpoint, body.keys.p256dh, body.keys.auth, Date.now(),
     );
-    await this.scheduleNextAlarm();
-    return json({ subscribed: true });
+    const alarmMutation = await this.scheduleNextAlarm();
+    return json({
+      subscribed: true,
+      storageMutation: {
+        rowsWritten: installationRowsWritten + subscriptionCursor.rowsWritten,
+        alarm: alarmMutation.action,
+      },
+    });
   }
 
   private async reconcile(request: Request): Promise<Response> {
@@ -252,49 +268,65 @@ export class NotificationProfile extends DurableObject<Env> {
     if (ids.size !== projections.length) return json({ error: 'duplicate_projection' }, 400);
     const sql = this.ctx.storage.sql;
     const now = Date.now();
-    const cancelled = sql.exec(
-      'SELECT COUNT(*) AS count FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL',
-    ).one() as { count: number };
-    sql.exec(
-      'UPDATE projections SET cancelled_at = ? WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL',
-      now,
+    const fingerprint = await projectionSetFingerprint(projections);
+    const previousFingerprint = await this.ctx.storage.get<string>(
+      projectionFingerprintStorageKey,
     );
-    if (cancelled.count > 0) {
-      this.logDeliveryDiagnostic('cancelled', { alarmAt: now, terminalState: 'cancelled', count: cancelled.count });
-    }
-    for (const item of projections) {
-      sql.exec(
-        `INSERT INTO projections(id, entity_type, entity_id, occurrence_local_date, trigger_at,
-         time_zone, privacy_mode, title, all_day, start_time, end_time, end_date, generation, attempts, delivered_at, cancelled_at, expired_at, failed_at, retry_at, last_result)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, NULL, NULL, NULL, NULL)
-         ON CONFLICT(id) DO UPDATE SET entity_type=excluded.entity_type, entity_id=excluded.entity_id,
-         occurrence_local_date=excluded.occurrence_local_date, trigger_at=excluded.trigger_at,
-         time_zone=excluded.time_zone, privacy_mode=excluded.privacy_mode, title=excluded.title,
-         all_day=excluded.all_day, start_time=excluded.start_time, end_time=excluded.end_time,
-         end_date=excluded.end_date,
-         generation=excluded.generation,
-         cancelled_at=CASE WHEN projections.delivered_at IS NOT NULL OR projections.expired_at IS NOT NULL OR projections.failed_at IS NOT NULL
-           THEN projections.cancelled_at ELSE NULL END,
-         delivered_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.delivered_at END,
-         expired_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.expired_at END,
-         failed_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.failed_at END,
-         attempts=CASE WHEN projections.trigger_at != excluded.trigger_at THEN 0 ELSE projections.attempts END,
-         retry_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.retry_at END,
-         last_attempt_at=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.last_attempt_at END,
-         last_result=CASE WHEN projections.trigger_at != excluded.trigger_at THEN NULL ELSE projections.last_result END`,
-        item.id, item.entityType, item.entityId, item.occurrenceLocalDate,
-        Date.parse(item.triggerAt), item.timeZone, item.privacyMode, item.title ?? null,
-        item.allDay ? 1 : null, item.startTime ?? null, item.endTime ?? null,
-        item.endDate ?? null, body.generation,
-      );
-      this.logDeliveryDiagnostic('reconciled', {
-        projection: projectionCorrelationId(item.id),
-        triggerAt: Date.parse(item.triggerAt),
-      });
+    let projectionRowsWritten = 0;
+    let cancelledCount = 0;
+    let changedCount = 0;
+
+    if (previousFingerprint !== fingerprint) {
+      const activeIds = [...sql.exec(activeProjectionIdsSql)] as Array<{ id: string }>;
+      for (const active of activeIds) {
+        if (ids.has(active.id)) continue;
+        const cursor = sql.exec(cancelProjectionSql, now, active.id);
+        projectionRowsWritten += cursor.rowsWritten;
+        if (cursor.rowsWritten > 0) cancelledCount++;
+      }
+      if (cancelledCount > 0) {
+        this.logDeliveryDiagnostic('cancelled', {
+          alarmAt: now,
+          terminalState: 'cancelled',
+          count: cancelledCount,
+        });
+      }
+      for (const item of projections) {
+        const cursor = sql.exec(
+          projectionUpsertSql,
+          ...projectionUpsertBindings(item, body.generation),
+        );
+        projectionRowsWritten += cursor.rowsWritten;
+        if (cursor.rowsWritten === 0) continue;
+        changedCount++;
+        this.logDeliveryDiagnostic('reconciled', {
+          projection: projectionCorrelationId(item.id),
+          triggerAt: Date.parse(item.triggerAt),
+        });
+      }
+      await this.ctx.storage.put(projectionFingerprintStorageKey, fingerprint);
     }
     this.expireStaleProjections(now);
-    await this.scheduleNextAlarm();
-    return json({ generation: body.generation, accepted: projections.length });
+    const alarmMutation = await this.scheduleNextAlarm();
+    const unchanged = previousFingerprint === fingerprint;
+    this.logDeliveryDiagnostic('reconciliation_summary', {
+      accepted: projections.length,
+      changed: changedCount,
+      cancelled: cancelledCount,
+      projectionRowsWritten,
+      metadataRowsWritten: unchanged ? 0 : 1,
+      alarmWrites: alarmMutation.action === 'none' ? 0 : 1,
+    });
+    return json({
+      generation: body.generation,
+      accepted: projections.length,
+      unchanged,
+      storageMutation: {
+        projectionRowsWritten,
+        metadataRowsWritten: unchanged ? 0 : 1,
+        alarm: alarmMutation.action,
+      },
+    });
   }
 
   private status(): Response {
@@ -495,21 +527,24 @@ export class NotificationProfile extends DurableObject<Env> {
     console.log(JSON.stringify({ notificationDelivery: event, ...values }));
   }
 
-  private async scheduleNextAlarm(): Promise<void> {
-    const row = this.ctx.storage.sql.exec(
-      `SELECT id, trigger_at, COALESCE(retry_at, trigger_at) AS due_at
-       FROM projections WHERE delivered_at IS NULL AND expired_at IS NULL AND failed_at IS NULL AND cancelled_at IS NULL
-       ORDER BY due_at LIMIT 1`,
-    ).one() as { id: string; trigger_at: number; due_at: number } | null;
-    if (row != null) {
-      const alarmAt = Math.max(Date.now() + 1000, row.due_at);
+  private async scheduleNextAlarm(): Promise<AlarmMutation> {
+    const row = [...this.ctx.storage.sql.exec(nextProjectionAlarmSql)][0] as
+      { id: string; trigger_at: number; due_at: number } | undefined;
+    const currentAlarm = await this.ctx.storage.getAlarm();
+    const mutation = requiredAlarmMutation(
+      currentAlarm,
+      row?.due_at ?? null,
+      Date.now(),
+    );
+    if (mutation.action === 'set' && row != null) {
       this.logDeliveryDiagnostic('alarm_scheduled', {
         projection: projectionCorrelationId(row.id),
         triggerAt: row.trigger_at,
-        alarmAt,
+        alarmAt: mutation.scheduledAt,
       });
-      await this.ctx.storage.setAlarm(alarmAt);
+      await this.ctx.storage.setAlarm(mutation.scheduledAt);
     }
-    else await this.ctx.storage.deleteAlarm();
+    else if (mutation.action === 'delete') await this.ctx.storage.deleteAlarm();
+    return mutation;
   }
 }

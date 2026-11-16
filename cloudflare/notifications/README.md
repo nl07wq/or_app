@@ -15,6 +15,23 @@ Required Worker secrets:
 variables. Never place profile secrets, recovery secrets, subscriptions, or
 private VAPID material in source control.
 
+## Reconciliation write contract
+
+`PUT /projections/reconcile` is an authoritative full-set synchronization, but
+it is storage-idempotent. The Worker fingerprints the normalized, ID-sorted
+projection set (the client generation is not part of that state), skips an
+identical set, cancels only active IDs that disappeared, and conditionally
+UPSERTs only rows whose notification fields changed. Device installation and
+Push subscription UPSERTs follow the same unchanged-state rule.
+
+Alarm storage is also idempotent: an existing alarm is retained when it already
+represents the next actual projection, and an absent alarm is not repeatedly
+deleted. Reconciliation responses expose aggregate `storageMutation` counts for
+safe operational verification; they never include projection, subscription, or
+profile identifiers. Cloudflare bills SQL index-row updates and every
+`setAlarm()` as rows written, so these guards are part of the free-tier safety
+contract rather than a cosmetic optimization.
+
 ## Delivery freshness and diagnostics
 
 The Durable Object suppresses a projection once more than five minutes have
