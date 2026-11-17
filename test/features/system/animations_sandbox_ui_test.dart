@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
-import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_registration.dart';
 import 'package:or_app/features/system/pages/cat_run_v2_trace_data.dart';
@@ -27,47 +26,12 @@ import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    DeviceSettingsController.instance.resetForTesting(const DeviceSettings());
     AppRepositoryRegistry.install(
       AppRepositoryContainer.indexedDb(FakeIndexedDbDatabase()),
     );
   });
 
   tearDown(AppRepositoryRegistry.resetForTesting);
-
-  testWidgets('Soldier pixel tuner selects levels and resets original', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MaterialApp(home: AnimationsSandboxPage()));
-
-    await tester.scrollUntilVisible(
-      find.text('SOLDIER PIXEL TUNER'),
-      600,
-      scrollable: find.byType(Scrollable).first,
-      maxScrolls: 30,
-    );
-    await tester.pump();
-    expect(find.textContaining('CURRENT: ORIGINAL'), findsOneWidget);
-    await tester.tap(find.text('LEVEL 2\nMEDIUM'));
-    await tester.pump();
-    expect(
-      DeviceSettingsController.instance.value.soldierPixelationLevel,
-      SoldierPixelationLevel.medium,
-    );
-    expect(find.textContaining('CURRENT: LEVEL 2'), findsOneWidget);
-    await tester.tap(
-      find.byKey(const ValueKey('soldier-pixel-reset-original')),
-    );
-    await tester.pump();
-    expect(
-      DeviceSettingsController.instance.value.soldierPixelationLevel,
-      SoldierPixelationLevel.original,
-    );
-  });
 
   testWidgets('SYSTEM keeps sandbox and places INITIALIZE APP DATA last', (
     tester,

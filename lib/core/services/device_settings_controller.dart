@@ -21,14 +21,16 @@ enum AppPresentationTheme { standard, baseCamp }
 /// assets byte-for-byte; other values select one deterministic nearest-neighbor
 /// pixelation level for both breathing and rifle-regrip frames.
 enum SoldierPixelationLevel {
-  original(1, 'ORIGINAL'),
-  fine(.75, 'LEVEL 1'),
-  medium(.5, 'LEVEL 2'),
-  coarse(1 / 3, 'LEVEL 3');
+  original(1, 'PIXEL LV.0'),
+  fine(6, 'PIXEL LV.1'),
+  medium(12, 'PIXEL LV.2'),
+  coarse(24, 'PIXEL LV.3');
 
-  const SoldierPixelationLevel(this.scale, this.controlLabel);
+  const SoldierPixelationLevel(this.sourceBlockSize, this.controlLabel);
 
-  final double scale;
+  /// Square source-pixel block sampled into one coarse pixel before the image
+  /// is restored to its original transparent canvas dimensions.
+  final int sourceBlockSize;
   final String controlLabel;
 }
 

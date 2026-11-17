@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -9,13 +8,10 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/navigation/app_routes.dart';
-import '../../../core/services/device_settings_controller.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
-import '../../themes/base_camp/base_camp_soldier_pixelation.dart';
-import '../../themes/base_camp/base_camp_soldier_motion.dart';
 import 'bat_v3_flight_motion_poc.dart';
 import 'bird_v1_flight_preview.dart';
 import 'ambient_wildlife_v2.dart';
@@ -143,98 +139,9 @@ class AnimationsSandboxPage extends StatelessWidget {
         AppSpacing.gapXL,
         const _AnimalSandboxSections(),
         AppSpacing.gapXL,
-        const _SoldierPixelTunerSection(),
-        AppSpacing.gapXL,
         const SoldierAlignmentSandboxSection(),
       ],
     ),
-  );
-}
-
-class _SoldierPixelTunerSection extends StatelessWidget {
-  const _SoldierPixelTunerSection();
-
-  void _select(SoldierPixelationLevel level) {
-    BaseCampSoldierPixelCache.instance.selectLevel(level);
-    final controller = DeviceSettingsController.instance;
-    controller.update(controller.value.copyWith(soldierPixelationLevel: level));
-    unawaited(
-      BaseCampSoldierPixelCache.instance.prepareAssets(<String>[
-        baseCampBreathingSoldierLowerAsset,
-        baseCampBreathingSoldierUpperAsset,
-        ...baseCampRifleRegripAssets,
-      ], level),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: <Widget>[
-      const SectionHeader(
-        icon: Icons.grid_4x4_outlined,
-        title: 'SOLDIER PIXEL TUNER',
-      ),
-      AppSpacing.gapSM,
-      OperationCard(
-        child: ValueListenableBuilder<DeviceSettings>(
-          valueListenable: DeviceSettingsController.instance,
-          builder: (context, settings, _) {
-            final selected = settings.soldierPixelationLevel;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Text(
-                  'BREATHING / TRIGGER REGRIP · CURRENT: '
-                  '${selected.controlLabel}',
-                ),
-                AppSpacing.gapMD,
-                SegmentedButton<SoldierPixelationLevel>(
-                  key: const ValueKey('soldier-pixel-level-controls'),
-                  segments: const <ButtonSegment<SoldierPixelationLevel>>[
-                    ButtonSegment<SoldierPixelationLevel>(
-                      value: SoldierPixelationLevel.fine,
-                      label: Text('LEVEL 1\nFINE'),
-                    ),
-                    ButtonSegment<SoldierPixelationLevel>(
-                      value: SoldierPixelationLevel.medium,
-                      label: Text('LEVEL 2\nMEDIUM'),
-                    ),
-                    ButtonSegment<SoldierPixelationLevel>(
-                      value: SoldierPixelationLevel.coarse,
-                      label: Text('LEVEL 3\nCOARSE'),
-                    ),
-                  ],
-                  selected: selected == SoldierPixelationLevel.original
-                      ? const <SoldierPixelationLevel>{}
-                      : <SoldierPixelationLevel>{selected},
-                  emptySelectionAllowed: true,
-                  showSelectedIcon: true,
-                  onSelectionChanged: (selection) {
-                    if (selection.isNotEmpty) _select(selection.single);
-                  },
-                ),
-                AppSpacing.gapMD,
-                OutlinedButton.icon(
-                  key: const ValueKey('soldier-pixel-reset-original'),
-                  onPressed: selected == SoldierPixelationLevel.original
-                      ? null
-                      : () => _select(SoldierPixelationLevel.original),
-                  icon: const Icon(Icons.restart_alt),
-                  label: const Text('RESET TO ORIGINAL'),
-                ),
-                AppSpacing.gapSM,
-                const Text(
-                  'FINE 75%  ·  MEDIUM 50%  ·  COARSE 33%\n'
-                  'Full transparent Soldier frames only; display geometry and '
-                  'animation timing remain unchanged.',
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    ],
   );
 }
 

@@ -90,14 +90,13 @@ class BaseCampSoldierPixelCache {
     final source = frame.image;
     ui.Image? reduced;
     try {
-      final reducedWidth = (source.width * level.scale).round().clamp(
+      final reducedWidth = (source.width / level.sourceBlockSize).ceil().clamp(
         1,
         source.width,
       );
-      final reducedHeight = (source.height * level.scale).round().clamp(
-        1,
-        source.height,
-      );
+      final reducedHeight = (source.height / level.sourceBlockSize)
+          .ceil()
+          .clamp(1, source.height);
       reduced = await _resizeNearest(source, reducedWidth, reducedHeight);
       final result = await _resizeNearest(reduced, source.width, source.height);
       if (generation != _generation || level != _level) {

@@ -173,6 +173,10 @@ void main() {
       find.byKey(const ValueKey('soldier-live-trigger-regrip')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('soldier-live-pixel-level-controls')),
+      findsOneWidget,
+    );
 
     await tester.pageBack();
     await tester.pump(const Duration(milliseconds: 1100));

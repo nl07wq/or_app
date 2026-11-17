@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/services/device_settings_controller.dart';
 import '../../../core/widgets/operation_button.dart';
 import 'base_camp_soldier_motion.dart';
+import 'base_camp_soldier_pixelation.dart';
 
 enum SoldierLivePreviewMode { breathingOnly, rifleOnly, overlay }
 
@@ -27,6 +30,8 @@ class _SoldierLiveMotionPreviewPageState
   BaseCampRifleGlobalAlignment _working = const BaseCampRifleGlobalAlignment();
   bool _loading = true;
   bool _applying = false;
+  bool _pixelPreparing = false;
+  int _pixelSelectionGeneration = 0;
 
   BaseCampRifleAlignmentController get _alignmentController =>
       widget.alignmentController ?? baseCampRifleGlobalAlignment;
@@ -77,6 +82,22 @@ class _SoldierLiveMotionPreviewPageState
       ..value = 0;
     _event.forward(from: 0);
     setState(() {});
+  }
+
+  Future<void> _selectPixelLevel(SoldierPixelationLevel level) async {
+    final generation = ++_pixelSelectionGeneration;
+    final cache = BaseCampSoldierPixelCache.instance;
+    cache.selectLevel(level);
+    final settings = DeviceSettingsController.instance;
+    settings.update(settings.value.copyWith(soldierPixelationLevel: level));
+    setState(() => _pixelPreparing = level != SoldierPixelationLevel.original);
+    await cache.prepareAssets(<String>[
+      baseCampBreathingSoldierLowerAsset,
+      baseCampBreathingSoldierUpperAsset,
+      ...baseCampRifleRegripAssets,
+    ], level);
+    if (!mounted || generation != _pixelSelectionGeneration) return;
+    setState(() => _pixelPreparing = false);
   }
 
   Map<String, Object?> _json() => _working.toJson();
@@ -242,6 +263,59 @@ class _SoldierLiveMotionPreviewPageState
           ),
           const SizedBox(height: 8),
           Text('PHASE: ${phase.name.toUpperCase()}'),
+          const SizedBox(height: 8),
+          ValueListenableBuilder<DeviceSettings>(
+            valueListenable: DeviceSettingsController.instance,
+            builder: (context, settings, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                SegmentedButton<SoldierPixelationLevel>(
+                  key: const ValueKey('soldier-live-pixel-level-controls'),
+                  segments: const <ButtonSegment<SoldierPixelationLevel>>[
+                    ButtonSegment<SoldierPixelationLevel>(
+                      value: SoldierPixelationLevel.original,
+                      label: Text('PIXEL LV.0'),
+                    ),
+                    ButtonSegment<SoldierPixelationLevel>(
+                      value: SoldierPixelationLevel.fine,
+                      label: Text('PIXEL LV.1'),
+                    ),
+                    ButtonSegment<SoldierPixelationLevel>(
+                      value: SoldierPixelationLevel.medium,
+                      label: Text('PIXEL LV.2'),
+                    ),
+                    ButtonSegment<SoldierPixelationLevel>(
+                      value: SoldierPixelationLevel.coarse,
+                      label: Text('PIXEL LV.3'),
+                    ),
+                  ],
+                  selected: <SoldierPixelationLevel>{
+                    settings.soldierPixelationLevel,
+                  },
+                  showSelectedIcon: false,
+                  expandedInsets: EdgeInsets.zero,
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
+                      EdgeInsets.symmetric(horizontal: 4),
+                    ),
+                  ),
+                  onSelectionChanged: (selection) =>
+                      unawaited(_selectPixelLevel(selection.single)),
+                ),
+                if (_pixelPreparing)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'PREPARING SELECTED PIXEL LEVEL...',
+                      key: ValueKey('soldier-live-pixel-preparing'),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
           SegmentedButton<SoldierLivePreviewMode>(
             segments: const <ButtonSegment<SoldierLivePreviewMode>>[
               ButtonSegment(
