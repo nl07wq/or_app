@@ -812,16 +812,11 @@ class _BreathingSoldierCompartmentState
       'RIFLE_REGRIP_FRAMES_READY',
       fields: <String, Object?>{'frameCount': baseCampRifleRegripAssets.length},
     );
-    final pixelationLevel =
-        DeviceSettingsController.instance.value.soldierPixelationLevel;
-    if (pixelationLevel != SoldierPixelationLevel.original) {
-      unawaited(
-        BaseCampSoldierPixelCache.instance.prepareAssets(<String>[
-          baseCampBreathingSoldierLowerAsset,
-          baseCampBreathingSoldierUpperAsset,
-          ...baseCampRifleRegripAssets,
-        ], pixelationLevel),
-      );
+    final pixelProfileReady = await _prepareSoldierPixelation();
+    if (!pixelProfileReady) {
+      _pendingManualRegrip = false;
+      _automaticEventPending = false;
+      return;
     }
     if (_pendingManualRegrip) {
       _pendingManualRegrip = false;
@@ -831,6 +826,42 @@ class _BreathingSoldierCompartmentState
       _automaticEventPending = false;
       _startSpecialEvent(manual: false);
     }
+  }
+
+  Future<bool> _prepareSoldierPixelation() async {
+    final level =
+        DeviceSettingsController.instance.value.soldierPixelationLevel;
+    if (level == SoldierPixelationLevel.original) {
+      BaseCampSoldierPixelCache.instance.selectLevel(level);
+      return true;
+    }
+    await baseCampRifleGlobalAlignment.load();
+    if (!mounted || !_active) return false;
+    final alignment = baseCampRifleGlobalAlignment.value;
+    final profile = baseCampSoldierPixelProfile(
+      globalScale: alignment.scale,
+      frameScales: alignment.frameScales,
+      verticalScaleX: alignment.verticalScaleX,
+      horizontalScaleY: alignment.horizontalScaleY,
+    );
+    final prepared = await BaseCampSoldierPixelCache.instance.prepareRequests(
+      profile.requests,
+      level,
+    );
+    if (!prepared && mounted) {
+      SystemDiagnostics.instance.record(
+        'SOLDIER',
+        'PIXEL_PROFILE_PREPARATION_FAILED',
+        fields: <String, Object?>{
+          'level': level.controlLabel,
+          'errorType':
+              BaseCampSoldierPixelCache.instance.lastFailure?.runtimeType
+                  .toString() ??
+              'cancelled',
+        },
+      );
+    }
+    return prepared;
   }
 
   void _onSpecialStatus(AnimationStatus status) {
@@ -878,6 +909,11 @@ class _BreathingSoldierCompartmentState
       unawaited(_precacheRifleFrames());
       return;
     }
+    unawaited(_startAutomaticRegrip());
+  }
+
+  Future<void> _startAutomaticRegrip() async {
+    if (!await _prepareSoldierPixelation() || !mounted || !_active) return;
     _startSpecialEvent(manual: false);
   }
 
@@ -906,6 +942,7 @@ class _BreathingSoldierCompartmentState
       unawaited(_precacheRifleFrames(manualPriority: true));
       return;
     }
+    if (!await _prepareSoldierPixelation() || !mounted || !_active) return;
     _startSpecialEvent(manual: true);
   }
 
@@ -1012,6 +1049,15 @@ class _BreathingSoldierCompartmentState
                           _specialController,
                         ]),
                         builder: (context, _) {
+                          final pixelAlignment = _specialController.isAnimating
+                              ? _eventAlignment
+                              : baseCampRifleGlobalAlignment.value;
+                          final pixelProfile = baseCampSoldierPixelProfile(
+                            globalScale: pixelAlignment.scale,
+                            frameScales: pixelAlignment.frameScales,
+                            verticalScaleX: pixelAlignment.verticalScaleX,
+                            horizontalScaleY: pixelAlignment.horizontalScaleY,
+                          );
                           final elapsed =
                               (_specialController.value *
                                       _eventAlignment.eventDurationMs)
@@ -1046,6 +1092,7 @@ class _BreathingSoldierCompartmentState
                                   _eventAlignment.horizontalScaleY,
                               frameOffsets: _eventAlignment.frameOffsets,
                               frameScales: _eventAlignment.frameScales,
+                              pixelProfile: pixelProfile,
                               brightness: _eventAlignment.brightness,
                               contrast: _eventAlignment.contrast,
                               saturation: _eventAlignment.saturation,
@@ -1063,7 +1110,10 @@ class _BreathingSoldierCompartmentState
                                   _breathingController.value *
                                       _breathingCycleMs,
                                 );
-                          return BaseCampBreathingSoldier(dy: dy);
+                          return BaseCampBreathingSoldier(
+                            dy: dy,
+                            pixelProfile: pixelProfile,
+                          );
                         },
                       ),
                     ),

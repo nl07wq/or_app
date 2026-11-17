@@ -333,6 +333,69 @@ const _rifleFrameVisibleTop = 32.0;
 const _rifleFrameVisibleHeight = 480.0;
 const _rifleFrameVisibleBottom = 511.0;
 
+@immutable
+class BaseCampSoldierPixelProfile {
+  BaseCampSoldierPixelProfile._(
+    this.key,
+    List<BaseCampSoldierPixelRequest> requests,
+  ) : _requests = Map<String, BaseCampSoldierPixelRequest>.unmodifiable(
+        <String, BaseCampSoldierPixelRequest>{
+          for (final request in requests) request.asset: request,
+        },
+      );
+
+  final String key;
+  final Map<String, BaseCampSoldierPixelRequest> _requests;
+
+  Iterable<BaseCampSoldierPixelRequest> get requests => _requests.values;
+
+  BaseCampSoldierPixelRequest requestFor(String asset) => _requests[asset]!;
+}
+
+/// Converts the approved BREATHING-source density into each REGRIP frame's
+/// source sampling density. The viewport's contain scale cancels from both
+/// sides, leaving only the measured visible-height and alignment scale ratios.
+BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
+  double globalScale = baseCampApprovedRifleGlobalScale,
+  List<double> frameScales = baseCampApprovedRifleFrameScales,
+  double verticalScaleX = 1,
+  double horizontalScaleY = 1,
+}) {
+  final key = <String>[
+    globalScale.toStringAsFixed(6),
+    verticalScaleX.toStringAsFixed(6),
+    horizontalScaleY.toStringAsFixed(6),
+    for (final scale in frameScales) scale.toStringAsFixed(6),
+  ].join(':');
+  final regripToBreathingScale =
+      _normalSoldierVisibleHeight / _rifleFrameVisibleHeight;
+  return BaseCampSoldierPixelProfile._(key, <BaseCampSoldierPixelRequest>[
+    BaseCampSoldierPixelRequest(
+      asset: baseCampBreathingSoldierLowerAsset,
+      profileKey: key,
+    ),
+    BaseCampSoldierPixelRequest(
+      asset: baseCampBreathingSoldierUpperAsset,
+      profileKey: key,
+    ),
+    for (var frame = 0; frame < baseCampRifleRegripAssets.length; frame++)
+      BaseCampSoldierPixelRequest(
+        asset: baseCampRifleRegripAssets[frame],
+        profileKey: key,
+        screenScaleX:
+            regripToBreathingScale *
+            globalScale *
+            frameScales[frame] *
+            horizontalScaleY,
+        screenScaleY:
+            regripToBreathingScale *
+            globalScale *
+            frameScales[frame] *
+            verticalScaleX,
+      ),
+  ]);
+}
+
 BaseCampRifleRegripLayout baseCampRifleRegripLayout(Size viewport) {
   final normalScale = math.min(
     viewport.width / _normalSoldierCanvas.width,
@@ -417,6 +480,7 @@ class BaseCampRifleRegripFrame extends StatelessWidget {
     this.warmth = 0,
     this.assets = baseCampRifleRegripAssets,
     this.opacity = 1,
+    this.pixelProfile,
   });
 
   final int frame;
@@ -433,6 +497,7 @@ class BaseCampRifleRegripFrame extends StatelessWidget {
   final double warmth;
   final List<String> assets;
   final double opacity;
+  final BaseCampSoldierPixelProfile? pixelProfile;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -448,8 +513,18 @@ class BaseCampRifleRegripFrame extends StatelessWidget {
         verticalScaleX: verticalScaleX,
         horizontalScaleY: horizontalScaleY,
       );
+      final profile =
+          pixelProfile ??
+          baseCampSoldierPixelProfile(
+            globalScale: globalScale,
+            frameScales: frameScales,
+            verticalScaleX: verticalScaleX,
+            horizontalScaleY: horizontalScaleY,
+          );
       final image = BaseCampSoldierAssetImage(
-        asset: assets[frame],
+        request: profile
+            .requestFor(baseCampRifleRegripAssets[frame])
+            .withAsset(assets[frame]),
         fit: BoxFit.fill,
       );
       final frameImage =
@@ -485,34 +560,39 @@ class BaseCampBreathingSoldier extends StatelessWidget {
     super.key,
     required this.dy,
     this.opacity = 1,
+    this.pixelProfile,
   });
 
   final double dy;
   final double opacity;
+  final BaseCampSoldierPixelProfile? pixelProfile;
 
   @override
-  Widget build(BuildContext context) => Opacity(
-    opacity: opacity,
-    child: Stack(
-      fit: StackFit.expand,
-      clipBehavior: Clip.hardEdge,
-      children: [
-        BaseCampSoldierAssetImage(
-          key: const ValueKey('base-camp-soldier-lower'),
-          asset: baseCampBreathingSoldierLowerAsset,
-          fit: BoxFit.contain,
-        ),
-        Transform.translate(
-          offset: Offset(0, dy),
-          child: BaseCampSoldierAssetImage(
-            key: const ValueKey('base-camp-soldier-upper'),
-            asset: baseCampBreathingSoldierUpperAsset,
+  Widget build(BuildContext context) {
+    final profile = pixelProfile ?? baseCampSoldierPixelProfile();
+    return Opacity(
+      opacity: opacity,
+      child: Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.hardEdge,
+        children: [
+          BaseCampSoldierAssetImage(
+            key: const ValueKey('base-camp-soldier-lower'),
+            request: profile.requestFor(baseCampBreathingSoldierLowerAsset),
             fit: BoxFit.contain,
           ),
-        ),
-      ],
-    ),
-  );
+          Transform.translate(
+            offset: Offset(0, dy),
+            child: BaseCampSoldierAssetImage(
+              key: const ValueKey('base-camp-soldier-upper'),
+              request: profile.requestFor(baseCampBreathingSoldierUpperAsset),
+              fit: BoxFit.contain,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 enum BaseCampRifleRegripPhase { breathing, preIdle, rifleRegrip, postIdle }

@@ -8,17 +8,74 @@ import 'package:flutter/services.dart';
 import '../../../core/services/device_settings_controller.dart';
 import 'base_camp_asset_metrics.dart';
 
-/// Single-level, lazy Soldier frame cache. Only assets requested by the active
-/// level are processed; animation ticks reuse the resulting [ui.Image].
-class BaseCampSoldierPixelCache {
+/// One source frame plus its scale relative to the BREATHING source-to-screen
+/// scale. Reduced raster dimensions are derived from the final drawing scale.
+@immutable
+class BaseCampSoldierPixelRequest {
+  const BaseCampSoldierPixelRequest({
+    required this.asset,
+    required this.profileKey,
+    this.screenScaleX = 1,
+    this.screenScaleY = 1,
+    this.sourceSize,
+  });
+
+  final String asset;
+  final String profileKey;
+  final double screenScaleX;
+  final double screenScaleY;
+  final Size? sourceSize;
+
+  BaseCampSoldierPixelRequest withAsset(String nextAsset) =>
+      BaseCampSoldierPixelRequest(
+        asset: nextAsset,
+        profileKey: profileKey,
+        screenScaleX: screenScaleX,
+        screenScaleY: screenScaleY,
+        sourceSize:
+            sourceSize ??
+            Size(
+              baseCampAssetMetrics[asset]!.width.toDouble(),
+              baseCampAssetMetrics[asset]!.height.toDouble(),
+            ),
+      );
+
+  Size reducedSize(SoldierPixelationLevel level) {
+    final metric = baseCampAssetMetrics[asset];
+    final widthPx = sourceSize?.width.toInt() ?? metric?.width;
+    final heightPx = sourceSize?.height.toInt() ?? metric?.height;
+    if (widthPx == null || heightPx == null) {
+      throw StateError('Missing Soldier asset metric: $asset');
+    }
+    final width = (widthPx * screenScaleX / level.referenceBlockSize)
+        .ceil()
+        .clamp(1, widthPx);
+    final height = (heightPx * screenScaleY / level.referenceBlockSize)
+        .ceil()
+        .clamp(1, heightPx);
+    return Size(width.toDouble(), height.toDouble());
+  }
+
+  String cacheKey(SoldierPixelationLevel level) {
+    final reduced = reducedSize(level);
+    return '$asset@${reduced.width.toInt()}x${reduced.height.toInt()}';
+  }
+}
+
+/// Single-level, atomic Soldier frame cache. Frames for a new display profile
+/// become visible only after the complete breathing and regrip set succeeds.
+class BaseCampSoldierPixelCache extends ChangeNotifier {
   BaseCampSoldierPixelCache._();
 
   static final instance = BaseCampSoldierPixelCache._();
 
   SoldierPixelationLevel _level = SoldierPixelationLevel.original;
   int _generation = 0;
-  final Map<String, Future<ui.Image>> _pending = <String, Future<ui.Image>>{};
-  final Map<String, ui.Image> _images = <String, ui.Image>{};
+  Map<String, ui.Image> _images = <String, ui.Image>{};
+  String? _committedProfileKey;
+  String? _preparingKey;
+  Future<bool>? _preparation;
+  Object? _lastFailure;
   int _processedImageCount = 0;
 
   @visibleForTesting
@@ -27,61 +84,119 @@ class BaseCampSoldierPixelCache {
   @visibleForTesting
   int get cachedImageCount => _images.length;
 
-  ui.Image? cachedImage(String asset, SoldierPixelationLevel level) =>
-      _level == level ? _images[asset] : null;
+  bool get isPreparing => _preparation != null;
+  Object? get lastFailure => _lastFailure;
+
+  ui.Image? cachedImage(
+    BaseCampSoldierPixelRequest request,
+    SoldierPixelationLevel level,
+  ) {
+    if (_level != level || _committedProfileKey != request.profileKey) {
+      return null;
+    }
+    return _images[request.cacheKey(level)];
+  }
 
   void selectLevel(SoldierPixelationLevel level) {
     if (_level == level) return;
     _level = level;
     _generation++;
-    _pending.clear();
-    final obsolete = _images.values.toList(growable: false);
-    _images.clear();
-    if (obsolete.isNotEmpty) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        for (final image in obsolete) {
-          image.dispose();
-        }
-      });
-    }
+    _preparingKey = null;
+    _preparation = null;
+    _lastFailure = null;
+    _committedProfileKey = null;
+    _disposeAfterFrame(_images.values);
+    _images = <String, ui.Image>{};
   }
 
-  Future<ui.Image> imageFor(String asset, SoldierPixelationLevel level) {
-    assert(level != SoldierPixelationLevel.original);
-    selectLevel(level);
-    return _pending.putIfAbsent(
-      asset,
-      () => _process(asset, level, _generation),
-    );
-  }
-
-  /// Warms only the active level, sequentially, after the released Soldier
-  /// assets are ready. A failed frame retains the original asset fallback.
-  Future<void> prepareAssets(
-    Iterable<String> assets,
+  /// Stages a complete profile and commits it atomically. A failure leaves the
+  /// released ORIGINAL frames visible and is exposed through [lastFailure].
+  Future<bool> prepareRequests(
+    Iterable<BaseCampSoldierPixelRequest> requests,
     SoldierPixelationLevel level,
-  ) async {
+  ) {
+    final list = requests.toList(growable: false);
     if (level == SoldierPixelationLevel.original) {
       selectLevel(level);
-      return;
+      return Future<bool>.value(true);
+    }
+    if (list.isEmpty) return Future<bool>.value(false);
+    final profileKey = list.first.profileKey;
+    if (list.any((request) => request.profileKey != profileKey)) {
+      throw ArgumentError('Soldier pixel requests must share one profile');
     }
     selectLevel(level);
-    for (final asset in assets) {
-      if (_level != level) return;
-      try {
-        await imageFor(asset, level);
-      } catch (_) {
-        // The renderer intentionally keeps the released original visible.
+    final preparationKey = '$level|$profileKey';
+    if (_committedProfileKey == profileKey &&
+        list.every((request) => _images.containsKey(request.cacheKey(level)))) {
+      return Future<bool>.value(true);
+    }
+    if (_preparingKey == preparationKey && _preparation != null) {
+      return _preparation!;
+    }
+    final generation = ++_generation;
+    if (_committedProfileKey != profileKey) {
+      _disposeAfterFrame(_images.values);
+      _images = <String, ui.Image>{};
+      _committedProfileKey = null;
+    }
+    _preparingKey = preparationKey;
+    _lastFailure = null;
+    notifyListeners();
+    final operation = _prepare(list, level, profileKey, generation);
+    _preparation = operation;
+    return operation;
+  }
+
+  Future<bool> _prepare(
+    List<BaseCampSoldierPixelRequest> requests,
+    SoldierPixelationLevel level,
+    String profileKey,
+    int generation,
+  ) async {
+    final staged = <String, ui.Image>{};
+    try {
+      for (final request in requests) {
+        if (generation != _generation || level != _level) {
+          _disposeNow(staged.values);
+          return false;
+        }
+        staged[request.cacheKey(level)] = await _process(request, level);
+      }
+      if (generation != _generation || level != _level) {
+        _disposeNow(staged.values);
+        return false;
+      }
+      final obsolete = _images.values;
+      _images = staged;
+      _committedProfileKey = profileKey;
+      _processedImageCount += staged.length;
+      _lastFailure = null;
+      _disposeAfterFrame(obsolete);
+      return true;
+    } catch (error) {
+      _disposeNow(staged.values);
+      if (generation == _generation && level == _level) {
+        _lastFailure = error;
+        _committedProfileKey = null;
+        _disposeAfterFrame(_images.values);
+        _images = <String, ui.Image>{};
+      }
+      return false;
+    } finally {
+      if (generation == _generation) {
+        _preparingKey = null;
+        _preparation = null;
+        notifyListeners();
       }
     }
   }
 
   Future<ui.Image> _process(
-    String asset,
+    BaseCampSoldierPixelRequest request,
     SoldierPixelationLevel level,
-    int generation,
   ) async {
-    final data = await rootBundle.load(asset);
+    final data = await rootBundle.load(request.asset);
     final codec = await ui.instantiateImageCodec(
       data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
     );
@@ -90,22 +205,13 @@ class BaseCampSoldierPixelCache {
     final source = frame.image;
     ui.Image? reduced;
     try {
-      final reducedWidth = (source.width / level.sourceBlockSize).ceil().clamp(
-        1,
-        source.width,
+      final reducedSize = request.reducedSize(level);
+      reduced = await _resizeNearest(
+        source,
+        reducedSize.width.toInt(),
+        reducedSize.height.toInt(),
       );
-      final reducedHeight = (source.height / level.sourceBlockSize)
-          .ceil()
-          .clamp(1, source.height);
-      reduced = await _resizeNearest(source, reducedWidth, reducedHeight);
-      final result = await _resizeNearest(reduced, source.width, source.height);
-      if (generation != _generation || level != _level) {
-        result.dispose();
-        throw StateError('Discarded obsolete Soldier pixelation result');
-      }
-      _images[asset] = result;
-      _processedImageCount++;
-      return result;
+      return await _resizeNearest(reduced, source.width, source.height);
     } finally {
       reduced?.dispose();
       source.dispose();
@@ -133,30 +239,45 @@ class BaseCampSoldierPixelCache {
     return recorder.endRecording().toImage(width, height);
   }
 
+  void _disposeAfterFrame(Iterable<ui.Image> images) {
+    final obsolete = images.toList(growable: false);
+    if (obsolete.isEmpty) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _disposeNow(obsolete);
+    });
+  }
+
+  void _disposeNow(Iterable<ui.Image> images) {
+    for (final image in images) {
+      image.dispose();
+    }
+  }
+
   @visibleForTesting
   void resetForTesting() {
     _generation++;
-    _pending.clear();
-    for (final image in _images.values) {
-      image.dispose();
-    }
-    _images.clear();
+    _preparingKey = null;
+    _preparation = null;
+    _disposeNow(_images.values);
+    _images = <String, ui.Image>{};
+    _committedProfileKey = null;
+    _lastFailure = null;
     _level = SoldierPixelationLevel.original;
     _processedImageCount = 0;
+    notifyListeners();
   }
 }
 
-/// Asset renderer shared by BREATHING and TRIGGER REGRIP. Original mode keeps
-/// the released [Image.asset] path; selected developer levels lazily replace it
-/// with one cached, full-canvas pixelated image without blocking startup.
+/// Shared renderer for BREATHING and TRIGGER REGRIP. A processed frame is used
+/// only when its complete screen-space profile has been committed.
 class BaseCampSoldierAssetImage extends StatelessWidget {
   const BaseCampSoldierAssetImage({
     super.key,
-    required this.asset,
+    required this.request,
     required this.fit,
   });
 
-  final String asset;
+  final BaseCampSoldierPixelRequest request;
   final BoxFit fit;
 
   @override
@@ -168,77 +289,35 @@ class BaseCampSoldierAssetImage extends StatelessWidget {
         BaseCampSoldierPixelCache.instance.selectLevel(level);
         return _original();
       }
-      return _PixelatedSoldierAsset(
-        key: ValueKey<String>('soldier-pixel-${level.name}-$asset'),
-        asset: asset,
-        fit: fit,
-        level: level,
+      return ListenableBuilder(
+        listenable: BaseCampSoldierPixelCache.instance,
+        builder: (context, _) {
+          final image = BaseCampSoldierPixelCache.instance.cachedImage(
+            request,
+            level,
+          );
+          return image == null ? _original() : _render(image, level);
+        },
       );
     },
   );
 
   Widget _original() => Image.asset(
-    asset,
+    request.asset,
     fit: fit,
     filterQuality: FilterQuality.none,
     frameBuilder: (context, child, frame, synchronous) {
-      if (frame != null || synchronous) recordBaseCampAssetReady(asset);
+      if (frame != null || synchronous) recordBaseCampAssetReady(request.asset);
       return child;
     },
   );
-}
 
-class _PixelatedSoldierAsset extends StatefulWidget {
-  const _PixelatedSoldierAsset({
-    super.key,
-    required this.asset,
-    required this.fit,
-    required this.level,
-  });
-
-  final String asset;
-  final BoxFit fit;
-  final SoldierPixelationLevel level;
-
-  @override
-  State<_PixelatedSoldierAsset> createState() => _PixelatedSoldierAssetState();
-}
-
-class _PixelatedSoldierAssetState extends State<_PixelatedSoldierAsset> {
-  late final Future<ui.Image> _image = BaseCampSoldierPixelCache.instance
-      .imageFor(widget.asset, widget.level);
-
-  @override
-  Widget build(BuildContext context) {
-    final cached = BaseCampSoldierPixelCache.instance.cachedImage(
-      widget.asset,
-      widget.level,
-    );
-    if (cached != null) return _render(cached);
-    return FutureBuilder<ui.Image>(
-      future: _image,
-      builder: (context, snapshot) {
-        final image = snapshot.data;
-        if (image == null) {
-          return Image.asset(
-            widget.asset,
-            fit: widget.fit,
-            filterQuality: FilterQuality.none,
-          );
-        }
-        return _render(image);
-      },
-    );
-  }
-
-  Widget _render(ui.Image image) {
-    recordBaseCampAssetReady(widget.asset);
+  Widget _render(ui.Image image, SoldierPixelationLevel level) {
+    recordBaseCampAssetReady(request.asset);
     return RawImage(
-      key: ValueKey<String>(
-        'soldier-pixelated-${widget.level.name}-${widget.asset}',
-      ),
+      key: ValueKey<String>('soldier-pixelated-${level.name}-${request.asset}'),
       image: image,
-      fit: widget.fit,
+      fit: fit,
       filterQuality: FilterQuality.none,
     );
   }

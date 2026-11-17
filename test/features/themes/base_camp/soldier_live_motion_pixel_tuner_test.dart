@@ -39,11 +39,10 @@ void main() {
       });
 
       await tester.runAsync(
-        () => BaseCampSoldierPixelCache.instance.prepareAssets(<String>[
-          baseCampBreathingSoldierLowerAsset,
-          baseCampBreathingSoldierUpperAsset,
-          ...baseCampRifleRegripAssets,
-        ], SoldierPixelationLevel.coarse),
+        () => BaseCampSoldierPixelCache.instance.prepareRequests(
+          baseCampSoldierPixelProfile().requests,
+          SoldierPixelationLevel.coarse,
+        ),
       );
       await tester.tap(find.text('PIXEL LV.3'));
       await tester.pump();
@@ -97,11 +96,60 @@ void main() {
   test('pixel levels use increasingly coarse source block quantization', () {
     expect(
       SoldierPixelationLevel.values
-          .map((level) => level.sourceBlockSize)
+          .map((level) => level.referenceBlockSize)
           .toList(growable: false),
-      <int>[1, 6, 12, 24],
+      <int>[1, 6, 8, 9, 11],
     );
   });
+
+  for (final width in <double>[320, 375, 390, 430]) {
+    testWidgets('five pixel controls fit at ${width.toInt()}dp', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(Size(width, 932));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        const MaterialApp(home: SoldierLiveMotionPreviewPage()),
+      );
+      await tester.pump();
+      for (var level = 0; level <= 4; level++) {
+        expect(find.text('PIXEL LV.$level'), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final level in SoldierPixelationLevel.values.skip(1)) {
+    testWidgets('${level.controlLabel} remains active through TRIGGER REGRIP', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(430, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      DeviceSettingsController.instance.resetForTesting(
+        DeviceSettings(soldierPixelationLevel: level),
+      );
+      await tester.runAsync(
+        () => BaseCampSoldierPixelCache.instance.prepareRequests(
+          baseCampSoldierPixelProfile().requests,
+          level,
+        ),
+      );
+      await tester.pumpWidget(
+        const MaterialApp(home: SoldierLiveMotionPreviewPage()),
+      );
+      await tester.pump();
+
+      final trigger = find.byKey(const ValueKey('soldier-live-trigger-regrip'));
+      tester.widget<OperationButton>(trigger).onPressed!();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1001));
+      expect(
+        _pixelatedImage(level, baseCampRifleRegripAssets.first),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
 
 SegmentedButton<SoldierPixelationLevel> _pixelControls(WidgetTester tester) =>

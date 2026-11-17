@@ -23,14 +23,15 @@ enum AppPresentationTheme { standard, baseCamp }
 enum SoldierPixelationLevel {
   original(1, 'PIXEL LV.0'),
   fine(6, 'PIXEL LV.1'),
-  medium(12, 'PIXEL LV.2'),
-  coarse(24, 'PIXEL LV.3');
+  medium(8, 'PIXEL LV.2'),
+  coarse(9, 'PIXEL LV.3'),
+  extreme(11, 'PIXEL LV.4');
 
-  const SoldierPixelationLevel(this.sourceBlockSize, this.controlLabel);
+  const SoldierPixelationLevel(this.referenceBlockSize, this.controlLabel);
 
-  /// Square source-pixel block sampled into one coarse pixel before the image
-  /// is restored to its original transparent canvas dimensions.
-  final int sourceBlockSize;
+  /// BREATHING-source block size used to define the target screen-space
+  /// density. Other source resolutions are converted from their draw scale.
+  final int referenceBlockSize;
   final String controlLabel;
 }
 

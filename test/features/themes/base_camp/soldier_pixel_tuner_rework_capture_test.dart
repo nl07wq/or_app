@@ -46,9 +46,7 @@ void main() {
     testWidgets('captures live preview ${level.name}', (tester) async {
       await tester.binding.setSurfaceSize(const Size(430, 932));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.runAsync(
-        () => _selectAndPrepare(level, breathingOnly: true),
-      );
+      await tester.runAsync(() => _selectAndPrepare(level));
       final boundaryKey = GlobalKey();
       await tester.pumpWidget(
         MaterialApp(
@@ -146,11 +144,17 @@ Future<void> _selectAndPrepare(
     DeviceSettings(soldierPixelationLevel: level),
   );
   if (level == SoldierPixelationLevel.original) return;
-  await BaseCampSoldierPixelCache.instance.prepareAssets(<String>[
-    baseCampBreathingSoldierLowerAsset,
-    baseCampBreathingSoldierUpperAsset,
-    if (!breathingOnly) ...baseCampRifleRegripAssets,
-  ], level);
+  final profile = baseCampSoldierPixelProfile();
+  await BaseCampSoldierPixelCache.instance.prepareRequests(
+    breathingOnly
+        ? profile.requests.where(
+            (request) =>
+                request.asset == baseCampBreathingSoldierLowerAsset ||
+                request.asset == baseCampBreathingSoldierUpperAsset,
+          )
+        : profile.requests,
+    level,
+  );
 }
 
 Future<void> _loadFont(String family, String asset) async {

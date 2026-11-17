@@ -28,12 +28,12 @@ void main() {
         DeviceSettings(soldierPixelationLevel: level),
       );
       if (level != SoldierPixelationLevel.original) {
+        final profile = baseCampSoldierPixelProfile();
         await tester.runAsync(
-          () => BaseCampSoldierPixelCache.instance.prepareAssets(<String>[
-            baseCampBreathingSoldierLowerAsset,
-            baseCampBreathingSoldierUpperAsset,
-            baseCampRifleRegripAssets[3],
-          ], level),
+          () => BaseCampSoldierPixelCache.instance.prepareRequests(
+            profile.requests,
+            level,
+          ),
         );
       }
       final boundaryKey = GlobalKey();
@@ -89,7 +89,7 @@ void main() {
         ) {
           await tester.pump(const Duration(milliseconds: 20));
         }
-        expect(BaseCampSoldierPixelCache.instance.cachedImageCount, 3);
+        expect(BaseCampSoldierPixelCache.instance.cachedImageCount, 8);
       } else {
         await tester.pumpAndSettle();
       }

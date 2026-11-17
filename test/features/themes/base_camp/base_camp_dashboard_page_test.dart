@@ -16,6 +16,7 @@ import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_soldier_pixelation.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -256,6 +257,56 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'selected pixel level stays consistent through Dashboard regrip',
+    (tester) async {
+      SystemDiagnostics.instance.clear();
+      BaseCampSoldierPixelCache.instance.resetForTesting();
+      addTearDown(SystemDiagnostics.instance.clear);
+      addTearDown(BaseCampSoldierPixelCache.instance.resetForTesting);
+      DeviceSettingsController.instance.resetForTesting(
+        const DeviceSettings(
+          soldierPixelationLevel: SoldierPixelationLevel.extreme,
+        ),
+      );
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final panel = find.byKey(const ValueKey('base-camp-soldier-panel'));
+      await tester.tap(panel);
+      await _pumpUntilDiagnostic(tester, 'RIFLE_REGRIP_PLAYBACK_START');
+      expect(
+        find.descendant(
+          of: panel,
+          matching: find.byKey(
+            ValueKey<String>(
+              'soldier-pixelated-${SoldierPixelationLevel.extreme.name}-'
+              '$baseCampBreathingSoldierLowerAsset',
+            ),
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.pump(const Duration(milliseconds: 1001));
+      expect(
+        find.descendant(
+          of: panel,
+          matching: find.byKey(
+            ValueKey<String>(
+              'soldier-pixelated-${SoldierPixelationLevel.extreme.name}-'
+              '${baseCampRifleRegripAssets.first}',
+            ),
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('manual regrip stays breathing until every frame is ready', (
     tester,
