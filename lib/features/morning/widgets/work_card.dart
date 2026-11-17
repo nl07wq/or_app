@@ -844,11 +844,10 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
           if (isBaseCampStatus(context))
             BaseCampStatusLcdWindow(
               key: const ValueKey('work-break-lcd-window'),
-              height: 50,
-              child: Text(
-                _label,
+              height: 48,
+              child: BaseCampStatusFittedReadout(
                 key: const ValueKey('work-break-value'),
-                maxLines: 1,
+                text: _label,
                 style: baseCampStatusReadoutStyle(
                   context,
                   Theme.of(context).textTheme.headlineSmall,
@@ -866,55 +865,44 @@ class _BreakTimeStepperState extends State<_BreakTimeStepper> {
                 fontWeight: FontWeight.w800,
               ),
             ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (isBaseCampStatus(context))
-                BaseCampMechanicalButton(
-                  key: const ValueKey('work-break-minus'),
-                  onPressed: _minutes <= 0 ? null : () => _step(-15),
-                  width: 44,
-                  height: 44,
-                  padding: EdgeInsets.zero,
-                  child: const Icon(Icons.remove),
-                )
-              else
+          if (isBaseCampStatus(context)) ...[
+            const SizedBox(height: 8),
+            BaseCampStatusInstrumentControlRow(
+              decreaseKey: const ValueKey('work-break-minus'),
+              increaseKey: const ValueKey('work-break-plus'),
+              completeKey: const ValueKey('work-break-done'),
+              decreaseTooltip: 'Decrease break time by 15 minutes',
+              increaseTooltip: 'Increase break time by 15 minutes',
+              onDecrease: _minutes <= 0 ? null : () => _step(-15),
+              onIncrease: _minutes >= 23 * 60 + 45 ? null : () => _step(15),
+              onComplete: () => setState(() => _editing = false),
+            ),
+          ] else ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
                 IconButton(
                   key: const ValueKey('work-break-minus'),
                   icon: const Icon(Icons.remove),
                   onPressed: _minutes <= 0 ? null : () => _step(-15),
                 ).actionableFeedback(role: ActionableFeedbackRole.cursor),
-              const SizedBox(width: 36),
-              if (isBaseCampStatus(context))
-                BaseCampMechanicalButton(
-                  key: const ValueKey('work-break-plus'),
-                  onPressed: _minutes >= 23 * 60 + 45 ? null : () => _step(15),
-                  width: 44,
-                  height: 44,
-                  padding: EdgeInsets.zero,
-                  child: const Icon(Icons.add),
-                )
-              else
+                const SizedBox(width: 36),
                 IconButton(
                   key: const ValueKey('work-break-plus'),
                   icon: const Icon(Icons.add),
                   onPressed: _minutes >= 23 * 60 + 45 ? null : () => _step(15),
                 ).actionableFeedback(role: ActionableFeedbackRole.cursor),
-            ],
-          ),
-          Align(
-            alignment: Alignment.center,
-            child: isBaseCampStatus(context)
-                ? BaseCampStatusCompletionButton(
-                    key: const ValueKey('work-break-done'),
-                    onPressed: () => setState(() => _editing = false),
-                  )
-                : TextButton(
-                    key: const ValueKey('work-break-done'),
-                    onPressed: () => setState(() => _editing = false),
-                    child: const Text('完了'),
-                  ).actionableFeedback(role: ActionableFeedbackRole.cursor),
-          ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.center,
+              child: TextButton(
+                key: const ValueKey('work-break-done'),
+                onPressed: () => setState(() => _editing = false),
+                child: const Text('完了'),
+              ).actionableFeedback(role: ActionableFeedbackRole.cursor),
+            ),
+          ],
         ],
       ),
     );

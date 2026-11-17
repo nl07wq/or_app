@@ -17,6 +17,21 @@ enum ReducedMotionPreference { system, on, off }
 /// installations do not acquire a new visual presentation unexpectedly.
 enum AppPresentationTheme { standard, baseCamp }
 
+/// Developer-only Soldier image treatment. [original] preserves the released
+/// assets byte-for-byte; other values select one deterministic nearest-neighbor
+/// pixelation level for both breathing and rifle-regrip frames.
+enum SoldierPixelationLevel {
+  original(1, 'ORIGINAL'),
+  fine(.75, 'LEVEL 1'),
+  medium(.5, 'LEVEL 2'),
+  coarse(1 / 3, 'LEVEL 3');
+
+  const SoldierPixelationLevel(this.scale, this.controlLabel);
+
+  final double scale;
+  final String controlLabel;
+}
+
 /// MID-REAR is the only user-adjustable Command Center Data Rain layer.
 /// The exact 390px allocations are deliberately part of the preference
 /// contract so backup/restore preserves the requested visual comparison.
@@ -76,6 +91,7 @@ class DeviceSettings {
     this.notificationPrivacyMode = NotificationPrivacyMode.contentHidden,
     this.presentationTheme = AppPresentationTheme.standard,
     this.baseCampLcdNegative = false,
+    this.soldierPixelationLevel = SoldierPixelationLevel.original,
   });
 
   static const minimumBrightness = .35;
@@ -107,6 +123,10 @@ class DeviceSettings {
   /// Local BASE CAMP terminal preference. It deliberately remains separate
   /// from the application presentation theme.
   final bool baseCampLcdNegative;
+
+  /// Local developer visual setting. It does not affect formal records or the
+  /// Soldier alignment/timing contracts.
+  final SoldierPixelationLevel soldierPixelationLevel;
 
   double volumeMultiplierFor(DeviceFeedbackChannel channel) {
     if (muted) return 0;
@@ -173,6 +193,7 @@ class DeviceSettings {
     NotificationPrivacyMode? notificationPrivacyMode,
     AppPresentationTheme? presentationTheme,
     bool? baseCampLcdNegative,
+    SoldierPixelationLevel? soldierPixelationLevel,
   }) => DeviceSettings(
     masterVolume: masterVolume ?? this.masterVolume,
     muted: muted ?? this.muted,
@@ -203,6 +224,8 @@ class DeviceSettings {
         notificationPrivacyMode ?? this.notificationPrivacyMode,
     presentationTheme: presentationTheme ?? this.presentationTheme,
     baseCampLcdNegative: baseCampLcdNegative ?? this.baseCampLcdNegative,
+    soldierPixelationLevel:
+        soldierPixelationLevel ?? this.soldierPixelationLevel,
   ).normalized();
 
   DeviceSettings normalized() => DeviceSettings(
@@ -230,6 +253,7 @@ class DeviceSettings {
     notificationPrivacyMode: notificationPrivacyMode,
     presentationTheme: presentationTheme,
     baseCampLcdNegative: baseCampLcdNegative,
+    soldierPixelationLevel: soldierPixelationLevel,
   );
 
   Map<String, Object?> toJson() => {
@@ -257,6 +281,7 @@ class DeviceSettings {
     'notificationPrivacyMode': notificationPrivacyMode.name,
     'presentationTheme': presentationTheme.name,
     'baseCampLcdNegative': baseCampLcdNegative,
+    'soldierPixelationLevel': soldierPixelationLevel.name,
   };
 
   factory DeviceSettings.fromJson(Object? raw) {
@@ -309,6 +334,14 @@ class DeviceSettings {
         break;
       }
     }
+    final soldierPixelationName = json['soldierPixelationLevel'];
+    SoldierPixelationLevel? soldierPixelationLevel;
+    for (final candidate in SoldierPixelationLevel.values) {
+      if (candidate.name == soldierPixelationName) {
+        soldierPixelationLevel = candidate;
+        break;
+      }
+    }
     return DeviceSettings(
       masterVolume: number('masterVolume', 1),
       muted: flag('muted', false),
@@ -336,6 +369,8 @@ class DeviceSettings {
           notificationPrivacyMode ?? NotificationPrivacyMode.contentHidden,
       presentationTheme: presentationTheme ?? AppPresentationTheme.standard,
       baseCampLcdNegative: flag('baseCampLcdNegative', false),
+      soldierPixelationLevel:
+          soldierPixelationLevel ?? SoldierPixelationLevel.original,
     ).normalized();
   }
 

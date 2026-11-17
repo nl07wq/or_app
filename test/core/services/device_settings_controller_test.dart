@@ -132,6 +132,25 @@ void main() {
     );
   });
 
+  test('Soldier pixel tuner defaults safely and round-trips locally', () {
+    expect(
+      const DeviceSettings().soldierPixelationLevel,
+      SoldierPixelationLevel.original,
+    );
+    for (final level in SoldierPixelationLevel.values) {
+      final settings = DeviceSettings.fromJson(
+        DeviceSettings(soldierPixelationLevel: level).toJson(),
+      );
+      expect(settings.soldierPixelationLevel, level);
+    }
+    expect(
+      DeviceSettings.fromJson({
+        'soldierPixelationLevel': 'unsupported',
+      }).soldierPixelationLevel,
+      SoldierPixelationLevel.original,
+    );
+  });
+
   test(
     'missing, corrupt and non-finite preferences preserve safe defaults',
     () async {

@@ -108,16 +108,16 @@ void main() {
       }
 
       final bodyEditWeight = controller('93.4');
-      final bodyEditFat = controller('31.9');
+      final bodyEditFat = controller('60.0');
       final bodyDoneWeight = controller('93.4');
       final bodyDoneFat = controller('31.9');
       final sleep = controller('7:15');
-      final score = controller('81');
+      final score = controller('100');
       final footEdit = controller('10');
       final footDone = controller('10');
       final workStart = controller('07:00');
       final workEnd = controller('18:00');
-      final workBreak = controller('01:00');
+      final workBreak = controller('23:45');
       addTearDown(() {
         for (final item in controllers) {
           item.dispose();
@@ -190,7 +190,7 @@ void main() {
                     startController: workStart,
                     endController: workEnd,
                     breakController: workBreak,
-                    initiallyExpanded: false,
+                    initiallyExpanded: true,
                   ),
                 ),
               ],

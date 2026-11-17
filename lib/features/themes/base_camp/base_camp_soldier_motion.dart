@@ -4,7 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'base_camp_asset_metrics.dart';
+import 'base_camp_soldier_pixelation.dart';
 
 const baseCampBreathingSoldierLowerAsset =
     'assets/images/themes/base_camp/breathing_soldier/gasmask_lowerboady.png';
@@ -448,16 +448,9 @@ class BaseCampRifleRegripFrame extends StatelessWidget {
         verticalScaleX: verticalScaleX,
         horizontalScaleY: horizontalScaleY,
       );
-      final image = Image.asset(
-        assets[frame],
+      final image = BaseCampSoldierAssetImage(
+        asset: assets[frame],
         fit: BoxFit.fill,
-        filterQuality: FilterQuality.none,
-        frameBuilder: (context, child, frameIndex, synchronous) {
-          if (frameIndex != null || synchronous) {
-            recordBaseCampAssetReady(assets[frame]);
-          }
-          return child;
-        },
       );
       final frameImage =
           brightness == 0 && contrast == 1 && saturation == 1 && warmth == 0
@@ -504,31 +497,17 @@ class BaseCampBreathingSoldier extends StatelessWidget {
       fit: StackFit.expand,
       clipBehavior: Clip.hardEdge,
       children: [
-        Image.asset(
-          baseCampBreathingSoldierLowerAsset,
+        BaseCampSoldierAssetImage(
           key: const ValueKey('base-camp-soldier-lower'),
+          asset: baseCampBreathingSoldierLowerAsset,
           fit: BoxFit.contain,
-          filterQuality: FilterQuality.none,
-          frameBuilder: (context, child, frame, synchronous) {
-            if (frame != null || synchronous) {
-              recordBaseCampAssetReady(baseCampBreathingSoldierLowerAsset);
-            }
-            return child;
-          },
         ),
         Transform.translate(
           offset: Offset(0, dy),
-          child: Image.asset(
-            baseCampBreathingSoldierUpperAsset,
+          child: BaseCampSoldierAssetImage(
             key: const ValueKey('base-camp-soldier-upper'),
+            asset: baseCampBreathingSoldierUpperAsset,
             fit: BoxFit.contain,
-            filterQuality: FilterQuality.none,
-            frameBuilder: (context, child, frame, synchronous) {
-              if (frame != null || synchronous) {
-                recordBaseCampAssetReady(baseCampBreathingSoldierUpperAsset);
-              }
-              return child;
-            },
           ),
         ),
       ],

@@ -244,40 +244,18 @@ class _FootCardState extends State<FootCard> {
                 padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
                 child: Column(
                   children: [
-                    Row(
-                      children: [
-                        _FootStepButton(
-                          key: const ValueKey('foot-pain-minus'),
-                          icon: Icons.remove,
-                          tooltip: 'Decrease pain level',
-                          onPressed: value <= 0
-                              ? null
-                              : () => _selectPainLevel(value - 1),
+                    BaseCampStatusLcdWindow(
+                      key: const ValueKey('foot-pain-lcd-window'),
+                      height: 48,
+                      child: BaseCampStatusFittedReadout(
+                        key: const Key('foot-pain-current-value'),
+                        text: 'LV.$value /10',
+                        style: baseCampStatusReadoutStyle(
+                          context,
+                          Theme.of(context).textTheme.headlineMedium,
+                          fontSize: 24,
                         ),
-                        Expanded(
-                          child: BaseCampStatusLcdWindow(
-                            key: const ValueKey('foot-pain-lcd-window'),
-                            height: 50,
-                            child: BaseCampStatusFittedReadout(
-                              key: const Key('foot-pain-current-value'),
-                              text: 'LV.$value /10',
-                              style: baseCampStatusReadoutStyle(
-                                context,
-                                Theme.of(context).textTheme.headlineMedium,
-                                fontSize: 24,
-                              ),
-                            ),
-                          ),
-                        ),
-                        _FootStepButton(
-                          key: const ValueKey('foot-pain-plus'),
-                          icon: Icons.add,
-                          tooltip: 'Increase pain level',
-                          onPressed: value >= 10
-                              ? null
-                              : () => _selectPainLevel(value + 1),
-                        ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 12),
                     BaseCampInstrumentGauge(
@@ -311,12 +289,20 @@ class _FootCardState extends State<FootCard> {
                         fontSize: 13,
                       ),
                     ),
-                    Align(
-                      alignment: Alignment.center,
-                      child: BaseCampStatusCompletionButton(
-                        key: const Key('foot-pain-done'),
-                        onPressed: () => setState(() => _editing = false),
-                      ),
+                    const SizedBox(height: 8),
+                    BaseCampStatusInstrumentControlRow(
+                      decreaseKey: const ValueKey('foot-pain-minus'),
+                      increaseKey: const ValueKey('foot-pain-plus'),
+                      completeKey: const Key('foot-pain-done'),
+                      decreaseTooltip: 'Decrease pain level',
+                      increaseTooltip: 'Increase pain level',
+                      onDecrease: value <= 0
+                          ? null
+                          : () => _selectPainLevel(value - 1),
+                      onIncrease: value >= 10
+                          ? null
+                          : () => _selectPainLevel(value + 1),
+                      onComplete: () => setState(() => _editing = false),
                     ),
                   ],
                 ),
@@ -325,34 +311,6 @@ class _FootCardState extends State<FootCard> {
         ],
       ),
     );
-  }
-}
-
-class _FootStepButton extends StatelessWidget {
-  const _FootStepButton({
-    super.key,
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null;
-    return Tooltip(
-      message: tooltip,
-      child: BaseCampMechanicalButton(
-        onPressed: onPressed,
-        width: 44,
-        height: 44,
-        padding: EdgeInsets.zero,
-        child: Icon(icon),
-      ),
-    ).actionableFeedback(enabled: enabled, role: ActionableFeedbackRole.cursor);
   }
 }
 

@@ -291,14 +291,19 @@ class _BaseCampMechanicalButtonState extends State<BaseCampMechanicalButton> {
 }
 
 class BaseCampStatusCompletionButton extends StatelessWidget {
-  const BaseCampStatusCompletionButton({super.key, required this.onPressed});
+  const BaseCampStatusCompletionButton({
+    super.key,
+    required this.onPressed,
+    this.width = 112,
+  });
 
   final VoidCallback? onPressed;
+  final double width;
 
   @override
   Widget build(BuildContext context) => BaseCampMechanicalButton(
     onPressed: onPressed,
-    width: 112,
+    width: width,
     height: 40,
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     child: const Row(
@@ -307,6 +312,71 @@ class BaseCampStatusCompletionButton extends StatelessWidget {
         Icon(Icons.lock_outline, size: 15),
         SizedBox(width: 5),
         Text('完了'),
+      ],
+    ),
+  );
+}
+
+/// The fixed physical control row used by editable BASE CAMP STATUS
+/// instruments. Its 212dp footprint fits the released 220dp content width at
+/// the 320dp viewport without changing page, card, or instrument padding.
+class BaseCampStatusInstrumentControlRow extends StatelessWidget {
+  const BaseCampStatusInstrumentControlRow({
+    super.key,
+    required this.decreaseKey,
+    required this.increaseKey,
+    required this.completeKey,
+    required this.onDecrease,
+    required this.onIncrease,
+    required this.onComplete,
+    required this.decreaseTooltip,
+    required this.increaseTooltip,
+  });
+
+  final Key decreaseKey;
+  final Key increaseKey;
+  final Key completeKey;
+  final VoidCallback? onDecrease;
+  final VoidCallback? onIncrease;
+  final VoidCallback? onComplete;
+  final String decreaseTooltip;
+  final String increaseTooltip;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 212,
+    height: 40,
+    child: Row(
+      children: <Widget>[
+        Tooltip(
+          message: decreaseTooltip,
+          child: BaseCampMechanicalButton(
+            key: decreaseKey,
+            onPressed: onDecrease,
+            width: 48,
+            height: 40,
+            padding: EdgeInsets.zero,
+            child: const Icon(Icons.remove),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: increaseTooltip,
+          child: BaseCampMechanicalButton(
+            key: increaseKey,
+            onPressed: onIncrease,
+            width: 48,
+            height: 40,
+            padding: EdgeInsets.zero,
+            child: const Icon(Icons.add),
+          ),
+        ),
+        const SizedBox(width: 8),
+        BaseCampStatusCompletionButton(
+          key: completeKey,
+          width: 100,
+          onPressed: onComplete,
+        ),
       ],
     ),
   );

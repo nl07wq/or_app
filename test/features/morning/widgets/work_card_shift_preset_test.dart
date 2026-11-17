@@ -464,6 +464,34 @@ void main() {
           tester.widget<Text>(find.text('朝番')).style?.color,
           palette.primaryText,
         );
+        await tester.tap(find.byKey(const ValueKey('work-break-collapsed')));
+        await tester.pump();
+        expect(
+          tester
+              .getSize(find.byKey(const ValueKey('work-break-lcd-window')))
+              .height,
+          48,
+        );
+        expect(
+          tester.getSize(find.byKey(const ValueKey('work-break-minus'))),
+          const Size(48, 40),
+        );
+        expect(
+          tester.getSize(find.byKey(const ValueKey('work-break-plus'))),
+          const Size(48, 40),
+        );
+        expect(
+          tester.getSize(find.byKey(const ValueKey('work-break-done'))),
+          const Size(100, 40),
+        );
+        await tester.tap(find.byKey(const ValueKey('work-break-plus')));
+        expect(workBreak.text, '1:15');
+        await tester.tap(find.byKey(const ValueKey('work-break-done')));
+        await tester.pump();
+        expect(
+          find.byKey(const ValueKey('work-break-collapsed')),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
       });
     }

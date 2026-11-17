@@ -611,6 +611,36 @@ void main() {
           find.byKey(const ValueKey('foot-pain-lcd-window')),
           findsOneWidget,
         );
+        for (final key in <String>[
+          'status-body-fat-lcd-window',
+          'status-sleep-score-lcd-window',
+          'foot-pain-lcd-window',
+        ]) {
+          expect(tester.getSize(find.byKey(ValueKey(key))).height, 48);
+        }
+        for (final keys in <(String, String, String)>[
+          (
+            'status-body-fat-minus',
+            'status-body-fat-plus',
+            'status-body-fat-done',
+          ),
+          (
+            'status-sleep-score-minus',
+            'status-sleep-score-plus',
+            'status-sleep-score-done',
+          ),
+          ('foot-pain-minus', 'foot-pain-plus', 'foot-pain-done'),
+        ]) {
+          final minus = tester.getRect(find.byKey(ValueKey(keys.$1)));
+          final plus = tester.getRect(find.byKey(ValueKey(keys.$2)));
+          final done = tester.getRect(find.byKey(ValueKey(keys.$3)));
+          expect(minus.size, const Size(48, 40));
+          expect(plus.size, const Size(48, 40));
+          expect(done.size, const Size(100, 40));
+          expect(plus.left - minus.right, 8);
+          expect(done.left - plus.right, 8);
+          expect(done.right - minus.left, 212);
+        }
         expect(find.byIcon(Icons.lock_outline), findsNWidgets(4));
         expect(tester.takeException(), isNull);
       });

@@ -30,6 +30,7 @@ import 'package:or_app/features/schedule/pages/calendar_page.dart';
 import 'package:or_app/features/system/widgets/system_menu_button.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_soldier_motion.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_soldier_pixelation.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_asset_metrics.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_facility_assets.dart';
 import 'package:or_app/features/themes/base_camp/soldier_live_motion_preview_page.dart';
@@ -811,6 +812,17 @@ class _BreathingSoldierCompartmentState
       'RIFLE_REGRIP_FRAMES_READY',
       fields: <String, Object?>{'frameCount': baseCampRifleRegripAssets.length},
     );
+    final pixelationLevel =
+        DeviceSettingsController.instance.value.soldierPixelationLevel;
+    if (pixelationLevel != SoldierPixelationLevel.original) {
+      unawaited(
+        BaseCampSoldierPixelCache.instance.prepareAssets(<String>[
+          baseCampBreathingSoldierLowerAsset,
+          baseCampBreathingSoldierUpperAsset,
+          ...baseCampRifleRegripAssets,
+        ], pixelationLevel),
+      );
+    }
     if (_pendingManualRegrip) {
       _pendingManualRegrip = false;
       _automaticEventPending = false;

@@ -328,6 +328,7 @@ class _RadioScalePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
+    canvas.drawRect(rect, Paint()..color = const Color(0xffc5ceb4));
     final border = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
@@ -549,37 +550,19 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
         padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
         child: Column(
           children: [
-            Row(
-              children: [
-                _RetroStepButton(
-                  key: const ValueKey('status-body-fat-minus'),
-                  icon: Icons.remove,
-                  tooltip: 'Decrease body fat by 0.1%',
-                  onPressed: _value <= _minimum ? null : () => _step(-1),
+            BaseCampStatusLcdWindow(
+              key: const ValueKey('status-body-fat-lcd-window'),
+              height: 48,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: BaseCampStatusFittedReadout(
+                key: const ValueKey('status-body-fat-lcd-readout'),
+                text: '${_value.toStringAsFixed(1)} %',
+                style: baseCampStatusReadoutStyle(
+                  context,
+                  Theme.of(context).textTheme.headlineMedium,
+                  fontSize: 24,
                 ),
-                Expanded(
-                  child: BaseCampStatusLcdWindow(
-                    key: const ValueKey('status-body-fat-lcd-window'),
-                    height: 50,
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: BaseCampStatusFittedReadout(
-                      key: const ValueKey('status-body-fat-lcd-readout'),
-                      text: '${_value.toStringAsFixed(1)} %',
-                      style: baseCampStatusReadoutStyle(
-                        context,
-                        Theme.of(context).textTheme.headlineMedium,
-                        fontSize: 24,
-                      ),
-                    ),
-                  ),
-                ),
-                _RetroStepButton(
-                  key: const ValueKey('status-body-fat-plus'),
-                  icon: Icons.add,
-                  tooltip: 'Increase body fat by 0.1%',
-                  onPressed: _value >= _maximum ? null : () => _step(1),
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 10),
             BaseCampInstrumentGauge(
@@ -620,12 +603,16 @@ class _BaseCampBodyFatMeterState extends State<_BaseCampBodyFatMeter> {
                 ),
               ],
             ),
-            Align(
-              alignment: Alignment.center,
-              child: BaseCampStatusCompletionButton(
-                key: const ValueKey('status-body-fat-done'),
-                onPressed: () => setState(() => _editing = false),
-              ),
+            const SizedBox(height: 8),
+            BaseCampStatusInstrumentControlRow(
+              decreaseKey: const ValueKey('status-body-fat-minus'),
+              increaseKey: const ValueKey('status-body-fat-plus'),
+              completeKey: const ValueKey('status-body-fat-done'),
+              decreaseTooltip: 'Decrease body fat by 0.1%',
+              increaseTooltip: 'Increase body fat by 0.1%',
+              onDecrease: _value <= _minimum ? null : () => _step(-1),
+              onIncrease: _value >= _maximum ? null : () => _step(1),
+              onComplete: () => setState(() => _editing = false),
             ),
           ],
         ),

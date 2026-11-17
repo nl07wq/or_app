@@ -395,7 +395,7 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
     }
     if (isBaseCampStatus(context)) {
       return Container(
-        height: 168,
+        height: 178,
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
         decoration: BoxDecoration(
           color: c.surfaceContainer,
@@ -407,36 +407,18 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
           children: [
             Text(widget.title, style: Theme.of(context).textTheme.labelMedium),
             const SizedBox(height: 4),
-            Row(
-              children: [
-                _SleepScoreStepButton(
-                  key: const ValueKey('status-sleep-score-minus'),
-                  icon: Icons.remove,
-                  tooltip: 'Decrease sleep score',
-                  onPressed: _value <= 0 ? null : () => _step(-1),
+            BaseCampStatusLcdWindow(
+              key: const ValueKey('status-sleep-score-lcd-window'),
+              height: 48,
+              child: BaseCampStatusFittedReadout(
+                key: const ValueKey('status-sleep-score-lcd-readout'),
+                text: '$_value /100',
+                style: baseCampStatusReadoutStyle(
+                  context,
+                  Theme.of(context).textTheme.headlineLarge,
+                  fontSize: 24,
                 ),
-                Expanded(
-                  child: BaseCampStatusLcdWindow(
-                    key: const ValueKey('status-sleep-score-lcd-window'),
-                    height: 50,
-                    child: BaseCampStatusFittedReadout(
-                      key: const ValueKey('status-sleep-score-lcd-readout'),
-                      text: '$_value /100',
-                      style: baseCampStatusReadoutStyle(
-                        context,
-                        Theme.of(context).textTheme.headlineLarge,
-                        fontSize: 24,
-                      ),
-                    ),
-                  ),
-                ),
-                _SleepScoreStepButton(
-                  key: const ValueKey('status-sleep-score-plus'),
-                  icon: Icons.add,
-                  tooltip: 'Increase sleep score',
-                  onPressed: _value >= 100 ? null : () => _step(1),
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 7),
             BaseCampInstrumentGauge(
@@ -446,12 +428,16 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
               onChanged: (normalized) => _set(normalized * 100),
               markerKey: const ValueKey('status-sleep-score-marker'),
             ),
-            Align(
-              alignment: Alignment.center,
-              child: BaseCampStatusCompletionButton(
-                key: const ValueKey('status-sleep-score-done'),
-                onPressed: () => setState(() => _editing = false),
-              ),
+            const SizedBox(height: 8),
+            BaseCampStatusInstrumentControlRow(
+              decreaseKey: const ValueKey('status-sleep-score-minus'),
+              increaseKey: const ValueKey('status-sleep-score-plus'),
+              completeKey: const ValueKey('status-sleep-score-done'),
+              decreaseTooltip: 'Decrease sleep score',
+              increaseTooltip: 'Increase sleep score',
+              onDecrease: _value <= 0 ? null : () => _step(-1),
+              onIncrease: _value >= 100 ? null : () => _step(1),
+              onComplete: () => setState(() => _editing = false),
             ),
           ],
         ),
@@ -515,34 +501,6 @@ class _SleepScoreGaugeState extends State<_SleepScoreGauge> {
         ],
       ),
     );
-  }
-}
-
-class _SleepScoreStepButton extends StatelessWidget {
-  const _SleepScoreStepButton({
-    super.key,
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null;
-    return Tooltip(
-      message: tooltip,
-      child: BaseCampMechanicalButton(
-        onPressed: onPressed,
-        width: 44,
-        height: 44,
-        padding: EdgeInsets.zero,
-        child: Icon(icon),
-      ),
-    ).actionableFeedback(enabled: enabled, role: ActionableFeedbackRole.cursor);
   }
 }
 
