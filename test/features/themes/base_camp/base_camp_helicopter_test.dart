@@ -5,11 +5,42 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/system_diagnostics.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_helicopter_configuration.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_helicopter.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('legacy MAP configuration defaults to the exact V1 assembly', () {
+    final legacy = BaseCampMapConfiguration.defaults().toJson()
+      ..remove('helicopterAssembly');
+    final restored = BaseCampMapConfiguration.tryParse(legacy);
+    expect(restored, isNotNull);
+    expect(restored!.helicopterAssembly.globalScale, 1);
+    expect(restored.helicopterAssembly.mainHub, const Offset(772, 273));
+    expect(restored.helicopterAssembly.mainScale, 1);
+    expect(restored.helicopterAssembly.tailHub, const Offset(1250, 484));
+    expect(restored.helicopterAssembly.tailScale, .5);
+  });
+
+  test('helicopter assembly rejects invalid finite geometry', () {
+    expect(
+      BaseCampHelicopterAssembly.tryParse(<String, Object?>{
+        ...BaseCampHelicopterAssembly.defaults.toJson(),
+        'mainScale': 0,
+      }),
+      isNull,
+    );
+    expect(
+      BaseCampHelicopterAssembly.tryParse(<String, Object?>{
+        ...BaseCampHelicopterAssembly.defaults.toJson(),
+        'tailHubX': 2000,
+      }),
+      isNull,
+    );
+  });
 
   test(
     'approved asset contract is registered in the approved playback order',
@@ -257,6 +288,100 @@ void main() {
 
     expect(await render(BaseCampHelicopterDirection.rightToLeft), 1);
     expect(await render(BaseCampHelicopterDirection.leftToRight), -1);
+  });
+
+  testWidgets('MAP EDITOR suppresses and cleanly restarts random scheduling', (
+    tester,
+  ) async {
+    baseCampHelicopterEditorActive.value = true;
+    addTearDown(() => baseCampHelicopterEditorActive.value = false);
+    final interactive = ValueNotifier<bool>(true);
+    addTearDown(interactive.dispose);
+    var loads = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.square(
+          dimension: 390,
+          child: BaseCampHelicopterFlybyLayer(
+            dashboardInteractive: interactive,
+            random: math.Random(3),
+            schedule: const BaseCampHelicopterSchedule(
+              firstDelayMin: Duration(milliseconds: 1),
+              firstDelayMax: Duration(milliseconds: 1),
+              laterDelayMin: Duration(milliseconds: 1),
+              laterDelayMax: Duration(milliseconds: 1),
+              flightDurationMin: Duration(milliseconds: 100),
+              flightDurationMax: Duration(milliseconds: 100),
+            ),
+            assetLoader: (_, _) async => loads++,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(loads, 0);
+    baseCampHelicopterEditorActive.value = false;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 2));
+    await tester.pump();
+    expect(loads, 1);
+    expect(
+      find.byKey(const ValueKey('base-camp-helicopter-positioned')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('rotors scale around their configured hubs', (tester) async {
+    const assembly = BaseCampHelicopterAssembly(
+      mainHub: Offset(800, 300),
+      mainScale: 1.25,
+      tailHub: Offset(1200, 500),
+      tailScale: .75,
+    );
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 1448,
+            height: 1086,
+            child: BaseCampHelicopterSprite(
+              direction: BaseCampHelicopterDirection.rightToLeft,
+              mainRotorFrame: 0,
+              tailRotorFrame: 0,
+              assembly: assembly,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final main = tester.widget<Positioned>(
+      find.ancestor(
+        of: find.byKey(const ValueKey('base-camp-helicopter-main-rotor')),
+        matching: find.byType(Positioned),
+      ),
+    );
+    final tail = tester.widget<Positioned>(
+      find.ancestor(
+        of: find.byKey(const ValueKey('base-camp-helicopter-tail-rotor')),
+        matching: find.byType(Positioned),
+      ),
+    );
+    final renderedScale =
+        tester
+            .getSize(
+              find.byKey(
+                const ValueKey('base-camp-helicopter-direction-transform'),
+              ),
+            )
+            .width /
+        BaseCampHelicopterSprite.sourceSize.width;
+    expect(main.left, closeTo((800 - 359.5 * 1.25) * renderedScale, .001));
+    expect(main.top, closeTo((300 - 170 * 1.25) * renderedScale, .001));
+    expect(main.width, closeTo(719 * 1.25 * renderedScale, .001));
+    expect(tail.left, closeTo((1200 - 210 * .75) * renderedScale, .001));
+    expect(tail.top, closeTo((500 - 210 * .75) * renderedScale, .001));
+    expect(tail.width, closeTo(420 * .75 * renderedScale, .001));
   });
 
   testWidgets('BASE CAMP map owns the overlay without startup asset work', (

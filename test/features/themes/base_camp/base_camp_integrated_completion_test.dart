@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -680,6 +681,103 @@ void main() {
     expect(find.text('SHORELINE'), findsOneWidget);
     expect(find.text('EXCLUSION MASK'), findsOneWidget);
   });
+
+  testWidgets(
+    'helicopter editor previews, undoes, saves and restores assembly',
+    (tester) async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final controller = BaseCampMapConfigurationController()
+        ..resetForTesting(BaseCampMapConfiguration.defaults());
+      await tester.binding.setSurfaceSize(const Size(430, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BaseCampMapEditorPage(
+            configurationController: controller,
+            waterDraftStore: BaseCampWaterDraftStore(),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(find.text('HELICOPTER'));
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('base-camp-helicopter-editor-preview')),
+        findsOneWidget,
+      );
+      expect(find.text('BODY'), findsOneWidget);
+      expect(find.text('MAIN ROTOR'), findsOneWidget);
+      expect(find.text('TAIL ROTOR'), findsOneWidget);
+      expect(find.text('PART EDIT'), findsOneWidget);
+      expect(find.text('MAP NAV'), findsOneWidget);
+
+      await tester.tap(find.text('MAIN ROTOR'));
+      await tester.pump();
+      var xField = find.byKey(const ValueKey('helicopter-mainRotor-X-772.000'));
+      await tester.ensureVisible(xField);
+      await tester.enterText(xField, '800');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('helicopter-mainRotor-X-800.000')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('base-camp-editor-undo')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('helicopter-mainRotor-X-772.000')),
+        findsOneWidget,
+      );
+
+      xField = find.byKey(const ValueKey('helicopter-mainRotor-X-772.000'));
+      await tester.enterText(xField, '800');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('helicopter-rotors-on')),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('helicopter-rotors-on')));
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(
+        find.byKey(const ValueKey('base-camp-helicopter-main-rotor')),
+        findsOneWidget,
+      );
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('helicopter-run-flight')),
+      );
+      await tester.tap(find.byKey(const ValueKey('helicopter-run-flight')));
+      await tester.pump();
+      final before = tester.getTopLeft(
+        find.byKey(const ValueKey('base-camp-helicopter-editor-preview')),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      final after = tester.getTopLeft(
+        find.byKey(const ValueKey('base-camp-helicopter-editor-preview')),
+      );
+      expect(after.dx, isNot(closeTo(before.dx, .01)));
+      await tester.tap(find.byKey(const ValueKey('helicopter-stop-flight')));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('base-camp-editor-save')));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(controller.value.helicopterAssembly.mainHub.dx, 800);
+
+      final preferences = await SharedPreferences.getInstance();
+      final encoded = preferences.getString(
+        BaseCampMapConfigurationController.storageKey,
+      );
+      expect(encoded, isNotNull);
+      final restored = BaseCampMapConfiguration.tryParse(
+        jsonDecode(encoded!) as Object?,
+      );
+      expect(restored!.helicopterAssembly.mainHub.dx, 800);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 Future<String> _loadApprovedWaterGeometry() async =>

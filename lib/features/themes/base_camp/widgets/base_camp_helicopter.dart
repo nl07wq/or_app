@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:or_app/core/services/system_diagnostics.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_helicopter_configuration.dart';
 
 const baseCampHelicopterBodyAsset = 'assets/base_camp/helicopter/body.png';
 
@@ -43,6 +44,11 @@ const baseCampHelicopterAssets = <String>[
 ];
 
 enum BaseCampHelicopterDirection { leftToRight, rightToLeft }
+
+/// Prevents the Dashboard scheduler from competing with MAP EDITOR previews.
+final ValueNotifier<bool> baseCampHelicopterEditorActive = ValueNotifier<bool>(
+  false,
+);
 
 @immutable
 class BaseCampHelicopterSchedule {
@@ -127,6 +133,7 @@ class BaseCampHelicopterFlybyLayer extends StatefulWidget {
     this.assetLoader,
     this.eventRecorder,
     this.debugFlight,
+    this.assembly = BaseCampHelicopterAssembly.defaults,
   });
 
   final ValueListenable<bool> dashboardInteractive;
@@ -134,6 +141,7 @@ class BaseCampHelicopterFlybyLayer extends StatefulWidget {
   final math.Random? random;
   final BaseCampHelicopterAssetLoader? assetLoader;
   final BaseCampHelicopterEventRecorder? eventRecorder;
+  final BaseCampHelicopterAssembly assembly;
 
   @visibleForTesting
   final BaseCampHelicopterDebugFlight? debugFlight;
@@ -199,6 +207,7 @@ class _BaseCampHelicopterFlybyLayerState
       duration: const Duration(milliseconds: 26400),
     );
     widget.dashboardInteractive.addListener(_handleInteractiveChanged);
+    baseCampHelicopterEditorActive.addListener(_handleEditorActiveChanged);
     if (widget.dashboardInteractive.value) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _scheduleNext(first: true);
@@ -236,12 +245,26 @@ class _BaseCampHelicopterFlybyLayerState
     _scheduleNext(first: !_hasCompletedFlight);
   }
 
+  void _handleEditorActiveChanged() {
+    if (baseCampHelicopterEditorActive.value) {
+      _spawnTimer?.cancel();
+      _flightController.stop(canceled: false);
+      _rotorController.stop(canceled: false);
+      if (_active && mounted) setState(() => _active = false);
+      return;
+    }
+    if (_appResumed && _motionAllowed && widget.dashboardInteractive.value) {
+      _scheduleNext(first: true);
+    }
+  }
+
   void _scheduleNext({required bool first}) {
     if (!mounted ||
         widget.debugFlight != null ||
         !widget.dashboardInteractive.value ||
         !_appResumed ||
         !_motionAllowed ||
+        baseCampHelicopterEditorActive.value ||
         _disabledAfterFailure ||
         _active) {
       return;
@@ -259,6 +282,7 @@ class _BaseCampHelicopterFlybyLayerState
         !widget.dashboardInteractive.value ||
         !_appResumed ||
         !_motionAllowed ||
+        baseCampHelicopterEditorActive.value ||
         _disabledAfterFailure ||
         _active) {
       return;
@@ -361,6 +385,7 @@ class _BaseCampHelicopterFlybyLayerState
     _loadGeneration++;
     _spawnTimer?.cancel();
     widget.dashboardInteractive.removeListener(_handleInteractiveChanged);
+    baseCampHelicopterEditorActive.removeListener(_handleEditorActiveChanged);
     WidgetsBinding.instance.removeObserver(this);
     _flightController
       ..removeStatusListener(_handleFlightStatus)
@@ -378,7 +403,8 @@ class _BaseCampHelicopterFlybyLayerState
       child: ExcludeSemantics(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final spriteWidth = constraints.maxWidth * .42;
+            final spriteWidth =
+                constraints.maxWidth * .42 * widget.assembly.globalScale;
             final spriteHeight =
                 spriteWidth *
                 BaseCampHelicopterSprite.sourceSize.height /
@@ -406,6 +432,7 @@ class _BaseCampHelicopterFlybyLayerState
                 direction: direction,
                 mainRotorFrame: mainFrame,
                 tailRotorFrame: tailFrame,
+                assembly: widget.assembly,
               ),
             );
 
@@ -460,9 +487,12 @@ class BaseCampHelicopterSprite extends StatelessWidget {
     required this.direction,
     required this.mainRotorFrame,
     required this.tailRotorFrame,
+    this.assembly = BaseCampHelicopterAssembly.defaults,
+    this.showMainRotor = true,
+    this.showTailRotor = true,
   });
 
-  static const sourceSize = Size(1448, 1086);
+  static const sourceSize = BaseCampHelicopterAssembly.sourceSize;
 
   // Anchors are expressed once in the body canvas. Rotor frames are centered
   // on their own measured hubs, so every frame shares exactly the same mount.
@@ -471,10 +501,15 @@ class BaseCampHelicopterSprite extends StatelessWidget {
   static const tailRotorHubOnBody = Offset(1250, 484);
   static const tailRotorHubInFrame = Offset(210, 210);
   static const tailRotorScale = .5;
+  static const mainRotorSize = Size(719, 358);
+  static const tailRotorSize = Size(420, 420);
 
   final BaseCampHelicopterDirection direction;
   final int mainRotorFrame;
   final int tailRotorFrame;
+  final BaseCampHelicopterAssembly assembly;
+  final bool showMainRotor;
+  final bool showTailRotor;
 
   @override
   Widget build(BuildContext context) => Transform.flip(
@@ -484,16 +519,22 @@ class BaseCampHelicopterSprite extends StatelessWidget {
       builder: (context, constraints) {
         final scale = constraints.maxWidth / sourceSize.width;
         final mainLeft =
-            (mainRotorHubOnBody.dx - mainRotorHubInFrame.dx) * scale;
+            (assembly.mainHub.dx -
+                mainRotorHubInFrame.dx * assembly.mainScale) *
+            scale;
         final mainTop =
-            (mainRotorHubOnBody.dy - mainRotorHubInFrame.dy) * scale;
-        final tailWidth = 420 * tailRotorScale * scale;
-        final tailHeight = 420 * tailRotorScale * scale;
+            (assembly.mainHub.dy -
+                mainRotorHubInFrame.dy * assembly.mainScale) *
+            scale;
+        final tailWidth = tailRotorSize.width * assembly.tailScale * scale;
+        final tailHeight = tailRotorSize.height * assembly.tailScale * scale;
         final tailLeft =
-            (tailRotorHubOnBody.dx - tailRotorHubInFrame.dx * tailRotorScale) *
+            (assembly.tailHub.dx -
+                tailRotorHubInFrame.dx * assembly.tailScale) *
             scale;
         final tailTop =
-            (tailRotorHubOnBody.dy - tailRotorHubInFrame.dy * tailRotorScale) *
+            (assembly.tailHub.dy -
+                tailRotorHubInFrame.dy * assembly.tailScale) *
             scale;
         return Stack(
           fit: StackFit.expand,
@@ -506,34 +547,36 @@ class BaseCampHelicopterSprite extends StatelessWidget {
               filterQuality: FilterQuality.none,
               gaplessPlayback: true,
             ),
-            Positioned(
-              left: mainLeft,
-              top: mainTop,
-              width: 719 * scale,
-              height: 358 * scale,
-              child: Image.asset(
-                baseCampHelicopterMainRotorAssets[mainRotorFrame %
-                    baseCampHelicopterMainRotorAssets.length],
-                key: const ValueKey('base-camp-helicopter-main-rotor'),
-                fit: BoxFit.fill,
-                filterQuality: FilterQuality.none,
-                gaplessPlayback: true,
+            if (showMainRotor)
+              Positioned(
+                left: mainLeft,
+                top: mainTop,
+                width: mainRotorSize.width * assembly.mainScale * scale,
+                height: mainRotorSize.height * assembly.mainScale * scale,
+                child: Image.asset(
+                  baseCampHelicopterMainRotorAssets[mainRotorFrame %
+                      baseCampHelicopterMainRotorAssets.length],
+                  key: const ValueKey('base-camp-helicopter-main-rotor'),
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.none,
+                  gaplessPlayback: true,
+                ),
               ),
-            ),
-            Positioned(
-              left: tailLeft,
-              top: tailTop,
-              width: tailWidth,
-              height: tailHeight,
-              child: Image.asset(
-                baseCampHelicopterTailRotorAssets[tailRotorFrame %
-                    baseCampHelicopterTailRotorAssets.length],
-                key: const ValueKey('base-camp-helicopter-tail-rotor'),
-                fit: BoxFit.fill,
-                filterQuality: FilterQuality.none,
-                gaplessPlayback: true,
+            if (showTailRotor)
+              Positioned(
+                left: tailLeft,
+                top: tailTop,
+                width: tailWidth,
+                height: tailHeight,
+                child: Image.asset(
+                  baseCampHelicopterTailRotorAssets[tailRotorFrame %
+                      baseCampHelicopterTailRotorAssets.length],
+                  key: const ValueKey('base-camp-helicopter-tail-rotor'),
+                  fit: BoxFit.fill,
+                  filterQuality: FilterQuality.none,
+                  gaplessPlayback: true,
+                ),
               ),
-            ),
           ],
         );
       },

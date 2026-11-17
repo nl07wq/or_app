@@ -1271,8 +1271,7 @@ class _BaseCampMapState extends State<BaseCampMap>
         'acquisitionMaxQueueWaitMs': acquisition.maxQueueWaitMs,
         'acquisitionMaxLoadMs': acquisition.maxLoadMs,
         'eventLoopYieldMs': eventLoopYieldMs,
-        'schedulingStrategy':
-            'pipelined_fair_acquisition_sequential_decode',
+        'schedulingStrategy': 'pipelined_fair_acquisition_sequential_decode',
         'frameTimings': frameTimings,
         'durationMs': watch.elapsedMilliseconds,
       },
@@ -1576,6 +1575,7 @@ class _BaseCampMapState extends State<BaseCampMap>
                             'base-camp-helicopter-flyby-layer',
                           ),
                           dashboardInteractive: _helicopterInteractive,
+                          assembly: configuration.helicopterAssembly,
                         ),
                         // This must be the final visual MAP layer. Labels
                         // remain input-transparent; the bounded plate targets

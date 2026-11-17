@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/startup_diagnostic.dart';
+import 'base_camp_helicopter_configuration.dart';
 import 'widgets/base_camp_map.dart';
 
 /// The single persisted source for BASE CAMP map calibration.  Normal map
@@ -23,6 +24,7 @@ class BaseCampMapConfiguration {
     required this.waterFx,
     this.compatibilityWaterFxV7 = const <String, BaseCampWaterFx>{},
     this.staticSoldiers = const <BaseCampStaticSoldier>[],
+    this.helicopterAssembly = BaseCampHelicopterAssembly.defaults,
   });
 
   static const schemaVersion = 8;
@@ -41,6 +43,7 @@ class BaseCampMapConfiguration {
   final Map<String, BaseCampWaterFx> waterFx;
   final Map<String, BaseCampWaterFx> compatibilityWaterFxV7;
   final List<BaseCampStaticSoldier> staticSoldiers;
+  final BaseCampHelicopterAssembly helicopterAssembly;
 
   static const soldierScaleFull = 1.0;
   static const soldierScaleTwoThirds = 2 / 3;
@@ -83,6 +86,7 @@ class BaseCampMapConfiguration {
     Map<String, BaseCampWaterFx>? waterFx,
     Map<String, BaseCampWaterFx>? compatibilityWaterFxV7,
     List<BaseCampStaticSoldier>? staticSoldiers,
+    BaseCampHelicopterAssembly? helicopterAssembly,
   }) => BaseCampMapConfiguration(
     routes: routes ?? this.routes,
     facilityOutlines: facilityOutlines ?? this.facilityOutlines,
@@ -95,6 +99,7 @@ class BaseCampMapConfiguration {
     compatibilityWaterFxV7:
         compatibilityWaterFxV7 ?? this.compatibilityWaterFxV7,
     staticSoldiers: staticSoldiers ?? this.staticSoldiers,
+    helicopterAssembly: helicopterAssembly ?? this.helicopterAssembly,
   );
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -118,6 +123,7 @@ class BaseCampMapConfiguration {
         (id, effect) => MapEntry(id, effect.toJson()),
       ),
     'staticSoldiers': staticSoldiers.map((item) => item.toJson()).toList(),
+    'helicopterAssembly': helicopterAssembly.toJson(),
   };
 
   String encode() => jsonEncode(toJson());
@@ -178,6 +184,9 @@ class BaseCampMapConfiguration {
     final staticSoldiers = BaseCampStaticSoldier.decodeAll(
       raw['staticSoldiers'],
     );
+    final helicopterAssembly = raw['helicopterAssembly'] == null
+        ? BaseCampHelicopterAssembly.defaults
+        : BaseCampHelicopterAssembly.tryParse(raw['helicopterAssembly']);
     if (routes == null ||
         outlines == null ||
         objects == null ||
@@ -188,6 +197,7 @@ class BaseCampMapConfiguration {
         waterFx == null ||
         compatibilityWaterFxV7 == null ||
         staticSoldiers == null ||
+        helicopterAssembly == null ||
         scale <= 0) {
       return null;
     }
@@ -208,6 +218,7 @@ class BaseCampMapConfiguration {
       waterFx: safeWaterFx,
       compatibilityWaterFxV7: compatibilityWaterFxV7,
       staticSoldiers: staticSoldiers,
+      helicopterAssembly: helicopterAssembly,
     );
   }
 

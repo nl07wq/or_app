@@ -10,7 +10,9 @@ import 'base_camp_map_configuration.dart';
 import 'base_camp_asset_import.dart';
 import 'base_camp_asset_store.dart';
 import 'base_camp_map_export.dart';
+import 'base_camp_helicopter_configuration.dart';
 import 'widgets/base_camp_map.dart';
+import 'widgets/base_camp_helicopter.dart';
 
 enum _BaseCampEditorSection {
   routes,
@@ -23,7 +25,14 @@ enum _BaseCampEditorSection {
   exclusionMask,
   staticSoldiers,
   soldierSize,
+  helicopter,
 }
+
+enum _HelicopterPart { body, mainRotor, tailRotor }
+
+enum _HelicopterInteraction { partEdit, mapNav }
+
+enum _HelicopterPreview { stationary, flight }
 
 int _nearestPolygonSegment(
   List<Offset> points,
@@ -270,6 +279,22 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   BaseCampMapConfiguration? _pendingWaterDraft;
   Future<void>? _waterDraftDrain;
   String? _waterDraftError;
+  _HelicopterPart _helicopterPart = _HelicopterPart.body;
+  _HelicopterInteraction _helicopterInteraction =
+      _HelicopterInteraction.partEdit;
+  _HelicopterPreview _helicopterPreview = _HelicopterPreview.stationary;
+  bool _helicopterRotorsOn = false;
+  bool _helicopterMainVisible = true;
+  bool _helicopterTailVisible = true;
+  int _helicopterMainFrame = 0;
+  int _helicopterTailFrame = 0;
+  Offset _helicopterTestPosition = const Offset(350, 120);
+  BaseCampHelicopterDirection _helicopterDirection =
+      BaseCampHelicopterDirection.leftToRight;
+  Duration? _helicopterFlightStart;
+  Timer? _helicopterFlightTimer;
+  BaseCampMapConfiguration? _helicopterGestureStart;
+  Offset _helicopterGesturePosition = Offset.zero;
 
   @override
   void initState() {
@@ -282,6 +307,8 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
 
   @override
   void dispose() {
+    baseCampHelicopterEditorActive.value = false;
+    _helicopterFlightTimer?.cancel();
     _waterDraftDebounce?.cancel();
     if (_pendingWaterDraft != null) {
       unawaited(_drainWaterDraftWrites().catchError((_) {}));
@@ -322,7 +349,133 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
           source.compatibilityWaterFxV7,
         ),
         staticSoldiers: List<BaseCampStaticSoldier>.of(source.staticSoldiers),
+        helicopterAssembly: source.helicopterAssembly,
       );
+
+  void _selectSection(_BaseCampEditorSection section) {
+    final helicopter = section == _BaseCampEditorSection.helicopter;
+    baseCampHelicopterEditorActive.value = helicopter;
+    if (!helicopter) _stopHelicopterFlight();
+    setState(() {
+      _section = section;
+      _pointIndex = 0;
+      _awaitingNewWaterArea = false;
+      _awaitingWaterPoint = false;
+      _awaitingExclusionPoint = false;
+    });
+  }
+
+  void _beginHelicopterGesture() {
+    _helicopterGestureStart = _clone(_working);
+    _helicopterGesturePosition = _helicopterTestPosition;
+    setState(() => _undo.add(_clone(_working)));
+  }
+
+  void _updateHelicopterGesture(
+    Offset mapDelta,
+    Offset bodyDelta,
+    double gestureScale,
+  ) {
+    final start = _helicopterGestureStart;
+    if (start == null) return;
+    final assembly = start.helicopterAssembly;
+    BaseCampHelicopterAssembly next = assembly;
+    switch (_helicopterPart) {
+      case _HelicopterPart.body:
+        _helicopterTestPosition = _helicopterGesturePosition + mapDelta;
+        next = assembly.copyWith(
+          globalScale: (assembly.globalScale * gestureScale)
+              .clamp(
+                BaseCampHelicopterAssembly.minimumScale,
+                BaseCampHelicopterAssembly.maximumScale,
+              )
+              .toDouble(),
+        );
+        break;
+      case _HelicopterPart.mainRotor:
+        next = assembly.copyWith(
+          mainHub: _safeHelicopterHub(assembly.mainHub + bodyDelta),
+          mainScale: (assembly.mainScale * gestureScale)
+              .clamp(
+                BaseCampHelicopterAssembly.minimumScale,
+                BaseCampHelicopterAssembly.maximumScale,
+              )
+              .toDouble(),
+        );
+        break;
+      case _HelicopterPart.tailRotor:
+        next = assembly.copyWith(
+          tailHub: _safeHelicopterHub(assembly.tailHub + bodyDelta),
+          tailScale: (assembly.tailScale * gestureScale)
+              .clamp(
+                BaseCampHelicopterAssembly.minimumScale,
+                BaseCampHelicopterAssembly.maximumScale,
+              )
+              .toDouble(),
+        );
+        break;
+    }
+    setState(() => _working = _working.copyWith(helicopterAssembly: next));
+  }
+
+  static Offset _safeHelicopterHub(Offset value) => Offset(
+    value.dx.clamp(0.0, BaseCampHelicopterAssembly.sourceSize.width).toDouble(),
+    value.dy
+        .clamp(0.0, BaseCampHelicopterAssembly.sourceSize.height)
+        .toDouble(),
+  );
+
+  void _setHelicopterValue({double? x, double? y, double? scale}) {
+    final assembly = _working.helicopterAssembly;
+    if (_helicopterPart == _HelicopterPart.body) {
+      if (x != null || y != null) {
+        setState(
+          () => _helicopterTestPosition = Offset(
+            x ?? _helicopterTestPosition.dx,
+            y ?? _helicopterTestPosition.dy,
+          ),
+        );
+      }
+      if (scale != null) {
+        _mutate(
+          _working.copyWith(
+            helicopterAssembly: assembly.copyWith(globalScale: scale),
+          ),
+        );
+      }
+      return;
+    }
+    final hub = _helicopterPart == _HelicopterPart.mainRotor
+        ? assembly.mainHub
+        : assembly.tailHub;
+    final nextHub = _safeHelicopterHub(Offset(x ?? hub.dx, y ?? hub.dy));
+    final next = _helicopterPart == _HelicopterPart.mainRotor
+        ? assembly.copyWith(mainHub: nextHub, mainScale: scale)
+        : assembly.copyWith(tailHub: nextHub, tailScale: scale);
+    _mutate(_working.copyWith(helicopterAssembly: next));
+  }
+
+  void _runHelicopterFlight() {
+    _helicopterFlightTimer?.cancel();
+    setState(() {
+      _helicopterPreview = _HelicopterPreview.flight;
+      _helicopterFlightStart =
+          _canvasKey.currentState?.previewElapsed ?? Duration.zero;
+    });
+    _helicopterFlightTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted) setState(() => _helicopterFlightStart = null);
+    });
+  }
+
+  void _stopHelicopterFlight() {
+    _helicopterFlightTimer?.cancel();
+    _helicopterFlightTimer = null;
+    if (mounted && _helicopterFlightStart != null) {
+      setState(() => _helicopterFlightStart = null);
+    } else {
+      _helicopterFlightStart = null;
+    }
+  }
 
   bool get _dirty =>
       _working.encode() != _configurationController.value.encode();
@@ -1455,17 +1608,12 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                       (_BaseCampEditorSection.exclusionMask, 'EXCLUSION MASK'),
                       (_BaseCampEditorSection.staticSoldiers, 'STATIC SOLDIER'),
                       (_BaseCampEditorSection.soldierSize, 'SOLDIER SIZE'),
+                      (_BaseCampEditorSection.helicopter, 'HELICOPTER'),
                     ])
                       ChoiceChip(
                         label: Text(item.$2),
                         selected: _section == item.$1,
-                        onSelected: (_) => setState(() {
-                          _section = item.$1;
-                          _pointIndex = 0;
-                          _awaitingNewWaterArea = false;
-                          _awaitingWaterPoint = false;
-                          _awaitingExclusionPoint = false;
-                        }),
+                        onSelected: (_) => _selectSection(item.$1),
                       ),
                   ],
                 ),
@@ -1578,6 +1726,19 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   onStaticSoldierDragged: (id, position) {
                     _updateStaticSoldierPosition(id, position);
                   },
+                  helicopterPart: _helicopterPart,
+                  helicopterInteraction: _helicopterInteraction,
+                  helicopterPreview: _helicopterPreview,
+                  helicopterRotorsOn: _helicopterRotorsOn,
+                  helicopterMainVisible: _helicopterMainVisible,
+                  helicopterTailVisible: _helicopterTailVisible,
+                  helicopterMainFrame: _helicopterMainFrame,
+                  helicopterTailFrame: _helicopterTailFrame,
+                  helicopterTestPosition: _helicopterTestPosition,
+                  helicopterDirection: _helicopterDirection,
+                  helicopterFlightStart: _helicopterFlightStart,
+                  onHelicopterGestureStart: _beginHelicopterGesture,
+                  onHelicopterGestureUpdate: _updateHelicopterGesture,
                 ),
               ),
               ConstrainedBox(
@@ -1592,6 +1753,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   }
 
   Widget _editorControls() {
+    if (_section == _BaseCampEditorSection.helicopter) {
+      return _helicopterControls();
+    }
     if (_section == _BaseCampEditorSection.objects) {
       final object = _working.objects[_objectId]!;
       return Padding(
@@ -2235,6 +2399,215 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     );
   }
 
+  Widget _helicopterControls() {
+    final assembly = _working.helicopterAssembly;
+    final (x, y, scale) = switch (_helicopterPart) {
+      _HelicopterPart.body => (
+        _helicopterTestPosition.dx,
+        _helicopterTestPosition.dy,
+        assembly.globalScale,
+      ),
+      _HelicopterPart.mainRotor => (
+        assembly.mainHub.dx,
+        assembly.mainHub.dy,
+        assembly.mainScale,
+      ),
+      _HelicopterPart.tailRotor => (
+        assembly.tailHub.dx,
+        assembly.tailHub.dy,
+        assembly.tailScale,
+      ),
+    };
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (final part in _HelicopterPart.values)
+                ChoiceChip(
+                  key: ValueKey('helicopter-part-${part.name}'),
+                  label: Text(switch (part) {
+                    _HelicopterPart.body => 'BODY',
+                    _HelicopterPart.mainRotor => 'MAIN ROTOR',
+                    _HelicopterPart.tailRotor => 'TAIL ROTOR',
+                  }),
+                  selected: _helicopterPart == part,
+                  onSelected: (_) => setState(() => _helicopterPart = part),
+                ),
+              ChoiceChip(
+                key: const ValueKey('helicopter-part-edit'),
+                label: const Text('PART EDIT'),
+                selected:
+                    _helicopterInteraction == _HelicopterInteraction.partEdit,
+                onSelected: (_) => setState(
+                  () =>
+                      _helicopterInteraction = _HelicopterInteraction.partEdit,
+                ),
+              ),
+              ChoiceChip(
+                key: const ValueKey('helicopter-map-nav'),
+                label: const Text('MAP NAV'),
+                selected:
+                    _helicopterInteraction == _HelicopterInteraction.mapNav,
+                onSelected: (_) => setState(
+                  () => _helicopterInteraction = _HelicopterInteraction.mapNav,
+                ),
+              ),
+              ChoiceChip(
+                label: const Text('STATIONARY'),
+                selected: _helicopterPreview == _HelicopterPreview.stationary,
+                onSelected: (_) {
+                  _stopHelicopterFlight();
+                  setState(
+                    () => _helicopterPreview = _HelicopterPreview.stationary,
+                  );
+                },
+              ),
+              ChoiceChip(
+                label: const Text('FLIGHT'),
+                selected: _helicopterPreview == _HelicopterPreview.flight,
+                onSelected: (_) => setState(
+                  () => _helicopterPreview = _HelicopterPreview.flight,
+                ),
+              ),
+              FilterChip(
+                key: const ValueKey('helicopter-rotors-on'),
+                label: Text(_helicopterRotorsOn ? 'ROTORS ON' : 'ROTORS OFF'),
+                selected: _helicopterRotorsOn,
+                onSelected: (value) =>
+                    setState(() => _helicopterRotorsOn = value),
+              ),
+              FilterChip(
+                label: const Text('MAIN VISIBLE'),
+                selected: _helicopterMainVisible,
+                onSelected: (value) =>
+                    setState(() => _helicopterMainVisible = value),
+              ),
+              FilterChip(
+                label: const Text('TAIL VISIBLE'),
+                selected: _helicopterTailVisible,
+                onSelected: (value) =>
+                    setState(() => _helicopterTailVisible = value),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(child: _helicopterNumberField('X', x)),
+              const SizedBox(width: 6),
+              Expanded(child: _helicopterNumberField('Y', y)),
+              const SizedBox(width: 6),
+              Expanded(child: _helicopterNumberField('SCALE', scale)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              DropdownButton<int>(
+                value: _helicopterMainFrame,
+                items: List<DropdownMenuItem<int>>.generate(
+                  baseCampHelicopterMainRotorAssets.length,
+                  (index) => DropdownMenuItem(
+                    value: index,
+                    child: Text('MAIN F${index + 1}'),
+                  ),
+                ),
+                onChanged: (value) =>
+                    setState(() => _helicopterMainFrame = value ?? 0),
+              ),
+              DropdownButton<int>(
+                value: _helicopterTailFrame,
+                items: List<DropdownMenuItem<int>>.generate(
+                  baseCampHelicopterTailRotorAssets.length,
+                  (index) => DropdownMenuItem(
+                    value: index,
+                    child: Text('TAIL F${index + 1}'),
+                  ),
+                ),
+                onChanged: (value) =>
+                    setState(() => _helicopterTailFrame = value ?? 0),
+              ),
+              ChoiceChip(
+                key: const ValueKey('helicopter-direction-left-to-right'),
+                label: const Text('LEFT → RIGHT'),
+                selected:
+                    _helicopterDirection ==
+                    BaseCampHelicopterDirection.leftToRight,
+                onSelected: (_) => setState(
+                  () => _helicopterDirection =
+                      BaseCampHelicopterDirection.leftToRight,
+                ),
+              ),
+              ChoiceChip(
+                key: const ValueKey('helicopter-direction-right-to-left'),
+                label: const Text('RIGHT → LEFT'),
+                selected:
+                    _helicopterDirection ==
+                    BaseCampHelicopterDirection.rightToLeft,
+                onSelected: (_) => setState(
+                  () => _helicopterDirection =
+                      BaseCampHelicopterDirection.rightToLeft,
+                ),
+              ),
+              FilledButton.icon(
+                key: const ValueKey('helicopter-run-flight'),
+                onPressed: _runHelicopterFlight,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('RUN FLIGHT'),
+              ),
+              OutlinedButton.icon(
+                key: const ValueKey('helicopter-stop-flight'),
+                onPressed: _stopHelicopterFlight,
+                icon: const Icon(Icons.stop),
+                label: const Text('STOP'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _helicopterNumberField(String label, double value) => TextFormField(
+    key: ValueKey(
+      'helicopter-${_helicopterPart.name}-$label-${value.toStringAsFixed(3)}',
+    ),
+    initialValue: value.toStringAsFixed(label == 'SCALE' ? 3 : 1),
+    keyboardType: const TextInputType.numberWithOptions(
+      decimal: true,
+      signed: true,
+    ),
+    decoration: InputDecoration(labelText: label, isDense: true),
+    onFieldSubmitted: (raw) {
+      final parsed = double.tryParse(raw);
+      final scaleValid =
+          label != 'SCALE' ||
+          (parsed != null &&
+              parsed >= BaseCampHelicopterAssembly.minimumScale &&
+              parsed <= BaseCampHelicopterAssembly.maximumScale);
+      if (parsed == null || !parsed.isFinite || !scaleValid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('INVALID HELICOPTER VALUE')),
+        );
+        return;
+      }
+      _setHelicopterValue(
+        x: label == 'X' ? parsed : null,
+        y: label == 'Y' ? parsed : null,
+        scale: label == 'SCALE' ? parsed : null,
+      );
+    },
+  );
+
   Widget _editorSlider(
     String title,
     double value,
@@ -2371,6 +2744,19 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.onStaticSoldierSelected,
     required this.onStaticSoldierDragStarted,
     required this.onStaticSoldierDragged,
+    required this.helicopterPart,
+    required this.helicopterInteraction,
+    required this.helicopterPreview,
+    required this.helicopterRotorsOn,
+    required this.helicopterMainVisible,
+    required this.helicopterTailVisible,
+    required this.helicopterMainFrame,
+    required this.helicopterTailFrame,
+    required this.helicopterTestPosition,
+    required this.helicopterDirection,
+    required this.helicopterFlightStart,
+    required this.onHelicopterGestureStart,
+    required this.onHelicopterGestureUpdate,
   });
   final BaseCampMapConfiguration configuration;
   final _BaseCampEditorSection section;
@@ -2407,6 +2793,20 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final ValueChanged<String> onStaticSoldierSelected;
   final ValueChanged<String> onStaticSoldierDragStarted;
   final void Function(String id, Offset position) onStaticSoldierDragged;
+  final _HelicopterPart helicopterPart;
+  final _HelicopterInteraction helicopterInteraction;
+  final _HelicopterPreview helicopterPreview;
+  final bool helicopterRotorsOn;
+  final bool helicopterMainVisible;
+  final bool helicopterTailVisible;
+  final int helicopterMainFrame;
+  final int helicopterTailFrame;
+  final Offset helicopterTestPosition;
+  final BaseCampHelicopterDirection helicopterDirection;
+  final Duration? helicopterFlightStart;
+  final VoidCallback onHelicopterGestureStart;
+  final void Function(Offset mapDelta, Offset bodyDelta, double scale)
+  onHelicopterGestureUpdate;
 
   @override
   State<_BaseCampEditorCanvas> createState() => _BaseCampEditorCanvasState();
@@ -2423,6 +2823,11 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
   );
   final Stopwatch _previewWatch = Stopwatch();
   Timer? _previewTimer;
+  Offset _helicopterMapDelta = Offset.zero;
+  double _helicopterBodyUnitsPerSourcePixel = 1;
+  int _helicopterPointers = 0;
+
+  Duration get previewElapsed => _previewElapsed.value;
 
   @override
   void initState() {
@@ -2517,117 +2922,172 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
     builder: (context, constraints) {
       final viewport = constraints.biggest;
       _setInitialFit(viewport);
-      return ClipRect(
-        child: InteractiveViewer(
-          key: const ValueKey('base-camp-editor-map'),
-          transformationController: _transform,
-          constrained: false,
-          minScale: .2,
-          maxScale: 3.2,
-          boundaryMargin: const EdgeInsets.all(160),
-          child: SizedBox(
-            width: baseCampMapArtworkSize.width,
-            height: baseCampMapArtworkSize.height,
-            child: _BaseCampEditorSourceMap(
-              key: _sourceKey,
-              configuration: widget.configuration,
-              section: widget.section,
-              selectedRouteId: widget.selectedRouteId,
-              selectedFacilityId: widget.selectedFacilityId,
-              selectedObjectId: widget.selectedObjectId,
-              selectedPoint: widget.selectedPoint,
-              onPointSelected: widget.onPointSelected,
-              onDragStarted: widget.onDragStarted,
-              onSmokeOriginDragStarted: widget.onSmokeOriginDragStarted,
-              onPointGlobalDragged: _dragPointAtGlobalPosition,
-              onObjectDragStarted: widget.onObjectDragStarted,
-              onObjectGlobalDragged: (globalPosition) {
-                final renderBox =
-                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  widget.onObjectDragged(
-                    BaseCampMapGeometry.contain(
-                      baseCampMapArtworkSize,
-                    ).artworkToSource(renderBox.globalToLocal(globalPosition)),
-                  );
-                }
-              },
-              onLabelDragStarted: widget.onLabelDragStarted,
-              onLabelGlobalDragged: (globalPosition, part) {
-                final renderBox =
-                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  widget.onLabelDragged(
-                    BaseCampMapGeometry.contain(
-                      baseCampMapArtworkSize,
-                    ).artworkToSource(renderBox.globalToLocal(globalPosition)),
-                    part,
-                  );
-                }
-              },
-              selectedWaterFxId: widget.selectedWaterFxId,
-              selectedWaterArea: widget.selectedWaterArea,
-              previewElapsed: _previewElapsed,
-              selectedWaterPoint: widget.selectedWaterPoint,
-              selectedWaterMask: widget.selectedWaterMask,
-              selectedExclusionMask: widget.selectedExclusionMask,
-              awaitingWaterPoint: widget.awaitingWaterPoint,
-              onWaterCanvasTap: widget.onWaterCanvasTap,
-              awaitingNewWaterArea: widget.awaitingNewWaterArea,
-              onNewWaterAreaCanvasTap: widget.onNewWaterAreaCanvasTap,
-              awaitingExclusionPoint: widget.awaitingExclusionPoint,
-              onExclusionCanvasTap: widget.onExclusionCanvasTap,
-              onWaterPointSelected: widget.onWaterPointSelected,
-              onExclusionSelected: widget.onExclusionSelected,
-              onWaterDragStarted: widget.onWaterDragStarted,
-              onWaterGlobalDragged: (index, globalPosition, mask) {
-                final renderBox =
-                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  widget.onWaterPointDragged(
-                    index,
-                    BaseCampMapGeometry.contain(
-                      baseCampMapArtworkSize,
-                    ).viewportToArtwork(
-                      renderBox.globalToLocal(globalPosition),
-                    ),
-                    mask,
-                  );
-                }
-              },
-              onExclusionGlobalDragged: (polygon, index, globalPosition) {
-                final renderBox =
-                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  widget.onExclusionPointDragged(
-                    polygon,
-                    index,
-                    BaseCampMapGeometry.contain(
-                      baseCampMapArtworkSize,
-                    ).viewportToArtwork(
-                      renderBox.globalToLocal(globalPosition),
-                    ),
-                  );
-                }
-              },
-              selectedStaticSoldierId: widget.selectedStaticSoldierId,
-              onStaticSoldierSelected: widget.onStaticSoldierSelected,
-              onStaticSoldierDragStarted: widget.onStaticSoldierDragStarted,
-              onStaticSoldierGlobalDragged: (id, globalPosition) {
-                final renderBox =
-                    _sourceKey.currentContext?.findRenderObject() as RenderBox?;
-                if (renderBox != null) {
-                  widget.onStaticSoldierDragged(
-                    id,
-                    BaseCampMapGeometry.contain(
-                      baseCampMapArtworkSize,
-                    ).artworkToSource(renderBox.globalToLocal(globalPosition)),
-                  );
-                }
-              },
-            ),
+      final viewer = InteractiveViewer(
+        key: const ValueKey('base-camp-editor-map'),
+        transformationController: _transform,
+        constrained: false,
+        minScale: .2,
+        maxScale: 3.2,
+        boundaryMargin: const EdgeInsets.all(160),
+        panEnabled:
+            widget.section != _BaseCampEditorSection.helicopter ||
+            widget.helicopterInteraction == _HelicopterInteraction.mapNav,
+        scaleEnabled:
+            widget.section != _BaseCampEditorSection.helicopter ||
+            widget.helicopterInteraction == _HelicopterInteraction.mapNav,
+        child: SizedBox(
+          width: baseCampMapArtworkSize.width,
+          height: baseCampMapArtworkSize.height,
+          child: _BaseCampEditorSourceMap(
+            key: _sourceKey,
+            configuration: widget.configuration,
+            section: widget.section,
+            selectedRouteId: widget.selectedRouteId,
+            selectedFacilityId: widget.selectedFacilityId,
+            selectedObjectId: widget.selectedObjectId,
+            selectedPoint: widget.selectedPoint,
+            onPointSelected: widget.onPointSelected,
+            onDragStarted: widget.onDragStarted,
+            onSmokeOriginDragStarted: widget.onSmokeOriginDragStarted,
+            onPointGlobalDragged: _dragPointAtGlobalPosition,
+            onObjectDragStarted: widget.onObjectDragStarted,
+            onObjectGlobalDragged: (globalPosition) {
+              final renderBox =
+                  _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+              if (renderBox != null) {
+                widget.onObjectDragged(
+                  BaseCampMapGeometry.contain(
+                    baseCampMapArtworkSize,
+                  ).artworkToSource(renderBox.globalToLocal(globalPosition)),
+                );
+              }
+            },
+            onLabelDragStarted: widget.onLabelDragStarted,
+            onLabelGlobalDragged: (globalPosition, part) {
+              final renderBox =
+                  _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+              if (renderBox != null) {
+                widget.onLabelDragged(
+                  BaseCampMapGeometry.contain(
+                    baseCampMapArtworkSize,
+                  ).artworkToSource(renderBox.globalToLocal(globalPosition)),
+                  part,
+                );
+              }
+            },
+            selectedWaterFxId: widget.selectedWaterFxId,
+            selectedWaterArea: widget.selectedWaterArea,
+            previewElapsed: _previewElapsed,
+            selectedWaterPoint: widget.selectedWaterPoint,
+            selectedWaterMask: widget.selectedWaterMask,
+            selectedExclusionMask: widget.selectedExclusionMask,
+            awaitingWaterPoint: widget.awaitingWaterPoint,
+            onWaterCanvasTap: widget.onWaterCanvasTap,
+            awaitingNewWaterArea: widget.awaitingNewWaterArea,
+            onNewWaterAreaCanvasTap: widget.onNewWaterAreaCanvasTap,
+            awaitingExclusionPoint: widget.awaitingExclusionPoint,
+            onExclusionCanvasTap: widget.onExclusionCanvasTap,
+            onWaterPointSelected: widget.onWaterPointSelected,
+            onExclusionSelected: widget.onExclusionSelected,
+            onWaterDragStarted: widget.onWaterDragStarted,
+            onWaterGlobalDragged: (index, globalPosition, mask) {
+              final renderBox =
+                  _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+              if (renderBox != null) {
+                widget.onWaterPointDragged(
+                  index,
+                  BaseCampMapGeometry.contain(
+                    baseCampMapArtworkSize,
+                  ).viewportToArtwork(renderBox.globalToLocal(globalPosition)),
+                  mask,
+                );
+              }
+            },
+            onExclusionGlobalDragged: (polygon, index, globalPosition) {
+              final renderBox =
+                  _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+              if (renderBox != null) {
+                widget.onExclusionPointDragged(
+                  polygon,
+                  index,
+                  BaseCampMapGeometry.contain(
+                    baseCampMapArtworkSize,
+                  ).viewportToArtwork(renderBox.globalToLocal(globalPosition)),
+                );
+              }
+            },
+            selectedStaticSoldierId: widget.selectedStaticSoldierId,
+            onStaticSoldierSelected: widget.onStaticSoldierSelected,
+            onStaticSoldierDragStarted: widget.onStaticSoldierDragStarted,
+            onStaticSoldierGlobalDragged: (id, globalPosition) {
+              final renderBox =
+                  _sourceKey.currentContext?.findRenderObject() as RenderBox?;
+              if (renderBox != null) {
+                widget.onStaticSoldierDragged(
+                  id,
+                  BaseCampMapGeometry.contain(
+                    baseCampMapArtworkSize,
+                  ).artworkToSource(renderBox.globalToLocal(globalPosition)),
+                );
+              }
+            },
+            helicopterPart: widget.helicopterPart,
+            helicopterInteraction: widget.helicopterInteraction,
+            helicopterPreview: widget.helicopterPreview,
+            helicopterRotorsOn: widget.helicopterRotorsOn,
+            helicopterMainVisible: widget.helicopterMainVisible,
+            helicopterTailVisible: widget.helicopterTailVisible,
+            helicopterMainFrame: widget.helicopterMainFrame,
+            helicopterTailFrame: widget.helicopterTailFrame,
+            helicopterTestPosition: widget.helicopterTestPosition,
+            helicopterDirection: widget.helicopterDirection,
+            helicopterFlightStart: widget.helicopterFlightStart,
+            onHelicopterGestureStart: widget.onHelicopterGestureStart,
+            onHelicopterGestureUpdate: widget.onHelicopterGestureUpdate,
           ),
         ),
+      );
+      final partEdit =
+          widget.section == _BaseCampEditorSection.helicopter &&
+          widget.helicopterInteraction == _HelicopterInteraction.partEdit &&
+          widget.helicopterPreview == _HelicopterPreview.stationary;
+      return ClipRect(
+        child: partEdit
+            ? Listener(
+                onPointerDown: (_) {
+                  if (_helicopterPointers++ != 0) return;
+                  _helicopterMapDelta = Offset.zero;
+                  _helicopterBodyUnitsPerSourcePixel =
+                      BaseCampHelicopterSprite.sourceSize.width /
+                      (baseCampMapArtworkSize.width *
+                          .42 *
+                          widget.configuration.helicopterAssembly.globalScale);
+                  widget.onHelicopterGestureStart();
+                },
+                onPointerUp: (_) =>
+                    _helicopterPointers = math.max(0, _helicopterPointers - 1),
+                onPointerCancel: (_) =>
+                    _helicopterPointers = math.max(0, _helicopterPointers - 1),
+                child: GestureDetector(
+                  key: const ValueKey('base-camp-helicopter-part-gesture'),
+                  behavior: HitTestBehavior.opaque,
+                  onScaleUpdate: (details) {
+                    final transformScale = _transform.value
+                        .getMaxScaleOnAxis()
+                        .clamp(.0001, double.infinity)
+                        .toDouble();
+                    _helicopterMapDelta +=
+                        details.focalPointDelta / transformScale;
+                    widget.onHelicopterGestureUpdate(
+                      _helicopterMapDelta,
+                      _helicopterMapDelta * _helicopterBodyUnitsPerSourcePixel,
+                      details.scale,
+                    );
+                  },
+                  child: IgnorePointer(child: viewer),
+                ),
+              )
+            : viewer,
       );
     },
   );
@@ -2671,6 +3131,19 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.onStaticSoldierSelected,
     required this.onStaticSoldierDragStarted,
     required this.onStaticSoldierGlobalDragged,
+    required this.helicopterPart,
+    required this.helicopterInteraction,
+    required this.helicopterPreview,
+    required this.helicopterRotorsOn,
+    required this.helicopterMainVisible,
+    required this.helicopterTailVisible,
+    required this.helicopterMainFrame,
+    required this.helicopterTailFrame,
+    required this.helicopterTestPosition,
+    required this.helicopterDirection,
+    required this.helicopterFlightStart,
+    required this.onHelicopterGestureStart,
+    required this.onHelicopterGestureUpdate,
   });
   final BaseCampMapConfiguration configuration;
   final _BaseCampEditorSection section;
@@ -2707,6 +3180,20 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final ValueChanged<String> onStaticSoldierSelected;
   final ValueChanged<String> onStaticSoldierDragStarted;
   final void Function(String id, Offset position) onStaticSoldierGlobalDragged;
+  final _HelicopterPart helicopterPart;
+  final _HelicopterInteraction helicopterInteraction;
+  final _HelicopterPreview helicopterPreview;
+  final bool helicopterRotorsOn;
+  final bool helicopterMainVisible;
+  final bool helicopterTailVisible;
+  final int helicopterMainFrame;
+  final int helicopterTailFrame;
+  final Offset helicopterTestPosition;
+  final BaseCampHelicopterDirection helicopterDirection;
+  final Duration? helicopterFlightStart;
+  final VoidCallback onHelicopterGestureStart;
+  final void Function(Offset mapDelta, Offset bodyDelta, double scale)
+  onHelicopterGestureUpdate;
 
   @override
   Widget build(BuildContext context) {
@@ -2770,6 +3257,27 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             ),
           ),
         ),
+        if (section == _BaseCampEditorSection.helicopter)
+          ValueListenableBuilder<Duration>(
+            valueListenable: previewElapsed,
+            builder: (context, elapsed, _) => _HelicopterEditorOverlay(
+              assembly: configuration.helicopterAssembly,
+              part: helicopterPart,
+              interaction: helicopterInteraction,
+              preview: helicopterPreview,
+              rotorsOn: helicopterRotorsOn,
+              mainVisible: helicopterMainVisible,
+              tailVisible: helicopterTailVisible,
+              selectedMainFrame: helicopterMainFrame,
+              selectedTailFrame: helicopterTailFrame,
+              testPosition: helicopterTestPosition,
+              direction: helicopterDirection,
+              flightStart: helicopterFlightStart,
+              elapsed: elapsed,
+              onGestureStart: onHelicopterGestureStart,
+              onGestureUpdate: onHelicopterGestureUpdate,
+            ),
+          ),
         // Keep the editor preview's paint order identical to the normal map:
         // labels must remain readable above facilities, smoke and patrols.
         IgnorePointer(
@@ -3012,6 +3520,105 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _HelicopterEditorOverlay extends StatefulWidget {
+  const _HelicopterEditorOverlay({
+    required this.assembly,
+    required this.part,
+    required this.interaction,
+    required this.preview,
+    required this.rotorsOn,
+    required this.mainVisible,
+    required this.tailVisible,
+    required this.selectedMainFrame,
+    required this.selectedTailFrame,
+    required this.testPosition,
+    required this.direction,
+    required this.flightStart,
+    required this.elapsed,
+    required this.onGestureStart,
+    required this.onGestureUpdate,
+  });
+
+  final BaseCampHelicopterAssembly assembly;
+  final _HelicopterPart part;
+  final _HelicopterInteraction interaction;
+  final _HelicopterPreview preview;
+  final bool rotorsOn, mainVisible, tailVisible;
+  final int selectedMainFrame, selectedTailFrame;
+  final Offset testPosition;
+  final BaseCampHelicopterDirection direction;
+  final Duration? flightStart;
+  final Duration elapsed;
+  final VoidCallback onGestureStart;
+  final void Function(Offset mapDelta, Offset bodyDelta, double scale)
+  onGestureUpdate;
+
+  @override
+  State<_HelicopterEditorOverlay> createState() =>
+      _HelicopterEditorOverlayState();
+}
+
+class _HelicopterEditorOverlayState extends State<_HelicopterEditorOverlay> {
+  @override
+  Widget build(BuildContext context) {
+    const mapSize = baseCampMapArtworkSize;
+    final width = mapSize.width * .42 * widget.assembly.globalScale;
+    final height =
+        width *
+        BaseCampHelicopterSprite.sourceSize.height /
+        BaseCampHelicopterSprite.sourceSize.width;
+    final flight = widget.preview == _HelicopterPreview.flight;
+    final flightStart = widget.flightStart;
+    final progress = flightStart == null
+        ? 0.0
+        : ((widget.elapsed - flightStart).inMicroseconds /
+                  const Duration(seconds: 8).inMicroseconds)
+              .clamp(0.0, 1.0);
+    final left = flight
+        ? baseCampHelicopterLeft(
+            progress: Curves.easeInOut.transform(progress),
+            viewportWidth: mapSize.width,
+            spriteWidth: width,
+            direction: widget.direction,
+          )
+        : widget.testPosition.dx;
+    final top = flight ? mapSize.height * .1 : widget.testPosition.dy;
+    final animateRotors = flight || widget.rotorsOn;
+    final elapsedMs = widget.elapsed.inMilliseconds;
+    final mainFrame = animateRotors
+        ? (elapsedMs ~/ 110) % baseCampHelicopterMainRotorAssets.length
+        : widget.selectedMainFrame;
+    final tailFrame = animateRotors
+        ? (elapsedMs ~/ 50) % baseCampHelicopterTailRotorAssets.length
+        : widget.selectedTailFrame;
+    final sprite = DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: widget.interaction == _HelicopterInteraction.partEdit
+              ? const Color(0xAA68E8F2)
+              : Colors.transparent,
+        ),
+      ),
+      child: BaseCampHelicopterSprite(
+        direction: widget.direction,
+        mainRotorFrame: mainFrame,
+        tailRotorFrame: tailFrame,
+        assembly: widget.assembly,
+        showMainRotor: widget.mainVisible,
+        showTailRotor: widget.tailVisible,
+      ),
+    );
+    return Positioned(
+      key: const ValueKey('base-camp-helicopter-editor-preview'),
+      left: left,
+      top: top,
+      width: width,
+      height: height,
+      child: IgnorePointer(child: sprite),
     );
   }
 }
