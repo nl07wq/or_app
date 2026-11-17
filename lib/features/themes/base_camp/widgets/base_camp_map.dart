@@ -14,6 +14,7 @@ import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dar
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 
 import 'base_camp_water_surface_v3b.dart';
+import 'base_camp_helicopter.dart';
 
 /// The registered image remains the single visual source. Facility regions are
 /// normalised against it so the image, feedback affordances, and hit testing
@@ -556,6 +557,7 @@ class _BaseCampMapState extends State<BaseCampMap>
   final Stopwatch _mapLoadWatch = Stopwatch();
   final BaseCampMapAssetResolver _assetResolver = BaseCampMapAssetResolver();
   final ValueNotifier<int> _waterFrameTick = ValueNotifier<int>(0);
+  final ValueNotifier<bool> _helicopterInteractive = ValueNotifier<bool>(false);
   final Set<String> _resolvedFacilityObjects = <String>{};
   final Set<String> _displayedFacilityObjects = <String>{};
   bool _configurationReady = false;
@@ -913,6 +915,7 @@ class _BaseCampMapState extends State<BaseCampMap>
     _selectionVisibility.dispose();
     _walkerTimeline.dispose();
     _waterFrameTick.dispose();
+    _helicopterInteractive.dispose();
     baseCampMapConfigurationController.removeListener(_configurationChanged);
     _transform.dispose();
     super.dispose();
@@ -1177,6 +1180,9 @@ class _BaseCampMapState extends State<BaseCampMap>
         'facilityTargetsReady': true,
       },
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _helicopterInteractive.value = true;
+    });
   }
 
   Future<void> _warmWalkerFrames() async {
@@ -1565,6 +1571,12 @@ class _BaseCampMapState extends State<BaseCampMap>
                               ),
                             ),
                           ),
+                        BaseCampHelicopterFlybyLayer(
+                          key: const ValueKey(
+                            'base-camp-helicopter-flyby-layer',
+                          ),
+                          dashboardInteractive: _helicopterInteractive,
+                        ),
                         // This must be the final visual MAP layer. Labels
                         // remain input-transparent; the bounded plate targets
                         // and alpha facility targets live in the separate

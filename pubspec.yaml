@@ -109,6 +109,9 @@ flutter:
     - assets/images/themes/base_camp/breathing_soldier/rifle_regrip/
     - assets/images/themes/base_camp/entry/
     - assets/images/themes/base_camp/communication/
+    - assets/base_camp/helicopter/
+    - assets/base_camp/helicopter/main_rotor/
+    - assets/base_camp/helicopter/tail_rotor/
     - assets/images/themes/base_camp/water_v3b/manifest.json
     - assets/images/themes/base_camp/water_v3b/frames_rgba/
     - assets/data/
