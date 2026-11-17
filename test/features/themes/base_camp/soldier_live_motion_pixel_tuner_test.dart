@@ -38,12 +38,7 @@ void main() {
         SoldierPixelationLevel.original,
       });
 
-      await tester.runAsync(
-        () => BaseCampSoldierPixelCache.instance.prepareRequests(
-          baseCampSoldierPixelProfile().requests,
-          SoldierPixelationLevel.coarse,
-        ),
-      );
+      await _preparePreviewProfile(tester, SoldierPixelationLevel.coarse);
       await tester.tap(find.text('PIXEL LV.3'));
       await tester.pump();
       expect(
@@ -53,12 +48,12 @@ void main() {
       expect(_pixelControls(tester).selected, <SoldierPixelationLevel>{
         SoldierPixelationLevel.coarse,
       });
-      expect(
-        _pixelatedImage(
+      await _pumpUntil(
+        tester,
+        () => _pixelatedImage(
           SoldierPixelationLevel.coarse,
           baseCampBreathingSoldierLowerAsset,
-        ),
-        findsOneWidget,
+        ).evaluate().isNotEmpty,
       );
 
       final trigger = find.byKey(const ValueKey('soldier-live-trigger-regrip'));
@@ -93,7 +88,7 @@ void main() {
     },
   );
 
-  test('pixel levels use increasingly coarse source block quantization', () {
+  test('pixel levels use increasingly coarse screen-space blocks', () {
     expect(
       SoldierPixelationLevel.values
           .map((level) => level.referenceBlockSize)
@@ -128,16 +123,18 @@ void main() {
       DeviceSettingsController.instance.resetForTesting(
         DeviceSettings(soldierPixelationLevel: level),
       );
-      await tester.runAsync(
-        () => BaseCampSoldierPixelCache.instance.prepareRequests(
-          baseCampSoldierPixelProfile().requests,
-          level,
-        ),
-      );
+      await _preparePreviewProfile(tester, level);
       await tester.pumpWidget(
         const MaterialApp(home: SoldierLiveMotionPreviewPage()),
       );
       await tester.pump();
+      await _pumpUntil(
+        tester,
+        () => _pixelatedImage(
+          level,
+          baseCampBreathingSoldierLowerAsset,
+        ).evaluate().isNotEmpty,
+      );
 
       final trigger = find.byKey(const ValueKey('soldier-live-trigger-regrip'));
       tester.widget<OperationButton>(trigger).onPressed!();
@@ -159,3 +156,27 @@ SegmentedButton<SoldierPixelationLevel> _pixelControls(WidgetTester tester) =>
 
 Finder _pixelatedImage(SoldierPixelationLevel level, String asset) =>
     find.byKey(ValueKey<String>('soldier-pixelated-${level.name}-$asset'));
+
+Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
+  for (var attempt = 0; attempt < 150 && !condition(); attempt++) {
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  expect(condition(), isTrue);
+}
+
+Future<void> _preparePreviewProfile(
+  WidgetTester tester,
+  SoldierPixelationLevel level,
+) async {
+  const width = 430.0 - 32;
+  final profile = baseCampSoldierPixelProfile(
+    viewport: const Size(width, width / 1.35),
+  );
+  final prepared = await tester.runAsync(
+    () => BaseCampSoldierPixelCache.instance.prepareRequests(
+      profile.requests,
+      level,
+    ),
+  );
+  expect(prepared, isTrue);
+}

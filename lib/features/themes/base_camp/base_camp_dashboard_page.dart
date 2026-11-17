@@ -479,8 +479,11 @@ class _TacticalTerminal extends StatelessWidget {
                             ?.triggerManualRegrip(),
                         onLongPress: () => Navigator.of(context).push<void>(
                           MaterialPageRoute<void>(
-                            builder: (_) =>
-                                const SoldierLiveMotionPreviewPage(),
+                            builder: (_) => SoldierLiveMotionPreviewPage(
+                              dashboardViewport: soldierCompartmentKey
+                                  .currentState
+                                  ?.pixelViewport,
+                            ),
                           ),
                         ),
                         child: _BreathingSoldierCompartment(
@@ -682,6 +685,35 @@ class _BreathingSoldierCompartmentState
   BaseCampRifleGlobalAlignment _eventAlignment =
       const BaseCampRifleGlobalAlignment();
   late int _deferredWarmupEpoch;
+  Size? _soldierViewportSize;
+  Size? _pixelProfileViewport;
+  BaseCampRifleGlobalAlignment? _pixelProfileAlignment;
+  BaseCampSoldierPixelProfile? _pixelProfile;
+
+  Size? get pixelViewport => _soldierViewportSize;
+
+  BaseCampSoldierPixelProfile _profileFor(
+    Size viewport,
+    BaseCampRifleGlobalAlignment alignment,
+  ) {
+    if (_pixelProfile != null &&
+        _pixelProfileViewport == viewport &&
+        identical(_pixelProfileAlignment, alignment)) {
+      return _pixelProfile!;
+    }
+    _pixelProfileViewport = viewport;
+    _pixelProfileAlignment = alignment;
+    return _pixelProfile = baseCampSoldierPixelProfile(
+      viewport: viewport,
+      globalX: alignment.x,
+      globalY: alignment.y,
+      globalScale: alignment.scale,
+      frameOffsets: alignment.frameOffsets,
+      frameScales: alignment.frameScales,
+      verticalScaleX: alignment.verticalScaleX,
+      horizontalScaleY: alignment.horizontalScaleY,
+    );
+  }
 
   @override
   void initState() {
@@ -837,13 +869,10 @@ class _BreathingSoldierCompartmentState
     }
     await baseCampRifleGlobalAlignment.load();
     if (!mounted || !_active) return false;
+    final viewport = _soldierViewportSize;
+    if (viewport == null || viewport.isEmpty) return false;
     final alignment = baseCampRifleGlobalAlignment.value;
-    final profile = baseCampSoldierPixelProfile(
-      globalScale: alignment.scale,
-      frameScales: alignment.frameScales,
-      verticalScaleX: alignment.verticalScaleX,
-      horizontalScaleY: alignment.horizontalScaleY,
-    );
+    final profile = _profileFor(viewport, alignment);
     final prepared = await BaseCampSoldierPixelCache.instance.prepareRequests(
       profile.requests,
       level,
@@ -1043,76 +1072,84 @@ class _BreathingSoldierCompartmentState
                   Positioned.fill(
                     child: Padding(
                       padding: const EdgeInsets.all(_soldierViewportPadding),
-                      child: AnimatedBuilder(
-                        animation: Listenable.merge([
-                          _breathingController,
-                          _specialController,
-                        ]),
-                        builder: (context, _) {
-                          final pixelAlignment = _specialController.isAnimating
-                              ? _eventAlignment
-                              : baseCampRifleGlobalAlignment.value;
-                          final pixelProfile = baseCampSoldierPixelProfile(
-                            globalScale: pixelAlignment.scale,
-                            frameScales: pixelAlignment.frameScales,
-                            verticalScaleX: pixelAlignment.verticalScaleX,
-                            horizontalScaleY: pixelAlignment.horizontalScaleY,
-                          );
-                          final elapsed =
-                              (_specialController.value *
-                                      _eventAlignment.eventDurationMs)
-                                  .floor();
-                          final phase = _specialController.isAnimating
-                              ? baseCampRifleRegripPhase(
-                                  elapsed,
-                                  frameDurations:
-                                      _eventAlignment.frameDurationsMs,
-                                )
-                              : BaseCampRifleRegripPhase.breathing;
-                          final showRifleFrame =
-                              _rifleFramesReady &&
-                              (phase == BaseCampRifleRegripPhase.rifleRegrip ||
-                                  phase == BaseCampRifleRegripPhase.postIdle);
-                          if (showRifleFrame) {
-                            final frame =
-                                phase == BaseCampRifleRegripPhase.postIdle
-                                ? baseCampRifleRegripAssets.length - 1
-                                : baseCampRifleRegripFrameIndex(
-                                    elapsed,
-                                    frameDurations:
-                                        _eventAlignment.frameDurationsMs,
-                                  );
-                            return BaseCampRifleRegripFrame(
-                              frame: frame,
-                              globalX: _eventAlignment.x,
-                              globalY: _eventAlignment.y,
-                              globalScale: _eventAlignment.scale,
-                              verticalScaleX: _eventAlignment.verticalScaleX,
-                              horizontalScaleY:
-                                  _eventAlignment.horizontalScaleY,
-                              frameOffsets: _eventAlignment.frameOffsets,
-                              frameScales: _eventAlignment.frameScales,
-                              pixelProfile: pixelProfile,
-                              brightness: _eventAlignment.brightness,
-                              contrast: _eventAlignment.contrast,
-                              saturation: _eventAlignment.saturation,
-                              warmth: _eventAlignment.warmth,
-                              key: ValueKey(
-                                'base-camp-rifle-regrip-frame-$frame',
-                              ),
-                            );
-                          }
-                          final dy =
-                              phase == BaseCampRifleRegripPhase.preIdle ||
-                                  reduced
-                              ? 0.0
-                              : baseCampBreathingOffset(
-                                  _breathingController.value *
-                                      _breathingCycleMs,
+                      child: LayoutBuilder(
+                        builder: (context, soldierConstraints) {
+                          _soldierViewportSize = soldierConstraints.biggest;
+                          return AnimatedBuilder(
+                            animation: Listenable.merge([
+                              _breathingController,
+                              _specialController,
+                            ]),
+                            builder: (context, _) {
+                              final pixelAlignment =
+                                  _specialController.isAnimating
+                                  ? _eventAlignment
+                                  : baseCampRifleGlobalAlignment.value;
+                              final pixelProfile = _profileFor(
+                                soldierConstraints.biggest,
+                                pixelAlignment,
+                              );
+                              final elapsed =
+                                  (_specialController.value *
+                                          _eventAlignment.eventDurationMs)
+                                      .floor();
+                              final phase = _specialController.isAnimating
+                                  ? baseCampRifleRegripPhase(
+                                      elapsed,
+                                      frameDurations:
+                                          _eventAlignment.frameDurationsMs,
+                                    )
+                                  : BaseCampRifleRegripPhase.breathing;
+                              final showRifleFrame =
+                                  _rifleFramesReady &&
+                                  (phase ==
+                                          BaseCampRifleRegripPhase
+                                              .rifleRegrip ||
+                                      phase ==
+                                          BaseCampRifleRegripPhase.postIdle);
+                              if (showRifleFrame) {
+                                final frame =
+                                    phase == BaseCampRifleRegripPhase.postIdle
+                                    ? baseCampRifleRegripAssets.length - 1
+                                    : baseCampRifleRegripFrameIndex(
+                                        elapsed,
+                                        frameDurations:
+                                            _eventAlignment.frameDurationsMs,
+                                      );
+                                return BaseCampRifleRegripFrame(
+                                  frame: frame,
+                                  globalX: _eventAlignment.x,
+                                  globalY: _eventAlignment.y,
+                                  globalScale: _eventAlignment.scale,
+                                  verticalScaleX:
+                                      _eventAlignment.verticalScaleX,
+                                  horizontalScaleY:
+                                      _eventAlignment.horizontalScaleY,
+                                  frameOffsets: _eventAlignment.frameOffsets,
+                                  frameScales: _eventAlignment.frameScales,
+                                  pixelProfile: pixelProfile,
+                                  brightness: _eventAlignment.brightness,
+                                  contrast: _eventAlignment.contrast,
+                                  saturation: _eventAlignment.saturation,
+                                  warmth: _eventAlignment.warmth,
+                                  key: ValueKey(
+                                    'base-camp-rifle-regrip-frame-$frame',
+                                  ),
                                 );
-                          return BaseCampBreathingSoldier(
-                            dy: dy,
-                            pixelProfile: pixelProfile,
+                              }
+                              final dy =
+                                  phase == BaseCampRifleRegripPhase.preIdle ||
+                                      reduced
+                                  ? 0.0
+                                  : baseCampBreathingOffset(
+                                      _breathingController.value *
+                                          _breathingCycleMs,
+                                    );
+                              return BaseCampBreathingSoldier(
+                                dy: dy,
+                                pixelProfile: pixelProfile,
+                              );
+                            },
                           );
                         },
                       ),

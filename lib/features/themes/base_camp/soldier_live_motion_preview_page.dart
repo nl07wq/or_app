@@ -12,9 +12,14 @@ import 'base_camp_soldier_pixelation.dart';
 enum SoldierLivePreviewMode { breathingOnly, rifleOnly, overlay }
 
 class SoldierLiveMotionPreviewPage extends StatefulWidget {
-  const SoldierLiveMotionPreviewPage({super.key, this.alignmentController});
+  const SoldierLiveMotionPreviewPage({
+    super.key,
+    this.alignmentController,
+    this.dashboardViewport,
+  });
 
   final BaseCampRifleAlignmentController? alignmentController;
+  final Size? dashboardViewport;
 
   @override
   State<SoldierLiveMotionPreviewPage> createState() =>
@@ -34,9 +39,36 @@ class _SoldierLiveMotionPreviewPageState
   Object? _pixelFailure;
   int _pixelSelectionGeneration = 0;
   Timer? _pixelProfileDebounce;
+  Size? _previewViewport;
+  Size? _pixelProfileViewport;
+  BaseCampRifleGlobalAlignment? _pixelProfileAlignment;
+  BaseCampSoldierPixelProfile? _pixelProfile;
 
   BaseCampRifleAlignmentController get _alignmentController =>
       widget.alignmentController ?? baseCampRifleGlobalAlignment;
+
+  BaseCampSoldierPixelProfile _profileFor(
+    Size viewport,
+    BaseCampRifleGlobalAlignment alignment,
+  ) {
+    if (_pixelProfile != null &&
+        _pixelProfileViewport == viewport &&
+        identical(_pixelProfileAlignment, alignment)) {
+      return _pixelProfile!;
+    }
+    _pixelProfileViewport = viewport;
+    _pixelProfileAlignment = alignment;
+    return _pixelProfile = baseCampSoldierPixelProfile(
+      viewport: viewport,
+      globalX: alignment.x,
+      globalY: alignment.y,
+      globalScale: alignment.scale,
+      frameOffsets: alignment.frameOffsets,
+      frameScales: alignment.frameScales,
+      verticalScaleX: alignment.verticalScaleX,
+      horizontalScaleY: alignment.horizontalScaleY,
+    );
+  }
 
   @override
   void initState() {
@@ -70,7 +102,9 @@ class _SoldierLiveMotionPreviewPageState
     final level =
         DeviceSettingsController.instance.value.soldierPixelationLevel;
     if (level != SoldierPixelationLevel.original) {
-      unawaited(_preparePixelLevel(level));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_preparePixelLevel(level));
+      });
     }
   }
 
@@ -81,18 +115,25 @@ class _SoldierLiveMotionPreviewPageState
         DeviceSettingsController.instance.value.soldierPixelationLevel;
     if (level != SoldierPixelationLevel.original) {
       final applied = _alignmentController.value;
-      final profile = baseCampSoldierPixelProfile(
-        globalScale: applied.scale,
-        frameScales: applied.frameScales,
-        verticalScaleX: applied.verticalScaleX,
-        horizontalScaleY: applied.horizontalScaleY,
-      );
-      unawaited(
-        BaseCampSoldierPixelCache.instance.prepareRequests(
-          profile.requests,
-          level,
-        ),
-      );
+      final viewport = widget.dashboardViewport;
+      if (viewport != null && !viewport.isEmpty) {
+        final profile = baseCampSoldierPixelProfile(
+          viewport: viewport,
+          globalX: applied.x,
+          globalY: applied.y,
+          globalScale: applied.scale,
+          frameOffsets: applied.frameOffsets,
+          frameScales: applied.frameScales,
+          verticalScaleX: applied.verticalScaleX,
+          horizontalScaleY: applied.horizontalScaleY,
+        );
+        unawaited(
+          BaseCampSoldierPixelCache.instance.prepareRequests(
+            profile.requests,
+            level,
+          ),
+        );
+      }
     }
     _breathing.dispose();
     _event.dispose();
@@ -129,12 +170,16 @@ class _SoldierLiveMotionPreviewPageState
       }
       return;
     }
-    final profile = baseCampSoldierPixelProfile(
-      globalScale: _working.scale,
-      frameScales: _working.frameScales,
-      verticalScaleX: _working.verticalScaleX,
-      horizontalScaleY: _working.horizontalScaleY,
-    );
+    final viewport = _previewViewport;
+    if (viewport == null || viewport.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && generation == _pixelSelectionGeneration) {
+          unawaited(_preparePixelLevel(level));
+        }
+      });
+      return;
+    }
+    final profile = _profileFor(viewport, _working);
     setState(() {
       _pixelPreparing = true;
       _pixelFailure = null;
@@ -285,56 +330,62 @@ class _SoldierLiveMotionPreviewPageState
           (!active ||
               _mode == SoldierLivePreviewMode.overlay ||
               phase == BaseCampRifleRegripPhase.preIdle);
-      final pixelProfile = baseCampSoldierPixelProfile(
-        globalScale: _working.scale,
-        frameScales: _working.frameScales,
-        verticalScaleX: _working.verticalScaleX,
-        horizontalScaleY: _working.horizontalScaleY,
-      );
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
           AspectRatio(
             aspectRatio: 1.35,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: const Color(0xff161b12),
-                border: Border.all(color: const Color(0xff718268)),
-              ),
-              child: Stack(
-                fit: StackFit.expand,
-                clipBehavior: Clip.hardEdge,
-                children: [
-                  if (showBreathing)
-                    BaseCampBreathingSoldier(
-                      dy: active
-                          ? 0
-                          : baseCampBreathingOffset(_breathing.value * 2400),
-                      opacity:
-                          _mode == SoldierLivePreviewMode.overlay && showRifle
-                          ? .5
-                          : 1,
-                      pixelProfile: pixelProfile,
-                    ),
-                  if (showRifle)
-                    BaseCampRifleRegripFrame(
-                      key: ValueKey('soldier-live-rifle-frame-$frame'),
-                      frame: frame,
-                      globalX: _working.x,
-                      globalY: _working.y,
-                      globalScale: _working.scale,
-                      verticalScaleX: _working.verticalScaleX,
-                      horizontalScaleY: _working.horizontalScaleY,
-                      frameOffsets: _working.frameOffsets,
-                      frameScales: _working.frameScales,
-                      brightness: _working.brightness,
-                      contrast: _working.contrast,
-                      saturation: _working.saturation,
-                      warmth: _working.warmth,
-                      pixelProfile: pixelProfile,
-                    ),
-                ],
-              ),
+            child: LayoutBuilder(
+              builder: (context, previewConstraints) {
+                _previewViewport = previewConstraints.biggest;
+                final pixelProfile = _profileFor(
+                  previewConstraints.biggest,
+                  _working,
+                );
+                return DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xff161b12),
+                    border: Border.all(color: const Color(0xff718268)),
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      if (showBreathing)
+                        BaseCampBreathingSoldier(
+                          dy: active
+                              ? 0
+                              : baseCampBreathingOffset(
+                                  _breathing.value * 2400,
+                                ),
+                          opacity:
+                              _mode == SoldierLivePreviewMode.overlay &&
+                                  showRifle
+                              ? .5
+                              : 1,
+                          pixelProfile: pixelProfile,
+                        ),
+                      if (showRifle)
+                        BaseCampRifleRegripFrame(
+                          key: ValueKey('soldier-live-rifle-frame-$frame'),
+                          frame: frame,
+                          globalX: _working.x,
+                          globalY: _working.y,
+                          globalScale: _working.scale,
+                          verticalScaleX: _working.verticalScaleX,
+                          horizontalScaleY: _working.horizontalScaleY,
+                          frameOffsets: _working.frameOffsets,
+                          frameScales: _working.frameScales,
+                          brightness: _working.brightness,
+                          contrast: _working.contrast,
+                          saturation: _working.saturation,
+                          warmth: _working.warmth,
+                          pixelProfile: pixelProfile,
+                        ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(height: 8),

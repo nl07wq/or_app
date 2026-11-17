@@ -338,60 +338,123 @@ class BaseCampSoldierPixelProfile {
   BaseCampSoldierPixelProfile._(
     this.key,
     List<BaseCampSoldierPixelRequest> requests,
-  ) : _requests = Map<String, BaseCampSoldierPixelRequest>.unmodifiable(
+  ) : _requests = List<BaseCampSoldierPixelRequest>.unmodifiable(requests),
+      _defaultRequests = Map<String, BaseCampSoldierPixelRequest>.unmodifiable(
         <String, BaseCampSoldierPixelRequest>{
-          for (final request in requests) request.asset: request,
+          for (final request in requests)
+            if (!request.cacheId.startsWith('breathing-upper-phase-') ||
+                request.cacheId.endsWith('-0'))
+              request.asset: request,
         },
-      );
+      ),
+      _upperRequests = Map<int, BaseCampSoldierPixelRequest>.unmodifiable(<
+        int,
+        BaseCampSoldierPixelRequest
+      >{
+        for (var phase = 0; phase <= baseCampBreathingPixelPhaseSteps; phase++)
+          phase: requests.firstWhere(
+            (request) => request.cacheId == 'breathing-upper-phase-$phase',
+          ),
+      });
 
   final String key;
-  final Map<String, BaseCampSoldierPixelRequest> _requests;
+  final List<BaseCampSoldierPixelRequest> _requests;
+  final Map<String, BaseCampSoldierPixelRequest> _defaultRequests;
+  final Map<int, BaseCampSoldierPixelRequest> _upperRequests;
 
-  Iterable<BaseCampSoldierPixelRequest> get requests => _requests.values;
+  Iterable<BaseCampSoldierPixelRequest> get requests => _requests;
 
-  BaseCampSoldierPixelRequest requestFor(String asset) => _requests[asset]!;
+  BaseCampSoldierPixelRequest requestFor(String asset) =>
+      _defaultRequests[asset]!;
+
+  BaseCampSoldierPixelRequest breathingUpperRequest(double dy) =>
+      _upperRequests[baseCampBreathingPixelPhase(dy)]!;
 }
 
-/// Converts the approved BREATHING-source density into each REGRIP frame's
-/// source sampling density. The viewport's contain scale cancels from both
-/// sides, leaving only the measured visible-height and alignment scale ratios.
+const baseCampBreathingPixelPhaseSteps = 64;
+const baseCampSoldierPixelFrameCount =
+    1 + (baseCampBreathingPixelPhaseSteps + 1) + 6;
+
+int baseCampBreathingPixelPhase(double dy) =>
+    ((-dy).clamp(0.0, 1.0) * baseCampBreathingPixelPhaseSteps).round();
+
 BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
+  required Size viewport,
+  double globalX = baseCampApprovedRifleGlobalX,
+  double globalY = baseCampApprovedRifleGlobalY,
   double globalScale = baseCampApprovedRifleGlobalScale,
+  List<Offset> frameOffsets = baseCampApprovedRifleFrameOffsets,
   List<double> frameScales = baseCampApprovedRifleFrameScales,
   double verticalScaleX = 1,
   double horizontalScaleY = 1,
 }) {
   final key = <String>[
+    viewport.width.toStringAsFixed(3),
+    viewport.height.toStringAsFixed(3),
+    globalX.toStringAsFixed(6),
+    globalY.toStringAsFixed(6),
     globalScale.toStringAsFixed(6),
     verticalScaleX.toStringAsFixed(6),
     horizontalScaleY.toStringAsFixed(6),
+    for (final offset in frameOffsets) ...<String>[
+      offset.dx.toStringAsFixed(6),
+      offset.dy.toStringAsFixed(6),
+    ],
     for (final scale in frameScales) scale.toStringAsFixed(6),
   ].join(':');
-  final regripToBreathingScale =
-      _normalSoldierVisibleHeight / _rifleFrameVisibleHeight;
+  final fitted = applyBoxFit(
+    BoxFit.contain,
+    _normalSoldierCanvas,
+    viewport,
+  ).destination;
+  final breathingRect = Alignment.center.inscribe(
+    fitted,
+    Offset.zero & viewport,
+  );
   return BaseCampSoldierPixelProfile._(key, <BaseCampSoldierPixelRequest>[
     BaseCampSoldierPixelRequest(
       asset: baseCampBreathingSoldierLowerAsset,
+      cacheId: 'breathing-lower',
       profileKey: key,
+      viewport: viewport,
+      targetRect: breathingRect,
     ),
-    BaseCampSoldierPixelRequest(
-      asset: baseCampBreathingSoldierUpperAsset,
-      profileKey: key,
-    ),
+    for (var phase = 0; phase <= baseCampBreathingPixelPhaseSteps; phase++)
+      BaseCampSoldierPixelRequest(
+        asset: baseCampBreathingSoldierUpperAsset,
+        cacheId: 'breathing-upper-phase-$phase',
+        profileKey: key,
+        viewport: viewport,
+        targetRect: breathingRect.translate(
+          0,
+          -phase / baseCampBreathingPixelPhaseSteps,
+        ),
+      ),
     for (var frame = 0; frame < baseCampRifleRegripAssets.length; frame++)
       BaseCampSoldierPixelRequest(
         asset: baseCampRifleRegripAssets[frame],
+        cacheId: 'regrip-frame-$frame',
         profileKey: key,
-        screenScaleX:
-            regripToBreathingScale *
-            globalScale *
-            frameScales[frame] *
-            horizontalScaleY,
-        screenScaleY:
-            regripToBreathingScale *
-            globalScale *
-            frameScales[frame] *
-            verticalScaleX,
+        viewport: viewport,
+        targetRect: () {
+          final transform = baseCampRifleRegripTransform(
+            viewport,
+            frame,
+            globalX: globalX,
+            globalY: globalY,
+            globalScale: globalScale,
+            frameOffsets: frameOffsets,
+            frameScales: frameScales,
+            verticalScaleX: verticalScaleX,
+            horizontalScaleY: horizontalScaleY,
+          );
+          return Rect.fromLTWH(
+            transform.left,
+            transform.top,
+            transform.width,
+            transform.height,
+          );
+        }(),
       ),
   ]);
 }
@@ -516,7 +579,11 @@ class BaseCampRifleRegripFrame extends StatelessWidget {
       final profile =
           pixelProfile ??
           baseCampSoldierPixelProfile(
+            viewport: constraints.biggest,
+            globalX: globalX,
+            globalY: globalY,
             globalScale: globalScale,
+            frameOffsets: frameOffsets,
             frameScales: frameScales,
             verticalScaleX: verticalScaleX,
             horizontalScaleY: horizontalScaleY,
@@ -526,6 +593,12 @@ class BaseCampRifleRegripFrame extends StatelessWidget {
             .requestFor(baseCampRifleRegripAssets[frame])
             .withAsset(assets[frame]),
         fit: BoxFit.fill,
+        originalRect: Rect.fromLTWH(
+          transform.left,
+          transform.top,
+          transform.width,
+          transform.height,
+        ),
       );
       final frameImage =
           brightness == 0 && contrast == 1 && saturation == 1 && warmth == 0
@@ -539,18 +612,7 @@ class BaseCampRifleRegripFrame extends StatelessWidget {
               ),
               child: image,
             );
-      return Stack(
-        clipBehavior: Clip.hardEdge,
-        children: [
-          Positioned(
-            left: transform.left,
-            top: transform.top,
-            width: transform.width,
-            height: transform.height,
-            child: Opacity(opacity: opacity, child: frameImage),
-          ),
-        ],
-      );
+      return Opacity(opacity: opacity, child: frameImage);
     },
   );
 }
@@ -568,31 +630,33 @@ class BaseCampBreathingSoldier extends StatelessWidget {
   final BaseCampSoldierPixelProfile? pixelProfile;
 
   @override
-  Widget build(BuildContext context) {
-    final profile = pixelProfile ?? baseCampSoldierPixelProfile();
-    return Opacity(
-      opacity: opacity,
-      child: Stack(
-        fit: StackFit.expand,
-        clipBehavior: Clip.hardEdge,
-        children: [
-          BaseCampSoldierAssetImage(
-            key: const ValueKey('base-camp-soldier-lower'),
-            request: profile.requestFor(baseCampBreathingSoldierLowerAsset),
-            fit: BoxFit.contain,
-          ),
-          Transform.translate(
-            offset: Offset(0, dy),
-            child: BaseCampSoldierAssetImage(
-              key: const ValueKey('base-camp-soldier-upper'),
-              request: profile.requestFor(baseCampBreathingSoldierUpperAsset),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final profile =
+          pixelProfile ??
+          baseCampSoldierPixelProfile(viewport: constraints.biggest);
+      return Opacity(
+        opacity: opacity,
+        child: Stack(
+          fit: StackFit.expand,
+          clipBehavior: Clip.hardEdge,
+          children: [
+            BaseCampSoldierAssetImage(
+              key: const ValueKey('base-camp-soldier-lower'),
+              request: profile.requestFor(baseCampBreathingSoldierLowerAsset),
               fit: BoxFit.contain,
             ),
-          ),
-        ],
-      ),
-    );
-  }
+            BaseCampSoldierAssetImage(
+              key: const ValueKey('base-camp-soldier-upper'),
+              request: profile.breathingUpperRequest(dy),
+              fit: BoxFit.contain,
+              originalOffset: Offset(0, dy),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 enum BaseCampRifleRegripPhase { breathing, preIdle, rifleRegrip, postIdle }

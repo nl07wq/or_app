@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/core/services/device_settings_controller.dart';
-import 'package:or_app/features/themes/base_camp/base_camp_asset_metrics.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_soldier_motion.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_soldier_pixelation.dart';
 
@@ -14,64 +13,74 @@ void main() {
   tearDown(BaseCampSoldierPixelCache.instance.resetForTesting);
 
   test('all levels resolve to one screen-space block density', () {
-    final profile = baseCampSoldierPixelProfile();
-    final breathing = profile.requestFor(baseCampBreathingSoldierLowerAsset);
+    final profile = baseCampSoldierPixelProfile(viewport: const Size(360, 300));
     for (final level in SoldierPixelationLevel.values.skip(1)) {
-      final breathingSize = breathing.reducedSize(level);
-      final breathingBlockX =
-          baseCampAssetMetrics[breathing.asset]!.width / breathingSize.width;
-      final breathingBlockY =
-          baseCampAssetMetrics[breathing.asset]!.height / breathingSize.height;
-      for (final asset in baseCampRifleRegripAssets) {
-        final request = profile.requestFor(asset);
+      for (final request in profile.requests) {
         final size = request.reducedSize(level);
-        final metric = baseCampAssetMetrics[asset]!;
-        final regripBlockX = metric.width * request.screenScaleX / size.width;
-        final regripBlockY = metric.height * request.screenScaleY / size.height;
-        expect(regripBlockX, closeTo(breathingBlockX, .08));
-        expect(regripBlockY, closeTo(breathingBlockY, .08));
+        final rect = request.displayRect(level);
+        expect(
+          rect.width / size.width,
+          closeTo(level.referenceBlockSize.toDouble(), .001),
+        );
+        expect(
+          rect.height / size.height,
+          closeTo(level.referenceBlockSize.toDouble(), .001),
+        );
+        expect(rect.left % level.referenceBlockSize, closeTo(0, .001));
+        expect(rect.top % level.referenceBlockSize, closeTo(0, .001));
       }
-      expect(
-        breathingBlockX,
-        closeTo(level.referenceBlockSize.toDouble(), .08),
-      );
-      expect(
-        breathingBlockY,
-        closeTo(level.referenceBlockSize.toDouble(), .08),
-      );
     }
   });
 
+  for (final width in <double>[320, 375, 390, 430]) {
+    test('screen grid remains exact for the ${width.toInt()}dp layout', () {
+      final viewport = Size((width - 40) * .4, 82);
+      final profile = baseCampSoldierPixelProfile(viewport: viewport);
+      for (final level in SoldierPixelationLevel.values.skip(1)) {
+        for (final request in profile.requests) {
+          final size = request.reducedSize(level);
+          final rect = request.displayRect(level);
+          expect(
+            rect.width / size.width,
+            closeTo(level.referenceBlockSize.toDouble(), .001),
+          );
+          expect(
+            rect.height / size.height,
+            closeTo(level.referenceBlockSize.toDouble(), .001),
+          );
+        }
+      }
+    });
+  }
+
   test('regrip sampling follows final alignment axis scales', () {
+    const viewport = Size(360, 300);
     final profile = baseCampSoldierPixelProfile(
+      viewport: viewport,
       globalScale: 1.2,
       frameScales: const <double>[.8, .9, 1, 1.1, 1.2, 1.3],
       horizontalScaleY: .7,
       verticalScaleX: 1.25,
     );
-    final breathing = profile.requestFor(baseCampBreathingSoldierLowerAsset);
-    final breathingSize = breathing.reducedSize(SoldierPixelationLevel.extreme);
-    final expectedX =
-        baseCampAssetMetrics[breathing.asset]!.width / breathingSize.width;
-    final expectedY =
-        baseCampAssetMetrics[breathing.asset]!.height / breathingSize.height;
-    for (final asset in baseCampRifleRegripAssets) {
-      final request = profile.requestFor(asset);
-      final size = request.reducedSize(SoldierPixelationLevel.extreme);
-      final metric = baseCampAssetMetrics[asset]!;
-      expect(
-        metric.width * request.screenScaleX / size.width,
-        closeTo(expectedX, .12),
+    for (var frame = 0; frame < baseCampRifleRegripAssets.length; frame++) {
+      final request = profile.requestFor(baseCampRifleRegripAssets[frame]);
+      final transform = baseCampRifleRegripTransform(
+        viewport,
+        frame,
+        globalScale: 1.2,
+        frameScales: const <double>[.8, .9, 1, 1.1, 1.2, 1.3],
+        horizontalScaleY: .7,
+        verticalScaleX: 1.25,
       );
-      expect(
-        metric.height * request.screenScaleY / size.height,
-        closeTo(expectedY, .12),
-      );
+      expect(request.targetRect.left, closeTo(transform.left, .001));
+      expect(request.targetRect.top, closeTo(transform.top, .001));
+      expect(request.targetRect.width, closeTo(transform.width, .001));
+      expect(request.targetRect.height, closeTo(transform.height, .001));
     }
   });
 
   test('breathing layers share one source grid and profile origin', () {
-    final profile = baseCampSoldierPixelProfile();
+    final profile = baseCampSoldierPixelProfile(viewport: const Size(360, 300));
     final lower = profile.requestFor(baseCampBreathingSoldierLowerAsset);
     final upper = profile.requestFor(baseCampBreathingSoldierUpperAsset);
     expect(lower.profileKey, upper.profileKey);
@@ -80,13 +89,49 @@ void main() {
     }
   });
 
+  test('phase cache follows the complete breathing cycle on a fixed grid', () {
+    final profile = baseCampSoldierPixelProfile(viewport: const Size(360, 300));
+    final base = profile.requestFor(baseCampBreathingSoldierUpperAsset);
+    for (var elapsed = 0; elapsed <= 2400; elapsed += 17) {
+      final dy = baseCampBreathingOffset(elapsed.toDouble());
+      final request = profile.breathingUpperRequest(dy);
+      final cachedDy = request.targetRect.top - base.targetRect.top;
+      expect(cachedDy, closeTo(dy, 1 / 128));
+      for (final level in SoldierPixelationLevel.values.skip(1)) {
+        final rect = request.displayRect(level);
+        expect(rect.left % level.referenceBlockSize, closeTo(0, .001));
+        expect(rect.top % level.referenceBlockSize, closeTo(0, .001));
+      }
+    }
+    expect(baseCampBreathingPixelPhase(0), 0);
+    expect(baseCampBreathingPixelPhase(-1), baseCampBreathingPixelPhaseSteps);
+  });
+
+  test('all motion assets respond monotonically from LV.1 through LV.4', () {
+    final profile = baseCampSoldierPixelProfile(
+      viewport: const Size(398, 398 / 1.35),
+    );
+    for (final request in profile.requests) {
+      var previous = const Size(double.infinity, double.infinity);
+      for (final level in SoldierPixelationLevel.values.skip(1)) {
+        final current = request.reducedSize(level);
+        expect(current.width, lessThan(previous.width));
+        expect(current.height, lessThan(previous.height));
+        previous = current;
+      }
+    }
+  });
+
   testWidgets('failed profile is not partially committed', (tester) async {
-    final profile = baseCampSoldierPixelProfile();
+    final profile = baseCampSoldierPixelProfile(viewport: const Size(360, 300));
     final requests = <BaseCampSoldierPixelRequest>[
       ...profile.requests.take(2),
       BaseCampSoldierPixelRequest(
         asset: 'assets/missing_soldier_frame.png',
+        cacheId: 'missing-frame',
         profileKey: profile.key,
+        viewport: const Size(360, 300),
+        targetRect: const Rect.fromLTWH(0, 0, 360, 300),
       ),
     ];
     final prepared = await tester.runAsync(
@@ -100,6 +145,90 @@ void main() {
     expect(BaseCampSoldierPixelCache.instance.lastFailure, isNotNull);
   });
 
+  testWidgets('level change retains the prior complete set until commit', (
+    tester,
+  ) async {
+    final profile = baseCampSoldierPixelProfile(viewport: const Size(240, 180));
+    expect(
+      await tester.runAsync(
+        () => BaseCampSoldierPixelCache.instance.prepareRequests(
+          profile.requests,
+          SoldierPixelationLevel.fine,
+        ),
+      ),
+      isTrue,
+    );
+    BaseCampSoldierPixelCache.instance.selectLevel(
+      SoldierPixelationLevel.medium,
+    );
+    final retained = BaseCampSoldierPixelCache.instance.cachedFrame(
+      profile.requestFor(baseCampRifleRegripAssets.first),
+      SoldierPixelationLevel.medium,
+    );
+    expect(retained, isNotNull);
+    expect(retained!.level, SoldierPixelationLevel.fine);
+    expect(
+      await tester.runAsync(
+        () => BaseCampSoldierPixelCache.instance.prepareRequests(
+          profile.requests,
+          SoldierPixelationLevel.medium,
+        ),
+      ),
+      isTrue,
+    );
+    final committed = BaseCampSoldierPixelCache.instance.cachedFrame(
+      profile.requestFor(baseCampRifleRegripAssets.first),
+      SoldierPixelationLevel.medium,
+    );
+    expect(committed, isNotNull);
+    expect(committed!.level, SoldierPixelationLevel.medium);
+  });
+
+  testWidgets('viewport profiles regenerate atomically and remain bounded', (
+    tester,
+  ) async {
+    const level = SoldierPixelationLevel.fine;
+    final profiles = <BaseCampSoldierPixelProfile>[
+      baseCampSoldierPixelProfile(viewport: const Size(120, 90)),
+      baseCampSoldierPixelProfile(viewport: const Size(240, 180)),
+      baseCampSoldierPixelProfile(viewport: const Size(398, 398 / 1.35)),
+    ];
+    for (final profile in profiles) {
+      final prepared = await tester.runAsync(
+        () => BaseCampSoldierPixelCache.instance.prepareRequests(
+          profile.requests,
+          level,
+        ),
+      );
+      expect(prepared, isTrue);
+    }
+    expect(BaseCampSoldierPixelCache.instance.cachedProfileCount, 2);
+    expect(
+      BaseCampSoldierPixelCache.instance.cachedImageCount,
+      baseCampSoldierPixelFrameCount * 2,
+    );
+    expect(
+      BaseCampSoldierPixelCache.instance.cachedPixelCount,
+      lessThan(400000),
+    );
+    expect(
+      BaseCampSoldierPixelCache.instance.cachedFrame(
+        profiles.first.requestFor(baseCampBreathingSoldierLowerAsset),
+        level,
+      ),
+      isNull,
+    );
+    for (final profile in profiles.skip(1)) {
+      expect(
+        BaseCampSoldierPixelCache.instance.cachedFrame(
+          profile.requestFor(baseCampRifleRegripAssets.last),
+          level,
+        ),
+        isNotNull,
+      );
+    }
+  });
+
   testWidgets(
     'selected level pixelates breathing and regrip once then reuses cache',
     (tester) async {
@@ -110,7 +239,7 @@ void main() {
       );
       await tester.runAsync(
         () => BaseCampSoldierPixelCache.instance.prepareRequests(
-          baseCampSoldierPixelProfile().requests,
+          baseCampSoldierPixelProfile(viewport: const Size(512, 512)).requests,
           SoldierPixelationLevel.fine,
         ),
       );
@@ -153,13 +282,22 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(BaseCampSoldierPixelCache.instance.cachedImageCount, 8);
-      expect(BaseCampSoldierPixelCache.instance.processedImageCount, 8);
+      expect(
+        BaseCampSoldierPixelCache.instance.cachedImageCount,
+        baseCampSoldierPixelFrameCount,
+      );
+      expect(
+        BaseCampSoldierPixelCache.instance.processedImageCount,
+        baseCampSoldierPixelFrameCount,
+      );
 
       for (var frame = 0; frame < 10; frame++) {
         await tester.pump(const Duration(milliseconds: 140));
       }
-      expect(BaseCampSoldierPixelCache.instance.processedImageCount, 8);
+      expect(
+        BaseCampSoldierPixelCache.instance.processedImageCount,
+        baseCampSoldierPixelFrameCount,
+      );
 
       DeviceSettingsController.instance.update(
         const DeviceSettings(
@@ -168,16 +306,21 @@ void main() {
       );
       await tester.runAsync(
         () => BaseCampSoldierPixelCache.instance.prepareRequests(
-          baseCampSoldierPixelProfile().requests,
+          baseCampSoldierPixelProfile(viewport: const Size(512, 512)).requests,
           SoldierPixelationLevel.medium,
         ),
       );
       await tester.pumpAndSettle();
       await _pumpUntil(
         tester,
-        () => BaseCampSoldierPixelCache.instance.processedImageCount == 16,
+        () =>
+            BaseCampSoldierPixelCache.instance.processedImageCount ==
+            baseCampSoldierPixelFrameCount * 2,
       );
-      expect(BaseCampSoldierPixelCache.instance.cachedImageCount, 8);
+      expect(
+        BaseCampSoldierPixelCache.instance.cachedImageCount,
+        baseCampSoldierPixelFrameCount * 2,
+      );
       expect(
         _pixelatedImage(
           SoldierPixelationLevel.medium,
@@ -201,46 +344,54 @@ void main() {
     },
   );
 
-  testWidgets('pixelation preserves the original full-canvas dimensions', (
-    tester,
-  ) async {
-    DeviceSettingsController.instance.update(
-      const DeviceSettings(
-        soldierPixelationLevel: SoldierPixelationLevel.coarse,
-      ),
-    );
-    await tester.runAsync(
-      () => BaseCampSoldierPixelCache.instance.prepareRequests(
-        baseCampSoldierPixelProfile().requests,
-        SoldierPixelationLevel.coarse,
-      ),
-    );
-    await tester.pumpWidget(
-      const MaterialApp(
-        home: SizedBox.square(
-          dimension: 256,
-          child: BaseCampRifleRegripFrame(frame: 0),
+  testWidgets(
+    'pixelation uses bounded grid raster and original draw geometry',
+    (tester) async {
+      DeviceSettingsController.instance.update(
+        const DeviceSettings(
+          soldierPixelationLevel: SoldierPixelationLevel.coarse,
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await _pumpUntil(
-      tester,
-      () => _pixelatedImage(
-        SoldierPixelationLevel.coarse,
-        baseCampRifleRegripAssets.first,
-      ).evaluate().isNotEmpty,
-    );
-    final rendered = tester.widget<RawImage>(
-      _pixelatedImage(
-        SoldierPixelationLevel.coarse,
-        baseCampRifleRegripAssets.first,
-      ),
-    );
-    expect(rendered.image!.width, 512);
-    expect(rendered.image!.height, 512);
-    expect(rendered.filterQuality, FilterQuality.none);
-  });
+      );
+      await tester.runAsync(
+        () => BaseCampSoldierPixelCache.instance.prepareRequests(
+          baseCampSoldierPixelProfile(viewport: const Size(256, 256)).requests,
+          SoldierPixelationLevel.coarse,
+        ),
+      );
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Center(
+            child: SizedBox.square(
+              dimension: 256,
+              child: BaseCampRifleRegripFrame(frame: 0),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _pumpUntil(
+        tester,
+        () => _pixelatedImage(
+          SoldierPixelationLevel.coarse,
+          baseCampRifleRegripAssets.first,
+        ).evaluate().isNotEmpty,
+      );
+      final rendered = tester.widget<RawImage>(
+        _pixelatedImage(
+          SoldierPixelationLevel.coarse,
+          baseCampRifleRegripAssets.first,
+        ),
+      );
+      final request = baseCampSoldierPixelProfile(
+        viewport: const Size(256, 256),
+      ).requestFor(baseCampRifleRegripAssets.first);
+      final expected = request.reducedSize(SoldierPixelationLevel.coarse);
+      expect(rendered.image!.width, expected.width);
+      expect(rendered.image!.height, expected.height);
+      expect(rendered.fit, BoxFit.fill);
+      expect(rendered.filterQuality, FilterQuality.none);
+    },
+  );
 }
 
 Finder _pixelatedImage(SoldierPixelationLevel level, String asset) =>

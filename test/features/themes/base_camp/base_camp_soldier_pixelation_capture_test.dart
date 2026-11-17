@@ -28,7 +28,9 @@ void main() {
         DeviceSettings(soldierPixelationLevel: level),
       );
       if (level != SoldierPixelationLevel.original) {
-        final profile = baseCampSoldierPixelProfile();
+        final profile = baseCampSoldierPixelProfile(
+          viewport: const Size(360, 324),
+        );
         await tester.runAsync(
           () => BaseCampSoldierPixelCache.instance.prepareRequests(
             profile.requests,
@@ -89,7 +91,10 @@ void main() {
         ) {
           await tester.pump(const Duration(milliseconds: 20));
         }
-        expect(BaseCampSoldierPixelCache.instance.cachedImageCount, 8);
+        expect(
+          BaseCampSoldierPixelCache.instance.cachedImageCount,
+          baseCampSoldierPixelFrameCount,
+        );
       } else {
         await tester.pumpAndSettle();
       }
@@ -111,6 +116,123 @@ void main() {
       }
     });
   }
+
+  testWidgets('captures all six screen-space regrip frames', (tester) async {
+    const cell = Size(360, 324);
+    await tester.binding.setSurfaceSize(
+      Size(cell.width * baseCampRifleRegripAssets.length, cell.height),
+    );
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const level = SoldierPixelationLevel.coarse;
+    DeviceSettingsController.instance.resetForTesting(
+      const DeviceSettings(soldierPixelationLevel: level),
+    );
+    final profile = baseCampSoldierPixelProfile(viewport: cell);
+    await tester.runAsync(
+      () => BaseCampSoldierPixelCache.instance.prepareRequests(
+        profile.requests,
+        level,
+      ),
+    );
+    final boundaryKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: boundaryKey,
+          child: Row(
+            children: <Widget>[
+              for (
+                var frame = 0;
+                frame < baseCampRifleRegripAssets.length;
+                frame++
+              )
+                SizedBox.fromSize(
+                  size: cell,
+                  child: BaseCampRifleRegripFrame(
+                    frame: frame,
+                    pixelProfile: profile,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(
+      find.byKey(
+        ValueKey<String>(
+          'soldier-pixelated-${level.name}-${baseCampRifleRegripAssets.last}',
+        ),
+      ),
+      findsOneWidget,
+    );
+    await _captureBoundary(tester, boundaryKey, 'regrip_coarse_f0_f5.png');
+  });
+
+  testWidgets('captures one complete breathing displacement cycle', (
+    tester,
+  ) async {
+    const cell = Size(360, 324);
+    const offsets = <double>[0, -.5, -1, -.5, 0];
+    await tester.binding.setSurfaceSize(
+      Size(cell.width * offsets.length, cell.height),
+    );
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const level = SoldierPixelationLevel.coarse;
+    DeviceSettingsController.instance.resetForTesting(
+      const DeviceSettings(soldierPixelationLevel: level),
+    );
+    final profile = baseCampSoldierPixelProfile(viewport: cell);
+    await tester.runAsync(
+      () => BaseCampSoldierPixelCache.instance.prepareRequests(
+        profile.requests,
+        level,
+      ),
+    );
+    final boundaryKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: boundaryKey,
+          child: Row(
+            children: <Widget>[
+              for (final dy in offsets)
+                SizedBox.fromSize(
+                  size: cell,
+                  child: BaseCampBreathingSoldier(
+                    dy: dy,
+                    pixelProfile: profile,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await _captureBoundary(tester, boundaryKey, 'breathing_coarse_cycle.png');
+  });
+}
+
+Future<void> _captureBoundary(
+  WidgetTester tester,
+  GlobalKey boundaryKey,
+  String name,
+) async {
+  if (_captureDirectory.isEmpty) return;
+  await tester.runAsync(() async {
+    final directory = Directory(_captureDirectory)..createSync(recursive: true);
+    final boundary =
+        boundaryKey.currentContext!.findRenderObject()!
+            as RenderRepaintBoundary;
+    final image = await boundary.toImage(pixelRatio: 1);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    await File(
+      '${directory.path}/$name',
+    ).writeAsBytes(data!.buffer.asUint8List());
+    image.dispose();
+  });
 }
 
 class _ComparisonCell extends StatelessWidget {

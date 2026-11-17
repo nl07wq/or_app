@@ -107,9 +107,10 @@ void main() {
   testWidgets('captures selected level on the real Dashboard', (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.runAsync(
-      () =>
-          _selectAndPrepare(SoldierPixelationLevel.coarse, breathingOnly: true),
+    DeviceSettingsController.instance.resetForTesting(
+      const DeviceSettings(
+        soldierPixelationLevel: SoldierPixelationLevel.coarse,
+      ),
     );
     final boundaryKey = GlobalKey();
     await tester.pumpWidget(
@@ -122,6 +123,17 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 500));
+    final window = tester.renderObject<RenderBox>(
+      find.byKey(const ValueKey('base-camp-soldier-display-window')),
+    );
+    final viewport = Size(window.size.width - 8, window.size.height - 8);
+    await tester.runAsync(
+      () => BaseCampSoldierPixelCache.instance.prepareRequests(
+        baseCampSoldierPixelProfile(viewport: viewport).requests,
+        SoldierPixelationLevel.coarse,
+      ),
+    );
+    await tester.pump();
     expect(
       find.byKey(
         ValueKey<String>(
@@ -136,23 +148,17 @@ void main() {
   });
 }
 
-Future<void> _selectAndPrepare(
-  SoldierPixelationLevel level, {
-  bool breathingOnly = false,
-}) async {
+Future<void> _selectAndPrepare(SoldierPixelationLevel level) async {
   DeviceSettingsController.instance.resetForTesting(
     DeviceSettings(soldierPixelationLevel: level),
   );
   if (level == SoldierPixelationLevel.original) return;
-  final profile = baseCampSoldierPixelProfile();
+  const width = 430.0 - 32;
+  final profile = baseCampSoldierPixelProfile(
+    viewport: const Size(width, width / 1.35),
+  );
   await BaseCampSoldierPixelCache.instance.prepareRequests(
-    breathingOnly
-        ? profile.requests.where(
-            (request) =>
-                request.asset == baseCampBreathingSoldierLowerAsset ||
-                request.asset == baseCampBreathingSoldierUpperAsset,
-          )
-        : profile.requests,
+    profile.requests,
     level,
   );
 }

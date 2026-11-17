@@ -29,8 +29,8 @@ enum SoldierPixelationLevel {
 
   const SoldierPixelationLevel(this.referenceBlockSize, this.controlLabel);
 
-  /// BREATHING-source block size used to define the target screen-space
-  /// density. Other source resolutions are converted from their draw scale.
+  /// Target block size in the shared Soldier viewport's logical pixels.
+  /// Source dimensions never change this screen-space density.
   final int referenceBlockSize;
   final String controlLabel;
 }
