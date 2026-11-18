@@ -41,6 +41,7 @@ class _SoldierLiveMotionPreviewPageState
   Timer? _pixelProfileDebounce;
   Size? _previewViewport;
   Size? _pixelProfileViewport;
+  double? _pixelProfileDevicePixelRatio;
   BaseCampRifleGlobalAlignment? _pixelProfileAlignment;
   BaseCampSoldierPixelProfile? _pixelProfile;
 
@@ -51,15 +52,19 @@ class _SoldierLiveMotionPreviewPageState
     Size viewport,
     BaseCampRifleGlobalAlignment alignment,
   ) {
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     if (_pixelProfile != null &&
         _pixelProfileViewport == viewport &&
+        _pixelProfileDevicePixelRatio == devicePixelRatio &&
         identical(_pixelProfileAlignment, alignment)) {
       return _pixelProfile!;
     }
     _pixelProfileViewport = viewport;
+    _pixelProfileDevicePixelRatio = devicePixelRatio;
     _pixelProfileAlignment = alignment;
     return _pixelProfile = baseCampSoldierPixelProfile(
       viewport: viewport,
+      devicePixelRatio: devicePixelRatio,
       globalX: alignment.x,
       globalY: alignment.y,
       globalScale: alignment.scale,
@@ -119,6 +124,7 @@ class _SoldierLiveMotionPreviewPageState
       if (viewport != null && !viewport.isEmpty) {
         final profile = baseCampSoldierPixelProfile(
           viewport: viewport,
+          devicePixelRatio: _pixelProfileDevicePixelRatio ?? 1,
           globalX: applied.x,
           globalY: applied.y,
           globalScale: applied.scale,

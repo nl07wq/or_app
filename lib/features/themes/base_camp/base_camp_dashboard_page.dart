@@ -687,6 +687,7 @@ class _BreathingSoldierCompartmentState
   late int _deferredWarmupEpoch;
   Size? _soldierViewportSize;
   Size? _pixelProfileViewport;
+  double? _pixelProfileDevicePixelRatio;
   BaseCampRifleGlobalAlignment? _pixelProfileAlignment;
   BaseCampSoldierPixelProfile? _pixelProfile;
 
@@ -696,15 +697,19 @@ class _BreathingSoldierCompartmentState
     Size viewport,
     BaseCampRifleGlobalAlignment alignment,
   ) {
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     if (_pixelProfile != null &&
         _pixelProfileViewport == viewport &&
+        _pixelProfileDevicePixelRatio == devicePixelRatio &&
         identical(_pixelProfileAlignment, alignment)) {
       return _pixelProfile!;
     }
     _pixelProfileViewport = viewport;
+    _pixelProfileDevicePixelRatio = devicePixelRatio;
     _pixelProfileAlignment = alignment;
     return _pixelProfile = baseCampSoldierPixelProfile(
       viewport: viewport,
+      devicePixelRatio: devicePixelRatio,
       globalX: alignment.x,
       globalY: alignment.y,
       globalScale: alignment.scale,

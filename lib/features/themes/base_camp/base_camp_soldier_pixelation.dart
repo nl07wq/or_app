@@ -18,6 +18,7 @@ class BaseCampSoldierPixelRequest {
     required this.profileKey,
     required this.viewport,
     required this.targetRect,
+    this.devicePixelRatio = 1,
   });
 
   final String asset;
@@ -25,6 +26,7 @@ class BaseCampSoldierPixelRequest {
   final String profileKey;
   final Size viewport;
   final Rect targetRect;
+  final double devicePixelRatio;
 
   BaseCampSoldierPixelRequest withAsset(String nextAsset) =>
       BaseCampSoldierPixelRequest(
@@ -33,10 +35,19 @@ class BaseCampSoldierPixelRequest {
         profileKey: profileKey,
         viewport: viewport,
         targetRect: targetRect,
+        devicePixelRatio: devicePixelRatio,
       );
 
+  /// The level contract is expressed in physical display pixels. Flutter
+  /// layout coordinates are logical pixels, so Retina-class displays must
+  /// divide the grid pitch by their device-pixel ratio. Treating the
+  /// reference as logical pixels made a 11px LV.4 cell 33 physical pixels on
+  /// a 3x iPhone display and destroyed the Soldier silhouette.
+  double logicalBlockSize(SoldierPixelationLevel level) =>
+      level.referenceBlockSize / devicePixelRatio;
+
   Rect displayRect(SoldierPixelationLevel level) {
-    final block = level.referenceBlockSize.toDouble();
+    final block = logicalBlockSize(level);
     return Rect.fromLTRB(
       (targetRect.left / block).floor() * block,
       (targetRect.top / block).floor() * block,
@@ -47,7 +58,7 @@ class BaseCampSoldierPixelRequest {
 
   Size reducedSize(SoldierPixelationLevel level) {
     final rect = displayRect(level);
-    final block = level.referenceBlockSize.toDouble();
+    final block = logicalBlockSize(level);
     final width = (rect.width / block).round().clamp(1, 1 << 20);
     final height = (rect.height / block).round().clamp(1, 1 << 20);
     return Size(width.toDouble(), height.toDouble());
@@ -57,7 +68,8 @@ class BaseCampSoldierPixelRequest {
     final reduced = reducedSize(level);
     final rect = displayRect(level);
     return '$cacheId@${reduced.width.toInt()}x${reduced.height.toInt()}'
-        ':${rect.left.toStringAsFixed(3)},${rect.top.toStringAsFixed(3)}';
+        ':${rect.left.toStringAsFixed(3)},${rect.top.toStringAsFixed(3)}'
+        ':dpr=${devicePixelRatio.toStringAsFixed(3)}';
   }
 }
 
@@ -259,7 +271,7 @@ class BaseCampSoldierPixelCache extends ChangeNotifier {
   ) async {
     final reducedSize = request.reducedSize(level);
     final displayRect = request.displayRect(level);
-    final block = level.referenceBlockSize.toDouble();
+    final block = request.logicalBlockSize(level);
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final sourceRect = Rect.fromLTWH(

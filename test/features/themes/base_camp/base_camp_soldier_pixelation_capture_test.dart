@@ -22,6 +22,8 @@ void main() {
 
   for (final level in SoldierPixelationLevel.values) {
     testWidgets('captures Soldier comparison ${level.name}', (tester) async {
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.binding.setSurfaceSize(const Size(720, 360));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       DeviceSettingsController.instance.resetForTesting(
@@ -30,6 +32,7 @@ void main() {
       if (level != SoldierPixelationLevel.original) {
         final profile = baseCampSoldierPixelProfile(
           viewport: const Size(360, 324),
+          devicePixelRatio: 3,
         );
         await tester.runAsync(
           () => BaseCampSoldierPixelCache.instance.prepareRequests(
@@ -118,6 +121,8 @@ void main() {
   }
 
   testWidgets('captures all six screen-space regrip frames', (tester) async {
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetDevicePixelRatio);
     const cell = Size(360, 324);
     await tester.binding.setSurfaceSize(
       Size(cell.width * baseCampRifleRegripAssets.length, cell.height),
@@ -127,7 +132,10 @@ void main() {
     DeviceSettingsController.instance.resetForTesting(
       const DeviceSettings(soldierPixelationLevel: level),
     );
-    final profile = baseCampSoldierPixelProfile(viewport: cell);
+    final profile = baseCampSoldierPixelProfile(
+      viewport: cell,
+      devicePixelRatio: 3,
+    );
     await tester.runAsync(
       () => BaseCampSoldierPixelCache.instance.prepareRequests(
         profile.requests,
@@ -173,6 +181,8 @@ void main() {
   testWidgets('captures one complete breathing displacement cycle', (
     tester,
   ) async {
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetDevicePixelRatio);
     const cell = Size(360, 324);
     const offsets = <double>[0, -.5, -1, -.5, 0];
     await tester.binding.setSurfaceSize(
@@ -183,7 +193,10 @@ void main() {
     DeviceSettingsController.instance.resetForTesting(
       const DeviceSettings(soldierPixelationLevel: level),
     );
-    final profile = baseCampSoldierPixelProfile(viewport: cell);
+    final profile = baseCampSoldierPixelProfile(
+      viewport: cell,
+      devicePixelRatio: 3,
+    );
     await tester.runAsync(
       () => BaseCampSoldierPixelCache.instance.prepareRequests(
         profile.requests,

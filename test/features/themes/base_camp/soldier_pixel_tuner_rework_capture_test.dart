@@ -44,6 +44,8 @@ void main() {
 
   for (final level in SoldierPixelationLevel.values) {
     testWidgets('captures live preview ${level.name}', (tester) async {
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.binding.setSurfaceSize(const Size(430, 932));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.runAsync(() => _selectAndPrepare(level));
@@ -80,6 +82,8 @@ void main() {
   }
 
   testWidgets('captures non-zero regrip preview', (tester) async {
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.binding.setSurfaceSize(const Size(430, 932));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.runAsync(
@@ -105,6 +109,8 @@ void main() {
   });
 
   testWidgets('captures selected level on the real Dashboard', (tester) async {
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     DeviceSettingsController.instance.resetForTesting(
@@ -129,7 +135,10 @@ void main() {
     final viewport = Size(window.size.width - 8, window.size.height - 8);
     await tester.runAsync(
       () => BaseCampSoldierPixelCache.instance.prepareRequests(
-        baseCampSoldierPixelProfile(viewport: viewport).requests,
+        baseCampSoldierPixelProfile(
+          viewport: viewport,
+          devicePixelRatio: 3,
+        ).requests,
         SoldierPixelationLevel.coarse,
       ),
     );
@@ -156,6 +165,7 @@ Future<void> _selectAndPrepare(SoldierPixelationLevel level) async {
   const width = 430.0 - 32;
   final profile = baseCampSoldierPixelProfile(
     viewport: const Size(width, width / 1.35),
+    devicePixelRatio: 3,
   );
   await BaseCampSoldierPixelCache.instance.prepareRequests(
     profile.requests,

@@ -380,6 +380,7 @@ int baseCampBreathingPixelPhase(double dy) =>
 
 BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
   required Size viewport,
+  double devicePixelRatio = 1,
   double globalX = baseCampApprovedRifleGlobalX,
   double globalY = baseCampApprovedRifleGlobalY,
   double globalScale = baseCampApprovedRifleGlobalScale,
@@ -388,9 +389,14 @@ BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
   double verticalScaleX = 1,
   double horizontalScaleY = 1,
 }) {
+  final effectiveDevicePixelRatio =
+      devicePixelRatio.isFinite && devicePixelRatio > 0
+      ? devicePixelRatio
+      : 1.0;
   final key = <String>[
     viewport.width.toStringAsFixed(3),
     viewport.height.toStringAsFixed(3),
+    effectiveDevicePixelRatio.toStringAsFixed(3),
     globalX.toStringAsFixed(6),
     globalY.toStringAsFixed(6),
     globalScale.toStringAsFixed(6),
@@ -418,6 +424,7 @@ BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
       profileKey: key,
       viewport: viewport,
       targetRect: breathingRect,
+      devicePixelRatio: effectiveDevicePixelRatio,
     ),
     for (var phase = 0; phase <= baseCampBreathingPixelPhaseSteps; phase++)
       BaseCampSoldierPixelRequest(
@@ -429,6 +436,7 @@ BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
           0,
           -phase / baseCampBreathingPixelPhaseSteps,
         ),
+        devicePixelRatio: effectiveDevicePixelRatio,
       ),
     for (var frame = 0; frame < baseCampRifleRegripAssets.length; frame++)
       BaseCampSoldierPixelRequest(
@@ -455,6 +463,7 @@ BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
             transform.height,
           );
         }(),
+        devicePixelRatio: effectiveDevicePixelRatio,
       ),
   ]);
 }
@@ -580,6 +589,7 @@ class BaseCampRifleRegripFrame extends StatelessWidget {
           pixelProfile ??
           baseCampSoldierPixelProfile(
             viewport: constraints.biggest,
+            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
             globalX: globalX,
             globalY: globalY,
             globalScale: globalScale,
@@ -634,7 +644,10 @@ class BaseCampBreathingSoldier extends StatelessWidget {
     builder: (context, constraints) {
       final profile =
           pixelProfile ??
-          baseCampSoldierPixelProfile(viewport: constraints.biggest);
+          baseCampSoldierPixelProfile(
+            viewport: constraints.biggest,
+            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+          );
       return Opacity(
         opacity: opacity,
         child: Stack(

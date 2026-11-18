@@ -13,39 +13,94 @@ void main() {
   tearDown(BaseCampSoldierPixelCache.instance.resetForTesting);
 
   test('all levels resolve to one screen-space block density', () {
-    final profile = baseCampSoldierPixelProfile(viewport: const Size(360, 300));
+    final profile = baseCampSoldierPixelProfile(
+      viewport: const Size(360, 300),
+      devicePixelRatio: 3,
+    );
     for (final level in SoldierPixelationLevel.values.skip(1)) {
       for (final request in profile.requests) {
         final size = request.reducedSize(level);
         final rect = request.displayRect(level);
         expect(
-          rect.width / size.width,
+          rect.width / size.width * request.devicePixelRatio,
           closeTo(level.referenceBlockSize.toDouble(), .001),
         );
         expect(
-          rect.height / size.height,
+          rect.height / size.height * request.devicePixelRatio,
           closeTo(level.referenceBlockSize.toDouble(), .001),
         );
-        expect(rect.left % level.referenceBlockSize, closeTo(0, .001));
-        expect(rect.top % level.referenceBlockSize, closeTo(0, .001));
+        expect(
+          (rect.left * request.devicePixelRatio) % level.referenceBlockSize,
+          closeTo(0, .001),
+        );
+        expect(
+          (rect.top * request.devicePixelRatio) % level.referenceBlockSize,
+          closeTo(0, .001),
+        );
       }
+    }
+  });
+
+  test(
+    'iPhone density preserves substantially more detail than logical grid',
+    () {
+      const viewport = Size(112, 82);
+      final logicalProfile = baseCampSoldierPixelProfile(viewport: viewport);
+      final retinaProfile = baseCampSoldierPixelProfile(
+        viewport: viewport,
+        devicePixelRatio: 3,
+      );
+      for (final level in SoldierPixelationLevel.values.skip(1)) {
+        final logical = logicalProfile
+            .requestFor(baseCampBreathingSoldierLowerAsset)
+            .reducedSize(level);
+        final retina = retinaProfile
+            .requestFor(baseCampBreathingSoldierLowerAsset)
+            .reducedSize(level);
+        expect(retina.width, greaterThanOrEqualTo(logical.width * 2.5));
+        expect(retina.height, greaterThanOrEqualTo(logical.height * 2.5));
+      }
+    },
+  );
+
+  test('iPhone profile raster memory remains bounded off the startup path', () {
+    int profilePixels(Size viewport, SoldierPixelationLevel level) {
+      final profile = baseCampSoldierPixelProfile(
+        viewport: viewport,
+        devicePixelRatio: 3,
+      );
+      return profile.requests.fold<int>(0, (total, request) {
+        final reduced = request.reducedSize(level);
+        return total + reduced.width.toInt() * reduced.height.toInt();
+      });
+    }
+
+    for (final level in SoldierPixelationLevel.values.skip(1)) {
+      expect(profilePixels(const Size(112, 82), level), lessThan(250000));
+      expect(
+        profilePixels(const Size(398, 398 / 1.35), level),
+        lessThan(2000000),
+      );
     }
   });
 
   for (final width in <double>[320, 375, 390, 430]) {
     test('screen grid remains exact for the ${width.toInt()}dp layout', () {
       final viewport = Size((width - 40) * .4, 82);
-      final profile = baseCampSoldierPixelProfile(viewport: viewport);
+      final profile = baseCampSoldierPixelProfile(
+        viewport: viewport,
+        devicePixelRatio: 3,
+      );
       for (final level in SoldierPixelationLevel.values.skip(1)) {
         for (final request in profile.requests) {
           final size = request.reducedSize(level);
           final rect = request.displayRect(level);
           expect(
-            rect.width / size.width,
+            rect.width / size.width * request.devicePixelRatio,
             closeTo(level.referenceBlockSize.toDouble(), .001),
           );
           expect(
-            rect.height / size.height,
+            rect.height / size.height * request.devicePixelRatio,
             closeTo(level.referenceBlockSize.toDouble(), .001),
           );
         }
@@ -239,7 +294,10 @@ void main() {
       );
       await tester.runAsync(
         () => BaseCampSoldierPixelCache.instance.prepareRequests(
-          baseCampSoldierPixelProfile(viewport: const Size(512, 512)).requests,
+          baseCampSoldierPixelProfile(
+            viewport: const Size(512, 512),
+            devicePixelRatio: tester.view.devicePixelRatio,
+          ).requests,
           SoldierPixelationLevel.fine,
         ),
       );
@@ -306,7 +364,10 @@ void main() {
       );
       await tester.runAsync(
         () => BaseCampSoldierPixelCache.instance.prepareRequests(
-          baseCampSoldierPixelProfile(viewport: const Size(512, 512)).requests,
+          baseCampSoldierPixelProfile(
+            viewport: const Size(512, 512),
+            devicePixelRatio: tester.view.devicePixelRatio,
+          ).requests,
           SoldierPixelationLevel.medium,
         ),
       );
@@ -354,7 +415,10 @@ void main() {
       );
       await tester.runAsync(
         () => BaseCampSoldierPixelCache.instance.prepareRequests(
-          baseCampSoldierPixelProfile(viewport: const Size(256, 256)).requests,
+          baseCampSoldierPixelProfile(
+            viewport: const Size(256, 256),
+            devicePixelRatio: tester.view.devicePixelRatio,
+          ).requests,
           SoldierPixelationLevel.coarse,
         ),
       );
@@ -384,6 +448,7 @@ void main() {
       );
       final request = baseCampSoldierPixelProfile(
         viewport: const Size(256, 256),
+        devicePixelRatio: tester.view.devicePixelRatio,
       ).requestFor(baseCampRifleRegripAssets.first);
       final expected = request.reducedSize(SoldierPixelationLevel.coarse);
       expect(rendered.image!.width, expected.width);
