@@ -9,18 +9,29 @@ class BaseCampHelicopterAssembly {
     this.mainScale = 1,
     this.tailHub = const Offset(1250, 484),
     this.tailScale = .5,
+    this.mainFrameMs = defaultMainFrameMs,
+    this.tailFrameMs = defaultTailFrameMs,
   });
 
   static const defaults = BaseCampHelicopterAssembly();
   static const minimumScale = .1;
   static const maximumScale = 3.0;
   static const sourceSize = Size(1448, 1086);
+  static const defaultMainFrameMs = 110;
+  static const defaultTailFrameMs = 50;
+  static const minimumMainFrameMs = 20;
+  static const maximumMainFrameMs = 200;
+  static const minimumTailFrameMs = 20;
+  static const maximumTailFrameMs = 120;
+  static const frameMsStep = 5;
 
   final double globalScale;
   final Offset mainHub;
   final double mainScale;
   final Offset tailHub;
   final double tailScale;
+  final int mainFrameMs;
+  final int tailFrameMs;
 
   bool get isValid =>
       globalScale.isFinite &&
@@ -36,8 +47,13 @@ class BaseCampHelicopterAssembly {
       mainScale <= maximumScale &&
       tailScale >= minimumScale &&
       tailScale <= maximumScale &&
+      _validFrameMs(mainFrameMs, minimumMainFrameMs, maximumMainFrameMs) &&
+      _validFrameMs(tailFrameMs, minimumTailFrameMs, maximumTailFrameMs) &&
       _validHub(mainHub) &&
       _validHub(tailHub);
+
+  static bool _validFrameMs(int value, int minimum, int maximum) =>
+      value >= minimum && value <= maximum && value % frameMsStep == 0;
 
   static bool _validHub(Offset hub) =>
       hub.dx >= 0 &&
@@ -51,12 +67,16 @@ class BaseCampHelicopterAssembly {
     double? mainScale,
     Offset? tailHub,
     double? tailScale,
+    int? mainFrameMs,
+    int? tailFrameMs,
   }) => BaseCampHelicopterAssembly(
     globalScale: globalScale ?? this.globalScale,
     mainHub: mainHub ?? this.mainHub,
     mainScale: mainScale ?? this.mainScale,
     tailHub: tailHub ?? this.tailHub,
     tailScale: tailScale ?? this.tailScale,
+    mainFrameMs: mainFrameMs ?? this.mainFrameMs,
+    tailFrameMs: tailFrameMs ?? this.tailFrameMs,
   );
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -67,6 +87,8 @@ class BaseCampHelicopterAssembly {
     'tailHubX': tailHub.dx,
     'tailHubY': tailHub.dy,
     'tailScale': tailScale,
+    'mainFrameMs': mainFrameMs,
+    'tailFrameMs': tailFrameMs,
   };
 
   static BaseCampHelicopterAssembly? tryParse(Object? raw) {
@@ -83,13 +105,26 @@ class BaseCampHelicopterAssembly {
     final tailX = finite('tailHubX');
     final tailY = finite('tailHubY');
     final tailScale = finite('tailScale');
+    int? frameMs(String key, int fallback) {
+      final value = raw[key];
+      if (value == null) return fallback;
+      if (value is! num || !value.isFinite || value != value.roundToDouble()) {
+        return null;
+      }
+      return value.toInt();
+    }
+
+    final mainFrameMs = frameMs('mainFrameMs', defaultMainFrameMs);
+    final tailFrameMs = frameMs('tailFrameMs', defaultTailFrameMs);
     if (globalScale == null ||
         mainX == null ||
         mainY == null ||
         mainScale == null ||
         tailX == null ||
         tailY == null ||
-        tailScale == null) {
+        tailScale == null ||
+        mainFrameMs == null ||
+        tailFrameMs == null) {
       return null;
     }
     final result = BaseCampHelicopterAssembly(
@@ -98,6 +133,8 @@ class BaseCampHelicopterAssembly {
       mainScale: mainScale,
       tailHub: Offset(tailX, tailY),
       tailScale: tailScale,
+      mainFrameMs: mainFrameMs,
+      tailFrameMs: tailFrameMs,
     );
     return result.isValid ? result : null;
   }

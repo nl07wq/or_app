@@ -114,6 +114,12 @@ double baseCampHelicopterLeft({
   return start + (end - start) * normalized;
 }
 
+int baseCampHelicopterFrameIndex({
+  required Duration elapsed,
+  required int frameDurationMs,
+  required int frameCount,
+}) => (elapsed.inMilliseconds ~/ frameDurationMs) % frameCount;
+
 typedef BaseCampHelicopterAssetLoader =
     Future<void> Function(BuildContext context, List<String> assets);
 
@@ -203,8 +209,9 @@ class _BaseCampHelicopterFlybyLayerState
     )..addStatusListener(_handleFlightStatus);
     _rotorController = AnimationController(
       vsync: this,
-      // Least common multiple of the 660ms main and 800ms tail loops.
-      duration: const Duration(milliseconds: 26400),
+      // One bounded ticker drives both independently configured rotors. The
+      // long period keeps elapsed time monotonic for a complete visible pass.
+      duration: const Duration(days: 1),
     );
     widget.dashboardInteractive.addListener(_handleInteractiveChanged);
     baseCampHelicopterEditorActive.addListener(_handleEditorActiveChanged);
@@ -459,16 +466,23 @@ class _BaseCampHelicopterFlybyLayerState
                     (_rotorController.value *
                             _rotorController.duration!.inMilliseconds)
                         .floor();
+                final elapsed = Duration(milliseconds: elapsedMs);
                 return Stack(
                   clipBehavior: Clip.none,
                   children: <Widget>[
                     flightAt(
                       Curves.easeInOut.transform(_flightController.value),
                       _direction,
-                      (elapsedMs ~/ 110) %
-                          baseCampHelicopterMainRotorAssets.length,
-                      (elapsedMs ~/ 50) %
-                          baseCampHelicopterTailRotorAssets.length,
+                      baseCampHelicopterFrameIndex(
+                        elapsed: elapsed,
+                        frameDurationMs: widget.assembly.mainFrameMs,
+                        frameCount: baseCampHelicopterMainRotorAssets.length,
+                      ),
+                      baseCampHelicopterFrameIndex(
+                        elapsed: elapsed,
+                        frameDurationMs: widget.assembly.tailFrameMs,
+                        frameCount: baseCampHelicopterTailRotorAssets.length,
+                      ),
                     ),
                   ],
                 );

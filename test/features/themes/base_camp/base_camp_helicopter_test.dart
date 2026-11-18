@@ -23,6 +23,58 @@ void main() {
     expect(restored.helicopterAssembly.mainScale, 1);
     expect(restored.helicopterAssembly.tailHub, const Offset(1250, 484));
     expect(restored.helicopterAssembly.tailScale, .5);
+    expect(restored.helicopterAssembly.mainFrameMs, 110);
+    expect(restored.helicopterAssembly.tailFrameMs, 50);
+  });
+
+  test('legacy V1 assembly JSON adds optional timing defaults', () {
+    final legacyAssembly = BaseCampHelicopterAssembly.defaults.toJson()
+      ..remove('mainFrameMs')
+      ..remove('tailFrameMs');
+    final restored = BaseCampHelicopterAssembly.tryParse(legacyAssembly);
+    expect(restored, isNotNull);
+    expect(restored!.mainFrameMs, 110);
+    expect(restored.tailFrameMs, 50);
+  });
+
+  test('assembly timing round-trips and rejects invalid increments', () {
+    const configured = BaseCampHelicopterAssembly(
+      globalScale: .75,
+      mainFrameMs: 35,
+      tailFrameMs: 115,
+    );
+    final restored = BaseCampHelicopterAssembly.tryParse(configured.toJson());
+    expect(restored, isNotNull);
+    expect(restored!.globalScale, .75);
+    expect(restored.mainFrameMs, 35);
+    expect(restored.tailFrameMs, 115);
+    expect(
+      BaseCampHelicopterAssembly.tryParse(<String, Object?>{
+        ...configured.toJson(),
+        'mainFrameMs': 33,
+      }),
+      isNull,
+    );
+  });
+
+  test('independent rotor timing uses elapsed frame duration', () {
+    const elapsed = Duration(milliseconds: 125);
+    expect(
+      baseCampHelicopterFrameIndex(
+        elapsed: elapsed,
+        frameDurationMs: 20,
+        frameCount: 6,
+      ),
+      0,
+    );
+    expect(
+      baseCampHelicopterFrameIndex(
+        elapsed: elapsed,
+        frameDurationMs: 120,
+        frameCount: 16,
+      ),
+      1,
+    );
   });
 
   test('helicopter assembly rejects invalid finite geometry', () {
@@ -78,25 +130,28 @@ void main() {
   });
 
   test('both directions start and finish fully outside the map', () {
-    for (final direction in BaseCampHelicopterDirection.values) {
-      final start = baseCampHelicopterLeft(
-        progress: 0,
-        viewportWidth: 390,
-        spriteWidth: 164,
-        direction: direction,
-      );
-      final end = baseCampHelicopterLeft(
-        progress: 1,
-        viewportWidth: 390,
-        spriteWidth: 164,
-        direction: direction,
-      );
-      if (direction == BaseCampHelicopterDirection.leftToRight) {
-        expect(start, -164);
-        expect(end, 390);
-      } else {
-        expect(start, 390);
-        expect(end, -164);
+    for (final globalScale in <double>[.1, 1, 3]) {
+      final spriteWidth = 390 * .42 * globalScale;
+      for (final direction in BaseCampHelicopterDirection.values) {
+        final start = baseCampHelicopterLeft(
+          progress: 0,
+          viewportWidth: 390,
+          spriteWidth: spriteWidth,
+          direction: direction,
+        );
+        final end = baseCampHelicopterLeft(
+          progress: 1,
+          viewportWidth: 390,
+          spriteWidth: spriteWidth,
+          direction: direction,
+        );
+        if (direction == BaseCampHelicopterDirection.leftToRight) {
+          expect(start, closeTo(-spriteWidth, .000001));
+          expect(end, 390);
+        } else {
+          expect(start, 390);
+          expect(end, closeTo(-spriteWidth, .000001));
+        }
       }
     }
   });
@@ -247,6 +302,51 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('production playback uses independent saved rotor timing', (
+    tester,
+  ) async {
+    final interactive = ValueNotifier<bool>(true);
+    addTearDown(interactive.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox.square(
+          dimension: 390,
+          child: BaseCampHelicopterFlybyLayer(
+            dashboardInteractive: interactive,
+            assembly: const BaseCampHelicopterAssembly(
+              mainFrameMs: 20,
+              tailFrameMs: 120,
+            ),
+            schedule: const BaseCampHelicopterSchedule(
+              firstDelayMin: Duration(milliseconds: 1),
+              firstDelayMax: Duration(milliseconds: 1),
+              flightDurationMin: Duration(seconds: 1),
+              flightDurationMax: Duration(seconds: 1),
+            ),
+            assetLoader: (_, _) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 25));
+    final main = tester.widget<Image>(
+      find.byKey(const ValueKey('base-camp-helicopter-main-rotor')),
+    );
+    final tail = tester.widget<Image>(
+      find.byKey(const ValueKey('base-camp-helicopter-tail-rotor')),
+    );
+    expect(
+      (main.image as AssetImage).assetName,
+      baseCampHelicopterMainRotorAssets[1],
+    );
+    expect(
+      (tail.image as AssetImage).assetName,
+      baseCampHelicopterTailRotorAssets[0],
+    );
+  });
 
   testWidgets('direction mirrors the complete body and both rotor layers', (
     tester,

@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
@@ -26,6 +27,23 @@ void main() {
     final controller = BaseCampMapConfigurationController()
       ..resetForTesting(BaseCampMapConfiguration.defaults());
     final boundaryKey = GlobalKey();
+    String? clipboardText;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          clipboardText =
+              (call.arguments as Map<Object?, Object?>)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
     await tester.pumpWidget(
       MaterialApp(
         home: RepaintBoundary(
@@ -38,6 +56,32 @@ void main() {
     await tester.tap(find.text('HELICOPTER'));
     await tester.pump();
     await _capture(tester, boundaryKey, 'editor_body_selected');
+
+    Future<void> setSlider(String key, double value) async {
+      final finder = find.byKey(ValueKey(key));
+      await tester.ensureVisible(finder);
+      await tester.pump();
+      final slider = tester.widget<Slider>(finder);
+      slider.onChangeStart?.call(slider.value);
+      slider.onChanged?.call(value);
+      slider.onChangeEnd?.call(value);
+      await tester.pump();
+    }
+
+    await setSlider('helicopter-global-scale', 1.5);
+    await setSlider('helicopter-main-speed', 20);
+    await setSlider('helicopter-tail-speed', 120);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('helicopter-copy-json')),
+    );
+    await tester.tap(find.byKey(const ValueKey('helicopter-copy-json')));
+    await tester.pump();
+    await _capture(tester, boundaryKey, 'speed_scale_json_controls');
+    if (_captureDirectory.isNotEmpty && clipboardText != null) {
+      File(
+        '$_captureDirectory/helicopter_working_copy.json',
+      ).writeAsStringSync(clipboardText!);
+    }
 
     var part = find.byKey(const ValueKey('helicopter-part-mainRotor'));
     await tester.ensureVisible(part);
@@ -80,11 +124,22 @@ void main() {
     );
     await tester.ensureVisible(direction);
     await tester.pump();
-    await tester.tap(direction);
-    await tester.tap(find.byKey(const ValueKey('helicopter-run-flight')));
-    await tester.pump(const Duration(seconds: 3));
+    tester.widget<ChoiceChip>(direction).onSelected?.call(true);
+    tester
+        .widget<FilledButton>(
+          find.byKey(const ValueKey('helicopter-run-flight')),
+        )
+        .onPressed
+        ?.call();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 4));
     await _capture(tester, boundaryKey, 'flight_left_to_right');
-    await tester.tap(find.byKey(const ValueKey('helicopter-stop-flight')));
+    tester
+        .widget<OutlinedButton>(
+          find.byKey(const ValueKey('helicopter-stop-flight')),
+        )
+        .onPressed
+        ?.call();
     await tester.pump();
 
     direction = find.byKey(
@@ -92,11 +147,22 @@ void main() {
     );
     await tester.ensureVisible(direction);
     await tester.pump();
-    await tester.tap(direction);
-    await tester.tap(find.byKey(const ValueKey('helicopter-run-flight')));
-    await tester.pump(const Duration(seconds: 3));
+    tester.widget<ChoiceChip>(direction).onSelected?.call(true);
+    tester
+        .widget<FilledButton>(
+          find.byKey(const ValueKey('helicopter-run-flight')),
+        )
+        .onPressed
+        ?.call();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 4));
     await _capture(tester, boundaryKey, 'flight_right_to_left');
-    await tester.tap(find.byKey(const ValueKey('helicopter-stop-flight')));
+    tester
+        .widget<OutlinedButton>(
+          find.byKey(const ValueKey('helicopter-stop-flight')),
+        )
+        .onPressed
+        ?.call();
     await tester.tap(find.byKey(const ValueKey('base-camp-editor-save')));
     await tester.pump(const Duration(milliseconds: 150));
 
