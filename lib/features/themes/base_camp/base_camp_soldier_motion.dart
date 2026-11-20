@@ -341,26 +341,13 @@ class BaseCampSoldierPixelProfile {
   ) : _requests = List<BaseCampSoldierPixelRequest>.unmodifiable(requests),
       _defaultRequests = Map<String, BaseCampSoldierPixelRequest>.unmodifiable(
         <String, BaseCampSoldierPixelRequest>{
-          for (final request in requests)
-            if (!request.cacheId.startsWith('breathing-upper-phase-') ||
-                request.cacheId.endsWith('-0'))
-              request.asset: request,
+          for (final request in requests) request.asset: request,
         },
-      ),
-      _upperRequests = Map<int, BaseCampSoldierPixelRequest>.unmodifiable(<
-        int,
-        BaseCampSoldierPixelRequest
-      >{
-        for (var phase = 0; phase <= baseCampBreathingPixelPhaseSteps; phase++)
-          phase: requests.firstWhere(
-            (request) => request.cacheId == 'breathing-upper-phase-$phase',
-          ),
-      });
+      );
 
   final String key;
   final List<BaseCampSoldierPixelRequest> _requests;
   final Map<String, BaseCampSoldierPixelRequest> _defaultRequests;
-  final Map<int, BaseCampSoldierPixelRequest> _upperRequests;
 
   Iterable<BaseCampSoldierPixelRequest> get requests => _requests;
   Iterable<BaseCampSoldierPixelRequest> get breathingRequests => _requests
@@ -371,17 +358,9 @@ class BaseCampSoldierPixelProfile {
 
   BaseCampSoldierPixelRequest requestFor(String asset) =>
       _defaultRequests[asset]!;
-
-  BaseCampSoldierPixelRequest breathingUpperRequest(double dy) =>
-      _upperRequests[baseCampBreathingPixelPhase(dy)]!;
 }
 
-const baseCampBreathingPixelPhaseSteps = 64;
-const baseCampSoldierPixelFrameCount =
-    1 + (baseCampBreathingPixelPhaseSteps + 1) + 6;
-
-int baseCampBreathingPixelPhase(double dy) =>
-    ((-dy).clamp(0.0, 1.0) * baseCampBreathingPixelPhaseSteps).round();
+const baseCampSoldierPixelFrameCount = 2 + 6;
 
 BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
   required Size viewport,
@@ -431,18 +410,16 @@ BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
       targetRect: breathingRect,
       devicePixelRatio: effectiveDevicePixelRatio,
     ),
-    for (var phase = 0; phase <= baseCampBreathingPixelPhaseSteps; phase++)
-      BaseCampSoldierPixelRequest(
-        asset: baseCampBreathingSoldierUpperAsset,
-        cacheId: 'breathing-upper-phase-$phase',
-        profileKey: key,
-        viewport: viewport,
-        targetRect: breathingRect.translate(
-          0,
-          -phase / baseCampBreathingPixelPhaseSteps,
-        ),
-        devicePixelRatio: effectiveDevicePixelRatio,
-      ),
+    BaseCampSoldierPixelRequest(
+      asset: baseCampBreathingSoldierUpperAsset,
+      cacheId: 'breathing-upper',
+      profileKey: key,
+      viewport: viewport,
+      // Keep one stable processed grid. The approved breathing displacement is
+      // applied later by [BaseCampBreathingSoldier] at presentation time.
+      targetRect: breathingRect,
+      devicePixelRatio: effectiveDevicePixelRatio,
+    ),
     for (var frame = 0; frame < baseCampRifleRegripAssets.length; frame++)
       BaseCampSoldierPixelRequest(
         asset: baseCampRifleRegripAssets[frame],
@@ -666,7 +643,7 @@ class BaseCampBreathingSoldier extends StatelessWidget {
             ),
             BaseCampSoldierAssetImage(
               key: const ValueKey('base-camp-soldier-upper'),
-              request: profile.breathingUpperRequest(dy),
+              request: profile.requestFor(baseCampBreathingSoldierUpperAsset),
               fit: BoxFit.contain,
               originalOffset: Offset(0, dy),
             ),

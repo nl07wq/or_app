@@ -144,22 +144,53 @@ void main() {
     }
   });
 
-  test('phase cache follows the complete breathing cycle on a fixed grid', () {
+  test('breathing reuses one processed upper image for the complete cycle', () {
     final profile = baseCampSoldierPixelProfile(viewport: const Size(360, 300));
-    final base = profile.requestFor(baseCampBreathingSoldierUpperAsset);
+    final upper = profile.requestFor(baseCampBreathingSoldierUpperAsset);
     for (var elapsed = 0; elapsed <= 2400; elapsed += 17) {
       final dy = baseCampBreathingOffset(elapsed.toDouble());
-      final request = profile.breathingUpperRequest(dy);
-      final cachedDy = request.targetRect.top - base.targetRect.top;
-      expect(cachedDy, closeTo(dy, 1 / 128));
+      expect(dy, inInclusiveRange(-1, 0));
+      expect(
+        profile.requestFor(baseCampBreathingSoldierUpperAsset),
+        same(upper),
+      );
       for (final level in SoldierPixelationLevel.values.skip(1)) {
-        final rect = request.displayRect(level);
+        final rect = upper.displayRect(level);
         expect(rect.left % level.referenceBlockSize, closeTo(0, .001));
         expect(rect.top % level.referenceBlockSize, closeTo(0, .001));
       }
     }
-    expect(baseCampBreathingPixelPhase(0), 0);
-    expect(baseCampBreathingPixelPhase(-1), baseCampBreathingPixelPhaseSteps);
+    expect(
+      profile.breathingRequests.map((request) => request.cacheId),
+      <String>['breathing-lower', 'breathing-upper'],
+    );
+  });
+
+  testWidgets('fixed upper image retains the original presentation offset', (
+    tester,
+  ) async {
+    final profile = baseCampSoldierPixelProfile(
+      viewport: const Size(360, 300),
+      devicePixelRatio: 3,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 360,
+          height: 300,
+          child: BaseCampBreathingSoldier(dy: -.625, pixelProfile: profile),
+        ),
+      ),
+    );
+    final upper = tester.widget<BaseCampSoldierAssetImage>(
+      find.byKey(const ValueKey('base-camp-soldier-upper')),
+    );
+    expect(upper.request.cacheId, 'breathing-upper');
+    expect(upper.originalOffset, const Offset(0, -.625));
+    expect(
+      upper.request,
+      same(profile.requestFor(baseCampBreathingSoldierUpperAsset)),
+    );
   });
 
   test('all motion assets respond monotonically from LV.1 through LV.4', () {
@@ -316,10 +347,7 @@ void main() {
       ),
       isTrue,
     );
-    expect(
-      cache.processedImageCount,
-      baseCampSoldierPixelFrameCount + 1 + baseCampBreathingPixelPhaseSteps + 1,
-    );
+    expect(cache.processedImageCount, baseCampSoldierPixelFrameCount + 2);
     expect(
       cache
           .cachedFrame(
