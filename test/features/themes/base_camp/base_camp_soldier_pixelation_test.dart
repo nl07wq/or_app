@@ -206,14 +206,16 @@ void main() {
     final profile = baseCampSoldierPixelProfile(viewport: const Size(240, 180));
     expect(
       await tester.runAsync(
-        () => BaseCampSoldierPixelCache.instance.prepareRequests(
-          profile.requests,
+        () => BaseCampSoldierPixelCache.instance.prepareMotionRequests(
+          profile.regripRequests,
+          BaseCampSoldierMotion.regrip,
           SoldierPixelationLevel.fine,
         ),
       ),
       isTrue,
     );
-    BaseCampSoldierPixelCache.instance.selectLevel(
+    BaseCampSoldierPixelCache.instance.selectMotionLevel(
+      BaseCampSoldierMotion.regrip,
       SoldierPixelationLevel.medium,
     );
     final retained = BaseCampSoldierPixelCache.instance.cachedFrame(
@@ -224,8 +226,9 @@ void main() {
     expect(retained!.level, SoldierPixelationLevel.fine);
     expect(
       await tester.runAsync(
-        () => BaseCampSoldierPixelCache.instance.prepareRequests(
-          profile.requests,
+        () => BaseCampSoldierPixelCache.instance.prepareMotionRequests(
+          profile.regripRequests,
+          BaseCampSoldierMotion.regrip,
           SoldierPixelationLevel.medium,
         ),
       ),
@@ -257,7 +260,7 @@ void main() {
       );
       expect(prepared, isTrue);
     }
-    expect(BaseCampSoldierPixelCache.instance.cachedProfileCount, 2);
+    expect(BaseCampSoldierPixelCache.instance.cachedProfileCount, 4);
     expect(
       BaseCampSoldierPixelCache.instance.cachedImageCount,
       baseCampSoldierPixelFrameCount * 2,
@@ -282,6 +285,72 @@ void main() {
         isNotNull,
       );
     }
+  });
+
+  testWidgets('motion levels regenerate independently and remain bounded', (
+    tester,
+  ) async {
+    final profile = baseCampSoldierPixelProfile(
+      viewport: const Size(398, 398 / 1.35),
+      devicePixelRatio: 3,
+    );
+    final cache = BaseCampSoldierPixelCache.instance;
+    expect(
+      await tester.runAsync(
+        () => cache.prepareRequests(
+          profile.requests,
+          SoldierPixelationLevel.fine,
+        ),
+      ),
+      isTrue,
+    );
+    expect(cache.processedImageCount, baseCampSoldierPixelFrameCount);
+
+    expect(
+      await tester.runAsync(
+        () => cache.prepareMotionRequests(
+          profile.breathingRequests,
+          BaseCampSoldierMotion.breathing,
+          SoldierPixelationLevel.medium,
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      cache.processedImageCount,
+      baseCampSoldierPixelFrameCount + 1 + baseCampBreathingPixelPhaseSteps + 1,
+    );
+    expect(
+      cache
+          .cachedFrame(
+            profile.requestFor(baseCampRifleRegripAssets.first),
+            SoldierPixelationLevel.fine,
+          )
+          ?.level,
+      SoldierPixelationLevel.fine,
+    );
+
+    expect(
+      await tester.runAsync(
+        () => cache.prepareMotionRequests(
+          profile.regripRequests,
+          BaseCampSoldierMotion.regrip,
+          SoldierPixelationLevel.coarse,
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      cache
+          .cachedFrame(
+            profile.requestFor(baseCampBreathingSoldierLowerAsset),
+            SoldierPixelationLevel.medium,
+          )
+          ?.level,
+      SoldierPixelationLevel.medium,
+    );
+    expect(cache.cachedProfileCount, 2);
+    expect(cache.cachedImageCount, baseCampSoldierPixelFrameCount);
   });
 
   testWidgets(
@@ -380,7 +449,7 @@ void main() {
       );
       expect(
         BaseCampSoldierPixelCache.instance.cachedImageCount,
-        baseCampSoldierPixelFrameCount * 2,
+        baseCampSoldierPixelFrameCount,
       );
       expect(
         _pixelatedImage(

@@ -35,15 +35,23 @@ class _SoldierLiveMotionPreviewPageState
   BaseCampRifleGlobalAlignment _working = const BaseCampRifleGlobalAlignment();
   bool _loading = true;
   bool _applying = false;
-  bool _pixelPreparing = false;
-  Object? _pixelFailure;
-  int _pixelSelectionGeneration = 0;
+  final Set<BaseCampSoldierMotion> _pixelPreparingMotions = {};
+  final Map<BaseCampSoldierMotion, Object?> _pixelFailures = {
+    for (final motion in BaseCampSoldierMotion.values) motion: null,
+  };
+  final Map<BaseCampSoldierMotion, int> _pixelSelectionGenerations = {
+    for (final motion in BaseCampSoldierMotion.values) motion: 0,
+  };
   Timer? _pixelProfileDebounce;
   Size? _previewViewport;
   Size? _pixelProfileViewport;
   double? _pixelProfileDevicePixelRatio;
   BaseCampRifleGlobalAlignment? _pixelProfileAlignment;
   BaseCampSoldierPixelProfile? _pixelProfile;
+
+  bool get _pixelPreparing => _pixelPreparingMotions.isNotEmpty;
+  Object? get _pixelFailure =>
+      _pixelFailures.values.whereType<Object>().firstOrNull;
 
   BaseCampRifleAlignmentController get _alignmentController =>
       widget.alignmentController ?? baseCampRifleGlobalAlignment;
@@ -104,38 +112,36 @@ class _SoldierLiveMotionPreviewPageState
       _event.duration = Duration(milliseconds: _working.eventDurationMs);
       _loading = false;
     });
-    final level =
-        DeviceSettingsController.instance.value.soldierPixelationLevel;
-    if (level != SoldierPixelationLevel.original) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_preparePixelLevel(level));
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_prepareConfiguredPixelLevels());
+    });
   }
 
   @override
   void dispose() {
     _pixelProfileDebounce?.cancel();
-    final level =
-        DeviceSettingsController.instance.value.soldierPixelationLevel;
-    if (level != SoldierPixelationLevel.original) {
-      final applied = _alignmentController.value;
-      final viewport = widget.dashboardViewport;
-      if (viewport != null && !viewport.isEmpty) {
-        final profile = baseCampSoldierPixelProfile(
-          viewport: viewport,
-          devicePixelRatio: _pixelProfileDevicePixelRatio ?? 1,
-          globalX: applied.x,
-          globalY: applied.y,
-          globalScale: applied.scale,
-          frameOffsets: applied.frameOffsets,
-          frameScales: applied.frameScales,
-          verticalScaleX: applied.verticalScaleX,
-          horizontalScaleY: applied.horizontalScaleY,
-        );
+    final settings = DeviceSettingsController.instance.value;
+    final applied = _alignmentController.value;
+    final viewport = widget.dashboardViewport;
+    if (viewport != null && !viewport.isEmpty) {
+      final profile = baseCampSoldierPixelProfile(
+        viewport: viewport,
+        devicePixelRatio: _pixelProfileDevicePixelRatio ?? 1,
+        globalX: applied.x,
+        globalY: applied.y,
+        globalScale: applied.scale,
+        frameOffsets: applied.frameOffsets,
+        frameScales: applied.frameScales,
+        verticalScaleX: applied.verticalScaleX,
+        horizontalScaleY: applied.horizontalScaleY,
+      );
+      for (final motion in BaseCampSoldierMotion.values) {
+        final level = _levelFor(settings, motion);
+        if (level == SoldierPixelationLevel.original) continue;
         unawaited(
-          BaseCampSoldierPixelCache.instance.prepareRequests(
-            profile.requests,
+          BaseCampSoldierPixelCache.instance.prepareMotionRequests(
+            _requestsFor(profile, motion),
+            motion,
             level,
           ),
         );
@@ -156,22 +162,52 @@ class _SoldierLiveMotionPreviewPageState
     setState(() {});
   }
 
-  Future<void> _selectPixelLevel(SoldierPixelationLevel level) async {
+  SoldierPixelationLevel _levelFor(
+    DeviceSettings settings,
+    BaseCampSoldierMotion motion,
+  ) => switch (motion) {
+    BaseCampSoldierMotion.breathing => settings.breathingPixelLevel,
+    BaseCampSoldierMotion.regrip => settings.regripPixelLevel,
+  };
+
+  Iterable<BaseCampSoldierPixelRequest> _requestsFor(
+    BaseCampSoldierPixelProfile profile,
+    BaseCampSoldierMotion motion,
+  ) => switch (motion) {
+    BaseCampSoldierMotion.breathing => profile.breathingRequests,
+    BaseCampSoldierMotion.regrip => profile.regripRequests,
+  };
+
+  Future<void> _selectPixelLevel(
+    BaseCampSoldierMotion motion,
+    SoldierPixelationLevel level,
+  ) async {
     final cache = BaseCampSoldierPixelCache.instance;
-    cache.selectLevel(level);
+    cache.selectMotionLevel(motion, level);
     final settings = DeviceSettingsController.instance;
-    settings.update(settings.value.copyWith(soldierPixelationLevel: level));
-    await _preparePixelLevel(level);
+    settings.update(switch (motion) {
+      BaseCampSoldierMotion.breathing => settings.value.copyWith(
+        breathingPixelLevel: level,
+      ),
+      BaseCampSoldierMotion.regrip => settings.value.copyWith(
+        regripPixelLevel: level,
+      ),
+    });
+    await _preparePixelLevel(motion, level);
   }
 
-  Future<void> _preparePixelLevel(SoldierPixelationLevel level) async {
-    final generation = ++_pixelSelectionGeneration;
+  Future<void> _preparePixelLevel(
+    BaseCampSoldierMotion motion,
+    SoldierPixelationLevel level,
+  ) async {
+    final generation = _pixelSelectionGenerations[motion]! + 1;
+    _pixelSelectionGenerations[motion] = generation;
     if (level == SoldierPixelationLevel.original) {
-      BaseCampSoldierPixelCache.instance.selectLevel(level);
+      BaseCampSoldierPixelCache.instance.selectMotionLevel(motion, level);
       if (mounted) {
         setState(() {
-          _pixelPreparing = false;
-          _pixelFailure = null;
+          _pixelPreparingMotions.remove(motion);
+          _pixelFailures[motion] = null;
         });
       }
       return;
@@ -179,39 +215,45 @@ class _SoldierLiveMotionPreviewPageState
     final viewport = _previewViewport;
     if (viewport == null || viewport.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && generation == _pixelSelectionGeneration) {
-          unawaited(_preparePixelLevel(level));
+        if (mounted && generation == _pixelSelectionGenerations[motion]) {
+          unawaited(_preparePixelLevel(motion, level));
         }
       });
       return;
     }
     final profile = _profileFor(viewport, _working);
     setState(() {
-      _pixelPreparing = true;
-      _pixelFailure = null;
+      _pixelPreparingMotions.add(motion);
+      _pixelFailures[motion] = null;
     });
-    final prepared = await BaseCampSoldierPixelCache.instance.prepareRequests(
-      profile.requests,
-      level,
-    );
-    if (!mounted || generation != _pixelSelectionGeneration) return;
+    final prepared = await BaseCampSoldierPixelCache.instance
+        .prepareMotionRequests(_requestsFor(profile, motion), motion, level);
+    if (!mounted || generation != _pixelSelectionGenerations[motion]) return;
     setState(() {
-      _pixelPreparing = false;
-      _pixelFailure = prepared
+      _pixelPreparingMotions.remove(motion);
+      _pixelFailures[motion] = prepared
           ? null
-          : BaseCampSoldierPixelCache.instance.lastFailure ??
+          : BaseCampSoldierPixelCache.instance.failureFor(motion) ??
                 StateError('Pixel profile preparation cancelled');
     });
   }
 
+  Future<void> _prepareConfiguredPixelLevels() async {
+    final settings = DeviceSettingsController.instance.value;
+    for (final motion in const [
+      BaseCampSoldierMotion.regrip,
+      BaseCampSoldierMotion.breathing,
+    ]) {
+      await _preparePixelLevel(motion, _levelFor(settings, motion));
+      if (!mounted) return;
+    }
+  }
+
   void _schedulePixelProfilePreparation() {
     _pixelProfileDebounce?.cancel();
-    final level =
-        DeviceSettingsController.instance.value.soldierPixelationLevel;
-    if (level == SoldierPixelationLevel.original) return;
     _pixelProfileDebounce = Timer(
       const Duration(milliseconds: 150),
-      () => unawaited(_preparePixelLevel(level)),
+      () => unawaited(_prepareConfiguredPixelLevels()),
     );
   }
 
@@ -402,43 +444,22 @@ class _SoldierLiveMotionPreviewPageState
             builder: (context, settings, _) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                SegmentedButton<SoldierPixelationLevel>(
-                  key: const ValueKey('soldier-live-pixel-level-controls'),
-                  segments: const <ButtonSegment<SoldierPixelationLevel>>[
-                    ButtonSegment<SoldierPixelationLevel>(
-                      value: SoldierPixelationLevel.original,
-                      label: Text('PIXEL LV.0'),
-                    ),
-                    ButtonSegment<SoldierPixelationLevel>(
-                      value: SoldierPixelationLevel.fine,
-                      label: Text('PIXEL LV.1'),
-                    ),
-                    ButtonSegment<SoldierPixelationLevel>(
-                      value: SoldierPixelationLevel.medium,
-                      label: Text('PIXEL LV.2'),
-                    ),
-                    ButtonSegment<SoldierPixelationLevel>(
-                      value: SoldierPixelationLevel.coarse,
-                      label: Text('PIXEL LV.3'),
-                    ),
-                    ButtonSegment<SoldierPixelationLevel>(
-                      value: SoldierPixelationLevel.extreme,
-                      label: Text('PIXEL LV.4'),
-                    ),
-                  ],
-                  selected: <SoldierPixelationLevel>{
-                    settings.soldierPixelationLevel,
-                  },
-                  showSelectedIcon: false,
-                  expandedInsets: EdgeInsets.zero,
-                  style: const ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
-                      EdgeInsets.symmetric(horizontal: 4),
-                    ),
+                _pixelLevelControls(
+                  label: 'BREATHING PIXEL',
+                  key: const ValueKey(
+                    'soldier-live-breathing-pixel-level-controls',
                   ),
-                  onSelectionChanged: (selection) =>
-                      unawaited(_selectPixelLevel(selection.single)),
+                  motion: BaseCampSoldierMotion.breathing,
+                  selected: settings.breathingPixelLevel,
+                ),
+                const SizedBox(height: 8),
+                _pixelLevelControls(
+                  label: 'REGRIP PIXEL',
+                  key: const ValueKey(
+                    'soldier-live-regrip-pixel-level-controls',
+                  ),
+                  motion: BaseCampSoldierMotion.regrip,
+                  selected: settings.regripPixelLevel,
                 ),
                 if (_pixelPreparing)
                   const Padding(
@@ -515,7 +536,12 @@ class _SoldierLiveMotionPreviewPageState
             text: 'TRIGGER REGRIP',
             icon: Icons.play_arrow,
             role: OperationActionRole.primary,
-            onPressed: active || _pixelPreparing || _pixelFailure != null
+            onPressed:
+                active ||
+                    _pixelPreparingMotions.contains(
+                      BaseCampSoldierMotion.regrip,
+                    ) ||
+                    _pixelFailures[BaseCampSoldierMotion.regrip] != null
                 ? null
                 : _trigger,
           ),
@@ -546,6 +572,55 @@ class _SoldierLiveMotionPreviewPageState
         ],
       );
     },
+  );
+
+  Widget _pixelLevelControls({
+    required String label,
+    required Key key,
+    required BaseCampSoldierMotion motion,
+    required SoldierPixelationLevel selected,
+  }) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(label),
+      const SizedBox(height: 4),
+      SegmentedButton<SoldierPixelationLevel>(
+        key: key,
+        segments: const <ButtonSegment<SoldierPixelationLevel>>[
+          ButtonSegment(
+            value: SoldierPixelationLevel.original,
+            label: Text('LV.0'),
+          ),
+          ButtonSegment(
+            value: SoldierPixelationLevel.fine,
+            label: Text('LV.1'),
+          ),
+          ButtonSegment(
+            value: SoldierPixelationLevel.medium,
+            label: Text('LV.2'),
+          ),
+          ButtonSegment(
+            value: SoldierPixelationLevel.coarse,
+            label: Text('LV.3'),
+          ),
+          ButtonSegment(
+            value: SoldierPixelationLevel.extreme,
+            label: Text('LV.4'),
+          ),
+        ],
+        selected: <SoldierPixelationLevel>{selected},
+        showSelectedIcon: false,
+        expandedInsets: EdgeInsets.zero,
+        style: const ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
+            EdgeInsets.symmetric(horizontal: 4),
+          ),
+        ),
+        onSelectionChanged: (selection) =>
+            unawaited(_selectPixelLevel(motion, selection.single)),
+      ),
+    ],
   );
 
   Widget _slider(

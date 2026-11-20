@@ -133,22 +133,40 @@ void main() {
   });
 
   test('Soldier pixel tuner defaults safely and round-trips locally', () {
-    expect(
-      const DeviceSettings().soldierPixelationLevel,
-      SoldierPixelationLevel.original,
+    const defaults = DeviceSettings();
+    expect(defaults.breathingPixelLevel, SoldierPixelationLevel.original);
+    expect(defaults.regripPixelLevel, SoldierPixelationLevel.original);
+
+    final independent = DeviceSettings.fromJson(
+      const DeviceSettings(
+        breathingPixelLevel: SoldierPixelationLevel.coarse,
+        regripPixelLevel: SoldierPixelationLevel.fine,
+      ).toJson(),
     );
-    for (final level in SoldierPixelationLevel.values) {
-      final settings = DeviceSettings.fromJson(
-        DeviceSettings(soldierPixelationLevel: level).toJson(),
-      );
-      expect(settings.soldierPixelationLevel, level);
+    expect(independent.breathingPixelLevel, SoldierPixelationLevel.coarse);
+    expect(independent.regripPixelLevel, SoldierPixelationLevel.fine);
+
+    for (final legacy in <String>['original', 'FINE', 'MEDIUM', 'COARSE']) {
+      final migrated = DeviceSettings.fromJson({
+        'soldierPixelationLevel': legacy,
+      });
+      expect(migrated.breathingPixelLevel, migrated.regripPixelLevel);
+      expect(migrated.breathingPixelLevel.name, legacy.toLowerCase());
     }
-    expect(
-      DeviceSettings.fromJson({
-        'soldierPixelationLevel': 'unsupported',
-      }).soldierPixelationLevel,
-      SoldierPixelationLevel.original,
-    );
+
+    final authoritative = DeviceSettings.fromJson({
+      'soldierPixelationLevel': 'coarse',
+      'breathingPixelLevel': 'fine',
+      'regripPixelLevel': 'extreme',
+    });
+    expect(authoritative.breathingPixelLevel, SoldierPixelationLevel.fine);
+    expect(authoritative.regripPixelLevel, SoldierPixelationLevel.extreme);
+
+    final unsupported = DeviceSettings.fromJson({
+      'soldierPixelationLevel': 'unsupported',
+    });
+    expect(unsupported.breathingPixelLevel, SoldierPixelationLevel.original);
+    expect(unsupported.regripPixelLevel, SoldierPixelationLevel.original);
   });
 
   test(
@@ -260,6 +278,8 @@ void main() {
         'reducedMotion': 'on',
         'presentationTheme': 'newTheme',
         'baseCampLcdNegative': true,
+        'breathingPixelLevel': 'medium',
+        'regripPixelLevel': 'extreme',
       });
 
       final restored = DeviceSettingsController();
@@ -291,6 +311,8 @@ void main() {
       expect(restored.value.ambientWildlifeEnabled, isFalse);
       expect(restored.value.reducedMotion, ReducedMotionPreference.on);
       expect(restored.value.presentationTheme, AppPresentationTheme.baseCamp);
+      expect(restored.value.breathingPixelLevel, SoldierPixelationLevel.medium);
+      expect(restored.value.regripPixelLevel, SoldierPixelationLevel.extreme);
     },
   );
 

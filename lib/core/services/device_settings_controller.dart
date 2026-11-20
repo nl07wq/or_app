@@ -19,7 +19,7 @@ enum AppPresentationTheme { standard, baseCamp }
 
 /// Developer-only Soldier image treatment. [original] preserves the released
 /// assets byte-for-byte; other values select one deterministic nearest-neighbor
-/// pixelation level for both breathing and rifle-regrip frames.
+/// pixelation level for the owning motion profile.
 enum SoldierPixelationLevel {
   original(1, 'PIXEL LV.0'),
   fine(6, 'PIXEL LV.1'),
@@ -94,8 +94,12 @@ class DeviceSettings {
     this.notificationPrivacyMode = NotificationPrivacyMode.contentHidden,
     this.presentationTheme = AppPresentationTheme.standard,
     this.baseCampLcdNegative = false,
-    this.soldierPixelationLevel = SoldierPixelationLevel.original,
-  });
+    SoldierPixelationLevel breathingPixelLevel =
+        SoldierPixelationLevel.original,
+    SoldierPixelationLevel regripPixelLevel = SoldierPixelationLevel.original,
+    SoldierPixelationLevel? soldierPixelationLevel,
+  }) : breathingPixelLevel = soldierPixelationLevel ?? breathingPixelLevel,
+       regripPixelLevel = soldierPixelationLevel ?? regripPixelLevel;
 
   static const minimumBrightness = .35;
 
@@ -129,7 +133,12 @@ class DeviceSettings {
 
   /// Local developer visual setting. It does not affect formal records or the
   /// Soldier alignment/timing contracts.
-  final SoldierPixelationLevel soldierPixelationLevel;
+  final SoldierPixelationLevel breathingPixelLevel;
+  final SoldierPixelationLevel regripPixelLevel;
+
+  /// Compatibility view for callers that still construct or inspect the V1.6
+  /// shared setting. New rendering code must use the motion-specific fields.
+  SoldierPixelationLevel get soldierPixelationLevel => breathingPixelLevel;
 
   double volumeMultiplierFor(DeviceFeedbackChannel channel) {
     if (muted) return 0;
@@ -196,6 +205,8 @@ class DeviceSettings {
     NotificationPrivacyMode? notificationPrivacyMode,
     AppPresentationTheme? presentationTheme,
     bool? baseCampLcdNegative,
+    SoldierPixelationLevel? breathingPixelLevel,
+    SoldierPixelationLevel? regripPixelLevel,
     SoldierPixelationLevel? soldierPixelationLevel,
   }) => DeviceSettings(
     masterVolume: masterVolume ?? this.masterVolume,
@@ -227,8 +238,12 @@ class DeviceSettings {
         notificationPrivacyMode ?? this.notificationPrivacyMode,
     presentationTheme: presentationTheme ?? this.presentationTheme,
     baseCampLcdNegative: baseCampLcdNegative ?? this.baseCampLcdNegative,
-    soldierPixelationLevel:
-        soldierPixelationLevel ?? this.soldierPixelationLevel,
+    breathingPixelLevel:
+        soldierPixelationLevel ??
+        breathingPixelLevel ??
+        this.breathingPixelLevel,
+    regripPixelLevel:
+        soldierPixelationLevel ?? regripPixelLevel ?? this.regripPixelLevel,
   ).normalized();
 
   DeviceSettings normalized() => DeviceSettings(
@@ -256,7 +271,8 @@ class DeviceSettings {
     notificationPrivacyMode: notificationPrivacyMode,
     presentationTheme: presentationTheme,
     baseCampLcdNegative: baseCampLcdNegative,
-    soldierPixelationLevel: soldierPixelationLevel,
+    breathingPixelLevel: breathingPixelLevel,
+    regripPixelLevel: regripPixelLevel,
   );
 
   Map<String, Object?> toJson() => {
@@ -284,7 +300,8 @@ class DeviceSettings {
     'notificationPrivacyMode': notificationPrivacyMode.name,
     'presentationTheme': presentationTheme.name,
     'baseCampLcdNegative': baseCampLcdNegative,
-    'soldierPixelationLevel': soldierPixelationLevel.name,
+    'breathingPixelLevel': breathingPixelLevel.name,
+    'regripPixelLevel': regripPixelLevel.name,
   };
 
   factory DeviceSettings.fromJson(Object? raw) {
@@ -337,14 +354,28 @@ class DeviceSettings {
         break;
       }
     }
-    final soldierPixelationName = json['soldierPixelationLevel'];
-    SoldierPixelationLevel? soldierPixelationLevel;
-    for (final candidate in SoldierPixelationLevel.values) {
-      if (candidate.name == soldierPixelationName) {
-        soldierPixelationLevel = candidate;
-        break;
+    SoldierPixelationLevel? pixelLevel(Object? raw) {
+      final name = raw?.toString().trim().toLowerCase();
+      for (final candidate in SoldierPixelationLevel.values) {
+        if (candidate.name == name ||
+            candidate.controlLabel.toLowerCase() == name) {
+          return candidate;
+        }
       }
+      return switch (name) {
+        'original' => SoldierPixelationLevel.original,
+        'fine' => SoldierPixelationLevel.fine,
+        'medium' => SoldierPixelationLevel.medium,
+        'coarse' => SoldierPixelationLevel.coarse,
+        _ => null,
+      };
     }
+
+    final legacyPixelLevel = pixelLevel(json['soldierPixelationLevel']);
+    final breathingPixelLevel =
+        pixelLevel(json['breathingPixelLevel']) ?? legacyPixelLevel;
+    final regripPixelLevel =
+        pixelLevel(json['regripPixelLevel']) ?? legacyPixelLevel;
     return DeviceSettings(
       masterVolume: number('masterVolume', 1),
       muted: flag('muted', false),
@@ -372,8 +403,9 @@ class DeviceSettings {
           notificationPrivacyMode ?? NotificationPrivacyMode.contentHidden,
       presentationTheme: presentationTheme ?? AppPresentationTheme.standard,
       baseCampLcdNegative: flag('baseCampLcdNegative', false),
-      soldierPixelationLevel:
-          soldierPixelationLevel ?? SoldierPixelationLevel.original,
+      breathingPixelLevel:
+          breathingPixelLevel ?? SoldierPixelationLevel.original,
+      regripPixelLevel: regripPixelLevel ?? SoldierPixelationLevel.original,
     ).normalized();
   }
 

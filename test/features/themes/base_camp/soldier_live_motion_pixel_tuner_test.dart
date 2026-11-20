@@ -18,7 +18,7 @@ void main() {
   tearDown(BaseCampSoldierPixelCache.instance.resetForTesting);
 
   testWidgets(
-    'live preview selects all pixel levels and applies level to regrip',
+    'live preview selects and persists independent motion pixel levels',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(430, 1000));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -27,27 +27,45 @@ void main() {
       );
       await tester.pump();
 
+      expect(find.text('BREATHING PIXEL'), findsOneWidget);
+      expect(find.text('REGRIP PIXEL'), findsOneWidget);
       for (
         var index = 0;
         index < SoldierPixelationLevel.values.length;
         index++
       ) {
-        expect(find.text('PIXEL LV.$index'), findsOneWidget);
+        expect(find.text('LV.$index'), findsNWidgets(2));
       }
-      expect(_pixelControls(tester).selected, <SoldierPixelationLevel>{
-        SoldierPixelationLevel.original,
-      });
-
-      await _preparePreviewProfile(tester, SoldierPixelationLevel.coarse);
-      await tester.tap(find.text('PIXEL LV.3'));
-      await tester.pump();
       expect(
-        DeviceSettingsController.instance.value.soldierPixelationLevel,
+        _pixelControls(tester, BaseCampSoldierMotion.breathing).selected,
+        <SoldierPixelationLevel>{SoldierPixelationLevel.original},
+      );
+      expect(
+        _pixelControls(tester, BaseCampSoldierMotion.regrip).selected,
+        <SoldierPixelationLevel>{SoldierPixelationLevel.original},
+      );
+
+      await _preparePreviewMotionProfile(
+        tester,
+        BaseCampSoldierMotion.breathing,
         SoldierPixelationLevel.coarse,
       );
-      expect(_pixelControls(tester).selected, <SoldierPixelationLevel>{
+      await tester.tap(
+        _pixelLevelButton(BaseCampSoldierMotion.breathing, 'LV.3'),
+      );
+      await tester.pump();
+      expect(
+        DeviceSettingsController.instance.value.breathingPixelLevel,
         SoldierPixelationLevel.coarse,
-      });
+      );
+      expect(
+        DeviceSettingsController.instance.value.regripPixelLevel,
+        SoldierPixelationLevel.original,
+      );
+      expect(
+        _pixelControls(tester, BaseCampSoldierMotion.breathing).selected,
+        <SoldierPixelationLevel>{SoldierPixelationLevel.coarse},
+      );
       await _pumpUntil(
         tester,
         () => _pixelatedImage(
@@ -56,14 +74,32 @@ void main() {
         ).evaluate().isNotEmpty,
       );
 
+      await _preparePreviewMotionProfile(
+        tester,
+        BaseCampSoldierMotion.regrip,
+        SoldierPixelationLevel.fine,
+      );
+      await tester.tap(_pixelLevelButton(BaseCampSoldierMotion.regrip, 'LV.1'));
+      await tester.pump();
+      expect(
+        DeviceSettingsController.instance.value.breathingPixelLevel,
+        SoldierPixelationLevel.coarse,
+      );
+      expect(
+        DeviceSettingsController.instance.value.regripPixelLevel,
+        SoldierPixelationLevel.fine,
+      );
+
       final trigger = find.byKey(const ValueKey('soldier-live-trigger-regrip'));
+      await tester.ensureVisible(trigger);
+      await tester.pump();
       tester.widget<OperationButton>(trigger).onPressed!();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 1001));
       expect(find.text('PHASE: RIFLEREGRIP'), findsOneWidget);
       expect(
         _pixelatedImage(
-          SoldierPixelationLevel.coarse,
+          SoldierPixelationLevel.fine,
           baseCampRifleRegripAssets.first,
         ),
         findsOneWidget,
@@ -74,19 +110,46 @@ void main() {
         const MaterialApp(home: SoldierLiveMotionPreviewPage()),
       );
       await tester.pump();
-      expect(_pixelControls(tester).selected, <SoldierPixelationLevel>{
-        SoldierPixelationLevel.coarse,
-      });
+      expect(
+        _pixelControls(tester, BaseCampSoldierMotion.breathing).selected,
+        <SoldierPixelationLevel>{SoldierPixelationLevel.coarse},
+      );
+      expect(
+        _pixelControls(tester, BaseCampSoldierMotion.regrip).selected,
+        <SoldierPixelationLevel>{SoldierPixelationLevel.fine},
+      );
 
-      await tester.tap(find.text('PIXEL LV.0'));
+      await tester.tap(
+        _pixelLevelButton(BaseCampSoldierMotion.breathing, 'LV.0'),
+      );
       await tester.pump();
       expect(
-        DeviceSettingsController.instance.value.soldierPixelationLevel,
+        DeviceSettingsController.instance.value.breathingPixelLevel,
         SoldierPixelationLevel.original,
       );
-      expect(BaseCampSoldierPixelCache.instance.cachedImageCount, 0);
+      expect(
+        DeviceSettingsController.instance.value.regripPixelLevel,
+        SoldierPixelationLevel.fine,
+      );
+      expect(
+        BaseCampSoldierPixelCache.instance.cachedImageCount,
+        greaterThan(0),
+      );
     },
   );
+
+  test('all 25 independent level combinations are accepted', () {
+    for (final breathing in SoldierPixelationLevel.values) {
+      for (final regrip in SoldierPixelationLevel.values) {
+        final settings = DeviceSettings(
+          breathingPixelLevel: breathing,
+          regripPixelLevel: regrip,
+        ).normalized();
+        expect(settings.breathingPixelLevel, breathing);
+        expect(settings.regripPixelLevel, regrip);
+      }
+    }
+  });
 
   test('pixel levels use increasingly coarse screen-space blocks', () {
     expect(
@@ -107,8 +170,10 @@ void main() {
         const MaterialApp(home: SoldierLiveMotionPreviewPage()),
       );
       await tester.pump();
+      expect(find.text('BREATHING PIXEL'), findsOneWidget);
+      expect(find.text('REGRIP PIXEL'), findsOneWidget);
       for (var level = 0; level <= 4; level++) {
-        expect(find.text('PIXEL LV.$level'), findsOneWidget);
+        expect(find.text('LV.$level'), findsNWidgets(2));
       }
       expect(tester.takeException(), isNull);
     });
@@ -149,9 +214,19 @@ void main() {
   }
 }
 
-SegmentedButton<SoldierPixelationLevel> _pixelControls(WidgetTester tester) =>
-    tester.widget<SegmentedButton<SoldierPixelationLevel>>(
-      find.byKey(const ValueKey('soldier-live-pixel-level-controls')),
+SegmentedButton<SoldierPixelationLevel> _pixelControls(
+  WidgetTester tester,
+  BaseCampSoldierMotion motion,
+) => tester.widget<SegmentedButton<SoldierPixelationLevel>>(
+  find.byKey(ValueKey('soldier-live-${motion.name}-pixel-level-controls')),
+);
+
+Finder _pixelLevelButton(BaseCampSoldierMotion motion, String label) =>
+    find.descendant(
+      of: find.byKey(
+        ValueKey('soldier-live-${motion.name}-pixel-level-controls'),
+      ),
+      matching: find.text(label),
     );
 
 Finder _pixelatedImage(SoldierPixelationLevel level, String asset) =>
@@ -175,6 +250,27 @@ Future<void> _preparePreviewProfile(
   final prepared = await tester.runAsync(
     () => BaseCampSoldierPixelCache.instance.prepareRequests(
       profile.requests,
+      level,
+    ),
+  );
+  expect(prepared, isTrue);
+}
+
+Future<void> _preparePreviewMotionProfile(
+  WidgetTester tester,
+  BaseCampSoldierMotion motion,
+  SoldierPixelationLevel level,
+) async {
+  const width = 430.0 - 32;
+  final profile = baseCampSoldierPixelProfile(
+    viewport: const Size(width, width / 1.35),
+  );
+  final prepared = await tester.runAsync(
+    () => BaseCampSoldierPixelCache.instance.prepareMotionRequests(
+      motion == BaseCampSoldierMotion.breathing
+          ? profile.breathingRequests
+          : profile.regripRequests,
+      motion,
       level,
     ),
   );

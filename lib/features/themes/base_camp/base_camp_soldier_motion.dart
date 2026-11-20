@@ -363,6 +363,11 @@ class BaseCampSoldierPixelProfile {
   final Map<int, BaseCampSoldierPixelRequest> _upperRequests;
 
   Iterable<BaseCampSoldierPixelRequest> get requests => _requests;
+  Iterable<BaseCampSoldierPixelRequest> get breathingRequests => _requests
+      .where((request) => request.motion == BaseCampSoldierMotion.breathing);
+  Iterable<BaseCampSoldierPixelRequest> get regripRequests => _requests.where(
+    (request) => request.motion == BaseCampSoldierMotion.regrip,
+  );
 
   BaseCampSoldierPixelRequest requestFor(String asset) =>
       _defaultRequests[asset]!;

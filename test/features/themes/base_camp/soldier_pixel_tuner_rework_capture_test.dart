@@ -101,11 +101,108 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
     final trigger = find.byKey(const ValueKey('soldier-live-trigger-regrip'));
+    await tester.ensureVisible(trigger);
+    await tester.pump();
     tester.widget<OperationButton>(trigger).onPressed!();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1200));
     expect(find.text('PHASE: RIFLEREGRIP'), findsOneWidget);
     await _capture(tester, boundaryKey, 'preview_coarse_regrip.png');
+  });
+
+  testWidgets('captures independent selectors and motion transition', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.binding.setSurfaceSize(const Size(430, 932));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.runAsync(
+      () => _selectAndPrepareIndependent(
+        breathing: SoldierPixelationLevel.original,
+        regrip: SoldierPixelationLevel.coarse,
+      ),
+    );
+    final boundaryKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: BaseCampRetroTheme.apply(ThemeData.light()),
+        home: RepaintBoundary(
+          key: boundaryKey,
+          child: const SoldierLiveMotionPreviewPage(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('BREATHING PIXEL'), findsOneWidget);
+    expect(find.text('REGRIP PIXEL'), findsOneWidget);
+    await _capture(
+      tester,
+      boundaryKey,
+      'independent_breathing_lv0_regrip_lv3.png',
+    );
+
+    final trigger = find.byKey(const ValueKey('soldier-live-trigger-regrip'));
+    await tester.ensureVisible(trigger);
+    await tester.pump();
+    tester.widget<OperationButton>(trigger).onPressed!();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1200));
+    await tester.ensureVisible(find.byType(AspectRatio).first);
+    await tester.pump();
+    expect(
+      find.byKey(
+        ValueKey<String>(
+          'soldier-pixelated-${SoldierPixelationLevel.coarse.name}-'
+          '${baseCampRifleRegripAssets.first}',
+        ),
+      ),
+      findsOneWidget,
+    );
+    await _capture(
+      tester,
+      boundaryKey,
+      'independent_breathing_lv0_regrip_lv3_active.png',
+    );
+    await tester.pump(const Duration(milliseconds: 3000));
+    expect(
+      find.byKey(const ValueKey('base-camp-soldier-lower')),
+      findsOneWidget,
+    );
+    await _capture(
+      tester,
+      boundaryKey,
+      'independent_breathing_lv0_restored.png',
+    );
+  });
+
+  testWidgets('captures coarse breathing with original regrip', (tester) async {
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.binding.setSurfaceSize(const Size(430, 932));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.runAsync(
+      () => _selectAndPrepareIndependent(
+        breathing: SoldierPixelationLevel.coarse,
+        regrip: SoldierPixelationLevel.original,
+      ),
+    );
+    final boundaryKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: BaseCampRetroTheme.apply(ThemeData.light()),
+        home: RepaintBoundary(
+          key: boundaryKey,
+          child: const SoldierLiveMotionPreviewPage(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await _capture(
+      tester,
+      boundaryKey,
+      'independent_breathing_lv3_regrip_lv0.png',
+    );
   });
 
   testWidgets('captures selected level on the real Dashboard', (tester) async {
@@ -115,7 +212,8 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     DeviceSettingsController.instance.resetForTesting(
       const DeviceSettings(
-        soldierPixelationLevel: SoldierPixelationLevel.coarse,
+        breathingPixelLevel: SoldierPixelationLevel.coarse,
+        regripPixelLevel: SoldierPixelationLevel.fine,
       ),
     );
     final boundaryKey = GlobalKey();
@@ -133,15 +231,24 @@ void main() {
       find.byKey(const ValueKey('base-camp-soldier-display-window')),
     );
     final viewport = Size(window.size.width - 8, window.size.height - 8);
-    await tester.runAsync(
-      () => BaseCampSoldierPixelCache.instance.prepareRequests(
-        baseCampSoldierPixelProfile(
-          viewport: viewport,
-          devicePixelRatio: 3,
-        ).requests,
-        SoldierPixelationLevel.coarse,
-      ),
-    );
+    await tester.runAsync(() {
+      final profile = baseCampSoldierPixelProfile(
+        viewport: viewport,
+        devicePixelRatio: 3,
+      );
+      return Future.wait([
+        BaseCampSoldierPixelCache.instance.prepareMotionRequests(
+          profile.breathingRequests,
+          BaseCampSoldierMotion.breathing,
+          SoldierPixelationLevel.coarse,
+        ),
+        BaseCampSoldierPixelCache.instance.prepareMotionRequests(
+          profile.regripRequests,
+          BaseCampSoldierMotion.regrip,
+          SoldierPixelationLevel.fine,
+        ),
+      ]);
+    });
     await tester.pump();
     expect(
       find.byKey(
@@ -153,7 +260,7 @@ void main() {
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
-    await _capture(tester, boundaryKey, 'dashboard_coarse.png');
+    await _capture(tester, boundaryKey, 'dashboard_independent_levels.png');
   });
 }
 
@@ -171,6 +278,34 @@ Future<void> _selectAndPrepare(SoldierPixelationLevel level) async {
     profile.requests,
     level,
   );
+}
+
+Future<void> _selectAndPrepareIndependent({
+  required SoldierPixelationLevel breathing,
+  required SoldierPixelationLevel regrip,
+}) async {
+  DeviceSettingsController.instance.resetForTesting(
+    DeviceSettings(breathingPixelLevel: breathing, regripPixelLevel: regrip),
+  );
+  const width = 430.0 - 32;
+  final profile = baseCampSoldierPixelProfile(
+    viewport: const Size(width, width / 1.35),
+    devicePixelRatio: 3,
+  );
+  if (breathing != SoldierPixelationLevel.original) {
+    await BaseCampSoldierPixelCache.instance.prepareMotionRequests(
+      profile.breathingRequests,
+      BaseCampSoldierMotion.breathing,
+      breathing,
+    );
+  }
+  if (regrip != SoldierPixelationLevel.original) {
+    await BaseCampSoldierPixelCache.instance.prepareMotionRequests(
+      profile.regripRequests,
+      BaseCampSoldierMotion.regrip,
+      regrip,
+    );
+  }
 }
 
 Future<void> _loadFont(String family, String asset) async {

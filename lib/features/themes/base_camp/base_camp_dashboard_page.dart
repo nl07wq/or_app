@@ -865,37 +865,49 @@ class _BreathingSoldierCompartmentState
     }
   }
 
-  Future<bool> _prepareSoldierPixelation() async {
-    final level =
-        DeviceSettingsController.instance.value.soldierPixelationLevel;
-    if (level == SoldierPixelationLevel.original) {
-      BaseCampSoldierPixelCache.instance.selectLevel(level);
-      return true;
-    }
+  Future<bool> _prepareSoldierPixelation({
+    Set<BaseCampSoldierMotion> motions = const {
+      BaseCampSoldierMotion.breathing,
+      BaseCampSoldierMotion.regrip,
+    },
+  }) async {
+    final settings = DeviceSettingsController.instance.value;
     await baseCampRifleGlobalAlignment.load();
     if (!mounted || !_active) return false;
     final viewport = _soldierViewportSize;
     if (viewport == null || viewport.isEmpty) return false;
     final alignment = baseCampRifleGlobalAlignment.value;
     final profile = _profileFor(viewport, alignment);
-    final prepared = await BaseCampSoldierPixelCache.instance.prepareRequests(
-      profile.requests,
-      level,
-    );
-    if (!prepared && mounted) {
-      SystemDiagnostics.instance.record(
-        'SOLDIER',
-        'PIXEL_PROFILE_PREPARATION_FAILED',
-        fields: <String, Object?>{
-          'level': level.controlLabel,
-          'errorType':
-              BaseCampSoldierPixelCache.instance.lastFailure?.runtimeType
-                  .toString() ??
-              'cancelled',
-        },
-      );
+    for (final motion in motions) {
+      final level = switch (motion) {
+        BaseCampSoldierMotion.breathing => settings.breathingPixelLevel,
+        BaseCampSoldierMotion.regrip => settings.regripPixelLevel,
+      };
+      final requests = switch (motion) {
+        BaseCampSoldierMotion.breathing => profile.breathingRequests,
+        BaseCampSoldierMotion.regrip => profile.regripRequests,
+      };
+      final prepared = await BaseCampSoldierPixelCache.instance
+          .prepareMotionRequests(requests, motion, level);
+      if (!prepared && mounted) {
+        SystemDiagnostics.instance.record(
+          'SOLDIER',
+          'PIXEL_PROFILE_PREPARATION_FAILED',
+          fields: <String, Object?>{
+            'motion': motion.name,
+            'level': level.controlLabel,
+            'errorType':
+                BaseCampSoldierPixelCache.instance
+                    .failureFor(motion)
+                    ?.runtimeType
+                    .toString() ??
+                'cancelled',
+          },
+        );
+        return false;
+      }
     }
-    return prepared;
+    return true;
   }
 
   void _onSpecialStatus(AnimationStatus status) {
@@ -947,7 +959,13 @@ class _BreathingSoldierCompartmentState
   }
 
   Future<void> _startAutomaticRegrip() async {
-    if (!await _prepareSoldierPixelation() || !mounted || !_active) return;
+    if (!await _prepareSoldierPixelation(
+          motions: const {BaseCampSoldierMotion.regrip},
+        ) ||
+        !mounted ||
+        !_active) {
+      return;
+    }
     _startSpecialEvent(manual: false);
   }
 
@@ -976,7 +994,13 @@ class _BreathingSoldierCompartmentState
       unawaited(_precacheRifleFrames(manualPriority: true));
       return;
     }
-    if (!await _prepareSoldierPixelation() || !mounted || !_active) return;
+    if (!await _prepareSoldierPixelation(
+          motions: const {BaseCampSoldierMotion.regrip},
+        ) ||
+        !mounted ||
+        !_active) {
+      return;
+    }
     _startSpecialEvent(manual: true);
   }
 

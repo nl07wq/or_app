@@ -8,6 +8,8 @@ import 'package:flutter/scheduler.dart';
 import '../../../core/services/device_settings_controller.dart';
 import 'base_camp_asset_metrics.dart';
 
+enum BaseCampSoldierMotion { breathing, regrip }
+
 /// One source frame projected into the shared Soldier viewport coordinate
 /// system. Every request uses the viewport origin as its pixel-grid origin.
 @immutable
@@ -27,6 +29,10 @@ class BaseCampSoldierPixelRequest {
   final Size viewport;
   final Rect targetRect;
   final double devicePixelRatio;
+
+  BaseCampSoldierMotion get motion => cacheId.startsWith('regrip-frame-')
+      ? BaseCampSoldierMotion.regrip
+      : BaseCampSoldierMotion.breathing;
 
   BaseCampSoldierPixelRequest withAsset(String nextAsset) =>
       BaseCampSoldierPixelRequest(
@@ -89,26 +95,39 @@ class BaseCampSoldierPixelFrame {
 }
 
 class _CommittedPixelProfile {
-  _CommittedPixelProfile(this.level, this.frames);
+  _CommittedPixelProfile(this.motion, this.level, this.frames);
 
+  final BaseCampSoldierMotion motion;
   final SoldierPixelationLevel level;
   final Map<String, BaseCampSoldierPixelFrame> frames;
 }
 
-/// Single-level, atomic Soldier frame cache. Frames for a new display profile
-/// become visible only after the complete breathing and regrip set succeeds.
+/// Motion-specific atomic Soldier frame cache. A new breathing or regrip
+/// profile becomes visible only after that motion's complete frame set
+/// succeeds. Preparing one motion never invalidates the other.
 class BaseCampSoldierPixelCache extends ChangeNotifier {
   BaseCampSoldierPixelCache._();
 
   static final instance = BaseCampSoldierPixelCache._();
 
-  SoldierPixelationLevel _level = SoldierPixelationLevel.original;
-  int _generation = 0;
+  final Map<BaseCampSoldierMotion, SoldierPixelationLevel> _levels = {
+    for (final motion in BaseCampSoldierMotion.values)
+      motion: SoldierPixelationLevel.original,
+  };
+  final Map<BaseCampSoldierMotion, int> _generations = {
+    for (final motion in BaseCampSoldierMotion.values) motion: 0,
+  };
   final LinkedHashMap<String, _CommittedPixelProfile> _profiles =
       LinkedHashMap<String, _CommittedPixelProfile>();
-  String? _preparingKey;
-  Future<bool>? _preparation;
-  Object? _lastFailure;
+  final Map<BaseCampSoldierMotion, String?> _preparingKeys = {
+    for (final motion in BaseCampSoldierMotion.values) motion: null,
+  };
+  final Map<BaseCampSoldierMotion, Future<bool>?> _preparations = {
+    for (final motion in BaseCampSoldierMotion.values) motion: null,
+  };
+  final Map<BaseCampSoldierMotion, Object?> _failures = {
+    for (final motion in BaseCampSoldierMotion.values) motion: null,
+  };
   int _processedImageCount = 0;
 
   @visibleForTesting
@@ -134,19 +153,31 @@ class BaseCampSoldierPixelCache extends ChangeNotifier {
         ),
   );
 
-  bool get isPreparing => _preparation != null;
-  Object? get lastFailure => _lastFailure;
+  bool get isPreparing => _preparations.values.any((value) => value != null);
+  Object? get lastFailure => _failures.values.whereType<Object>().firstOrNull;
+
+  bool isPreparingMotion(BaseCampSoldierMotion motion) =>
+      _preparations[motion] != null;
+
+  Object? failureFor(BaseCampSoldierMotion motion) => _failures[motion];
+
+  SoldierPixelationLevel selectedLevelFor(BaseCampSoldierMotion motion) =>
+      _levels[motion]!;
 
   BaseCampSoldierPixelFrame? cachedFrame(
     BaseCampSoldierPixelRequest request,
     SoldierPixelationLevel level,
   ) {
-    if (_level != level) return null;
-    final profile = _profiles['$level|${request.profileKey}'];
+    final motion = request.motion;
+    if (_levels[motion] != level) return null;
+    final profile = _profiles['${motion.name}|$level|${request.profileKey}'];
     final exact = profile?.frames[request.cacheKey(level)];
     if (exact != null) return exact;
     for (final entry in _profiles.entries.toList().reversed) {
-      if (!entry.key.endsWith('|${request.profileKey}')) continue;
+      if (entry.value.motion != motion ||
+          !entry.key.endsWith('|${request.profileKey}')) {
+        continue;
+      }
       for (final frame in entry.value.frames.values) {
         if (frame.cacheId == request.cacheId) return frame;
       }
@@ -155,15 +186,29 @@ class BaseCampSoldierPixelCache extends ChangeNotifier {
   }
 
   void selectLevel(SoldierPixelationLevel level) {
-    if (_level == level) return;
-    _level = level;
-    _generation++;
-    _preparingKey = null;
-    _preparation = null;
-    _lastFailure = null;
+    for (final motion in BaseCampSoldierMotion.values) {
+      selectMotionLevel(motion, level);
+    }
+  }
+
+  void selectMotionLevel(
+    BaseCampSoldierMotion motion,
+    SoldierPixelationLevel level,
+  ) {
+    if (_levels[motion] == level) return;
+    _levels[motion] = level;
+    _generations[motion] = _generations[motion]! + 1;
+    _preparingKeys[motion] = null;
+    _preparations[motion] = null;
+    _failures[motion] = null;
     if (level == SoldierPixelationLevel.original) {
-      _disposeProfilesAfterFrame(_profiles.values);
-      _profiles.clear();
+      final obsoleteKeys = _profiles.entries
+          .where((entry) => entry.value.motion == motion)
+          .map((entry) => entry.key)
+          .toList(growable: false);
+      for (final key in obsoleteKeys) {
+        _disposeProfileAfterFrame(_profiles.remove(key)!);
+      }
     }
   }
 
@@ -174,18 +219,40 @@ class BaseCampSoldierPixelCache extends ChangeNotifier {
     SoldierPixelationLevel level,
   ) {
     final list = requests.toList(growable: false);
+    if (list.isEmpty) return Future<bool>.value(false);
+    final grouped =
+        <BaseCampSoldierMotion, List<BaseCampSoldierPixelRequest>>{};
+    for (final request in list) {
+      grouped.putIfAbsent(request.motion, () => []).add(request);
+    }
+    return Future.wait<bool>([
+      for (final entry in grouped.entries)
+        prepareMotionRequests(entry.value, entry.key, level),
+    ]).then((results) => results.every((result) => result));
+  }
+
+  Future<bool> prepareMotionRequests(
+    Iterable<BaseCampSoldierPixelRequest> requests,
+    BaseCampSoldierMotion motion,
+    SoldierPixelationLevel level,
+  ) {
+    final list = requests.toList(growable: false);
     if (level == SoldierPixelationLevel.original) {
-      selectLevel(level);
+      selectMotionLevel(motion, level);
       return Future<bool>.value(true);
     }
     if (list.isEmpty) return Future<bool>.value(false);
     final profileKey = list.first.profileKey;
-    if (list.any((request) => request.profileKey != profileKey)) {
-      throw ArgumentError('Soldier pixel requests must share one profile');
+    if (list.any(
+      (request) => request.profileKey != profileKey || request.motion != motion,
+    )) {
+      throw ArgumentError(
+        'Soldier pixel requests must share one motion and profile',
+      );
     }
-    selectLevel(level);
-    final preparationKey = '$level|$profileKey';
-    final cacheProfileKey = '$level|$profileKey';
+    selectMotionLevel(motion, level);
+    final preparationKey = '${motion.name}|$level|$profileKey';
+    final cacheProfileKey = preparationKey;
     final committed = _profiles[cacheProfileKey];
     if (committed != null &&
         list.every(
@@ -195,20 +262,23 @@ class BaseCampSoldierPixelCache extends ChangeNotifier {
       _profiles[cacheProfileKey] = committed;
       return Future<bool>.value(true);
     }
-    if (_preparingKey == preparationKey && _preparation != null) {
-      return _preparation!;
+    if (_preparingKeys[motion] == preparationKey &&
+        _preparations[motion] != null) {
+      return _preparations[motion]!;
     }
-    final generation = ++_generation;
-    _preparingKey = preparationKey;
-    _lastFailure = null;
+    final generation = _generations[motion]! + 1;
+    _generations[motion] = generation;
+    _preparingKeys[motion] = preparationKey;
+    _failures[motion] = null;
     notifyListeners();
-    final operation = _prepare(list, level, profileKey, generation);
-    _preparation = operation;
+    final operation = _prepare(list, motion, level, profileKey, generation);
+    _preparations[motion] = operation;
     return operation;
   }
 
   Future<bool> _prepare(
     List<BaseCampSoldierPixelRequest> requests,
+    BaseCampSoldierMotion motion,
     SoldierPixelationLevel level,
     String profileKey,
     int generation,
@@ -217,7 +287,7 @@ class BaseCampSoldierPixelCache extends ChangeNotifier {
     final sources = <String, ui.Image>{};
     try {
       for (final request in requests) {
-        if (generation != _generation || level != _level) {
+        if (generation != _generations[motion] || level != _levels[motion]) {
           _disposeFramesNow(staged.values);
           return false;
         }
@@ -230,35 +300,49 @@ class BaseCampSoldierPixelCache extends ChangeNotifier {
           source,
         );
       }
-      if (generation != _generation || level != _level) {
+      if (generation != _generations[motion] || level != _levels[motion]) {
         _disposeFramesNow(staged.values);
         return false;
       }
-      final cacheProfileKey = '$level|$profileKey';
-      final obsolete = _profiles.remove(cacheProfileKey);
-      _profiles[cacheProfileKey] = _CommittedPixelProfile(level, staged);
-      if (obsolete != null) _disposeProfileAfterFrame(obsolete);
-      while (_profiles.length > 2) {
+      final cacheProfileKey = '${motion.name}|$level|$profileKey';
+      final obsoleteKeys = _profiles.entries
+          .where(
+            (entry) =>
+                entry.value.motion == motion &&
+                entry.key.endsWith('|$profileKey'),
+          )
+          .map((entry) => entry.key)
+          .toList(growable: false);
+      final obsolete = <_CommittedPixelProfile>[
+        for (final key in obsoleteKeys) _profiles.remove(key)!,
+      ];
+      _profiles[cacheProfileKey] = _CommittedPixelProfile(
+        motion,
+        level,
+        staged,
+      );
+      _disposeProfilesAfterFrame(obsolete);
+      while (_profiles.length > 4) {
         final evictedKey = _profiles.keys.first;
         final evicted = _profiles.remove(evictedKey)!;
         _disposeProfileAfterFrame(evicted);
       }
       _processedImageCount += staged.length;
-      _lastFailure = null;
+      _failures[motion] = null;
       return true;
     } catch (error) {
       _disposeFramesNow(staged.values);
-      if (generation == _generation && level == _level) {
-        _lastFailure = error;
+      if (generation == _generations[motion] && level == _levels[motion]) {
+        _failures[motion] = error;
       }
       return false;
     } finally {
       for (final source in sources.values) {
         source.dispose();
       }
-      if (generation == _generation) {
-        _preparingKey = null;
-        _preparation = null;
+      if (generation == _generations[motion]) {
+        _preparingKeys[motion] = null;
+        _preparations[motion] = null;
         notifyListeners();
       }
     }
@@ -348,13 +432,15 @@ class BaseCampSoldierPixelCache extends ChangeNotifier {
 
   @visibleForTesting
   void resetForTesting() {
-    _generation++;
-    _preparingKey = null;
-    _preparation = null;
+    for (final motion in BaseCampSoldierMotion.values) {
+      _generations[motion] = _generations[motion]! + 1;
+      _preparingKeys[motion] = null;
+      _preparations[motion] = null;
+      _failures[motion] = null;
+      _levels[motion] = SoldierPixelationLevel.original;
+    }
     _disposeProfilesAfterFrame(_profiles.values);
     _profiles.clear();
-    _lastFailure = null;
-    _level = SoldierPixelationLevel.original;
     _processedImageCount = 0;
     notifyListeners();
   }
@@ -380,9 +466,13 @@ class BaseCampSoldierAssetImage extends StatelessWidget {
   Widget build(BuildContext context) => ValueListenableBuilder<DeviceSettings>(
     valueListenable: DeviceSettingsController.instance,
     builder: (context, settings, _) {
-      final level = settings.soldierPixelationLevel;
+      final motion = request.motion;
+      final level = switch (motion) {
+        BaseCampSoldierMotion.breathing => settings.breathingPixelLevel,
+        BaseCampSoldierMotion.regrip => settings.regripPixelLevel,
+      };
       if (level == SoldierPixelationLevel.original) {
-        BaseCampSoldierPixelCache.instance.selectLevel(level);
+        BaseCampSoldierPixelCache.instance.selectMotionLevel(motion, level);
         return _original();
       }
       return ListenableBuilder(

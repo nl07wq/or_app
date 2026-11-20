@@ -171,13 +171,20 @@ void main() {
 
     expect(find.text('SOLDIER LIVE MOTION PREVIEW'), findsOneWidget);
     expect(
-      find.byKey(const ValueKey('soldier-live-trigger-regrip')),
+      find.byKey(const ValueKey('soldier-live-breathing-pixel-level-controls')),
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('soldier-live-pixel-level-controls')),
+      find.byKey(const ValueKey('soldier-live-regrip-pixel-level-controls')),
       findsOneWidget,
     );
+    final trigger = find.byKey(const ValueKey('soldier-live-trigger-regrip'));
+    await tester.scrollUntilVisible(
+      trigger,
+      160,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(trigger, findsOneWidget);
 
     await tester.pageBack();
     await tester.pump(const Duration(milliseconds: 1100));
@@ -259,7 +266,7 @@ void main() {
   });
 
   testWidgets(
-    'selected pixel level stays consistent through Dashboard regrip',
+    'Dashboard routes independent pixel levels through regrip transition',
     (tester) async {
       SystemDiagnostics.instance.clear();
       BaseCampSoldierPixelCache.instance.resetForTesting();
@@ -267,7 +274,8 @@ void main() {
       addTearDown(BaseCampSoldierPixelCache.instance.resetForTesting);
       DeviceSettingsController.instance.resetForTesting(
         const DeviceSettings(
-          soldierPixelationLevel: SoldierPixelationLevel.extreme,
+          breathingPixelLevel: SoldierPixelationLevel.coarse,
+          regripPixelLevel: SoldierPixelationLevel.fine,
         ),
       );
       await tester.binding.setSurfaceSize(const Size(390, 844));
@@ -283,7 +291,7 @@ void main() {
           of: panel,
           matching: find.byKey(
             ValueKey<String>(
-              'soldier-pixelated-${SoldierPixelationLevel.extreme.name}-'
+              'soldier-pixelated-${SoldierPixelationLevel.coarse.name}-'
               '$baseCampBreathingSoldierLowerAsset',
             ),
           ),
@@ -297,7 +305,7 @@ void main() {
           of: panel,
           matching: find.byKey(
             ValueKey<String>(
-              'soldier-pixelated-${SoldierPixelationLevel.extreme.name}-'
+              'soldier-pixelated-${SoldierPixelationLevel.fine.name}-'
               '${baseCampRifleRegripAssets.first}',
             ),
           ),
