@@ -35,6 +35,66 @@ enum _HelicopterInteraction { partEdit, mapNav }
 
 enum _HelicopterPreview { stationary, flight }
 
+const double _sectionTabsHeight = 52;
+const double _workspaceHandleHeight = 24;
+const double _preferredMinimumMapHeight = 120;
+const double _preferredMinimumControlsHeight = 180;
+const double _defaultMapWorkspaceFraction = .35;
+
+class _BaseCampEditorWorkspaceMetrics {
+  const _BaseCampEditorWorkspaceMetrics({
+    required this.mapHeight,
+    required this.handleHeight,
+    required this.panelHeight,
+    required this.minimumMapHeight,
+    required this.maximumMapHeight,
+  });
+
+  factory _BaseCampEditorWorkspaceMetrics.fromHeight(
+    double availableHeight,
+    double requestedMapFraction,
+  ) {
+    final safeHeight = math.max(0.0, availableHeight);
+    final handleHeight = math.min(_workspaceHandleHeight, safeHeight);
+    final panelHeight = math.max(0.0, safeHeight - handleHeight);
+    if (panelHeight == 0) {
+      return _BaseCampEditorWorkspaceMetrics(
+        mapHeight: 0,
+        handleHeight: handleHeight,
+        panelHeight: 0,
+        minimumMapHeight: 0,
+        maximumMapHeight: 0,
+      );
+    }
+
+    final preferredTotal =
+        _preferredMinimumMapHeight + _preferredMinimumControlsHeight;
+    final reduction = math.min(1.0, panelHeight / preferredTotal);
+    final minimumMapHeight = _preferredMinimumMapHeight * reduction;
+    final minimumControlsHeight = _preferredMinimumControlsHeight * reduction;
+    final maximumMapHeight = math.max(
+      minimumMapHeight,
+      panelHeight - minimumControlsHeight,
+    );
+    final requestedMapHeight = panelHeight * requestedMapFraction;
+    return _BaseCampEditorWorkspaceMetrics(
+      mapHeight: requestedMapHeight
+          .clamp(minimumMapHeight, maximumMapHeight)
+          .toDouble(),
+      handleHeight: handleHeight,
+      panelHeight: panelHeight,
+      minimumMapHeight: minimumMapHeight,
+      maximumMapHeight: maximumMapHeight,
+    );
+  }
+
+  final double mapHeight;
+  final double handleHeight;
+  final double panelHeight;
+  final double minimumMapHeight;
+  final double maximumMapHeight;
+}
+
 int _nearestPolygonSegment(
   List<Offset> points,
   Offset point, {
@@ -260,7 +320,16 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   final List<BaseCampMapConfiguration> _undo = <BaseCampMapConfiguration>[];
   final GlobalKey<_BaseCampEditorCanvasState> _canvasKey =
       GlobalKey<_BaseCampEditorCanvasState>();
+  final ScrollController _sectionTabsController = ScrollController();
+  final ScrollController _controlsScrollController = ScrollController();
+  final GlobalKey _sectionTabsViewportKey = GlobalKey();
+  final Map<_BaseCampEditorSection, GlobalKey> _sectionTabKeys =
+      <_BaseCampEditorSection, GlobalKey>{
+        for (final section in _BaseCampEditorSection.values)
+          section: GlobalKey(),
+      };
   _BaseCampEditorSection _section = _BaseCampEditorSection.routes;
+  double _mapWorkspaceFraction = _defaultMapWorkspaceFraction;
   String _routeId = 'route-a';
   String _facilityId = 'status';
   String _objectId = 'status';
@@ -311,6 +380,8 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   void dispose() {
     baseCampHelicopterEditorActive.value = false;
     _waterDraftDebounce?.cancel();
+    _sectionTabsController.dispose();
+    _controlsScrollController.dispose();
     if (_pendingWaterDraft != null) {
       unawaited(_drainWaterDraftWrites().catchError((_) {}));
     }
@@ -363,6 +434,42 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       _awaitingNewWaterArea = false;
       _awaitingWaterPoint = false;
       _awaitingExclusionPoint = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_sectionTabsController.hasClients) return;
+      final tabContext = _sectionTabKeys[section]?.currentContext;
+      final tabBox = tabContext?.findRenderObject() as RenderBox?;
+      final viewportBox =
+          _sectionTabsViewportKey.currentContext?.findRenderObject()
+              as RenderBox?;
+      if (tabBox == null || viewportBox == null) return;
+      final viewportCenterX = viewportBox
+          .localToGlobal(viewportBox.size.center(Offset.zero))
+          .dx;
+      final tabCenterX = tabBox
+          .localToGlobal(tabBox.size.center(Offset.zero))
+          .dx;
+      final target =
+          (_sectionTabsController.offset + tabCenterX - viewportCenterX)
+              .clamp(
+                _sectionTabsController.position.minScrollExtent,
+                _sectionTabsController.position.maxScrollExtent,
+              )
+              .toDouble();
+      _sectionTabsController.jumpTo(target);
+    });
+  }
+
+  void _resizeWorkspace(
+    DragUpdateDetails details,
+    _BaseCampEditorWorkspaceMetrics metrics,
+  ) {
+    if (metrics.panelHeight <= 0) return;
+    final nextMapHeight = (metrics.mapHeight + details.delta.dy)
+        .clamp(metrics.minimumMapHeight, metrics.maximumMapHeight)
+        .toDouble();
+    setState(() {
+      _mapWorkspaceFraction = nextMapHeight / metrics.panelHeight;
     });
   }
 
@@ -1618,160 +1725,263 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         body: SafeArea(
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final item in const <(_BaseCampEditorSection, String)>[
-                      (_BaseCampEditorSection.routes, 'ROUTE EDITOR'),
-                      (_BaseCampEditorSection.buildings, 'BUILDING EDITOR'),
-                      (_BaseCampEditorSection.objects, 'OBJECT EDITOR'),
-                      (_BaseCampEditorSection.smokeOrigin, 'SMOKE ORIGIN'),
-                      (_BaseCampEditorSection.labels, 'FACILITY LABEL'),
-                      (_BaseCampEditorSection.waterMask, 'WATER MASK'),
-                      (_BaseCampEditorSection.shoreline, 'SHORELINE'),
-                      (_BaseCampEditorSection.exclusionMask, 'EXCLUSION MASK'),
-                      (_BaseCampEditorSection.staticSoldiers, 'STATIC SOLDIER'),
-                      (_BaseCampEditorSection.soldierSize, 'SOLDIER SIZE'),
-                      (_BaseCampEditorSection.helicopter, 'HELICOPTER'),
-                    ])
-                      ChoiceChip(
-                        label: Text(item.$2),
-                        selected: _section == item.$1,
-                        onSelected: (_) => _selectSection(item.$1),
-                      ),
-                  ],
+              SizedBox(
+                key: _sectionTabsViewportKey,
+                height: _sectionTabsHeight,
+                width: double.infinity,
+                child: SizedBox(
+                  key: const ValueKey('base-camp-editor-section-tabs'),
+                  child: SingleChildScrollView(
+                    key: const ValueKey('base-camp-editor-section-tabs-scroll'),
+                    controller: _sectionTabsController,
+                    scrollDirection: Axis.horizontal,
+                    padding: EdgeInsets.only(
+                      left: 12,
+                      right: MediaQuery.sizeOf(context).width / 2,
+                    ),
+                    child: Row(
+                      children: [
+                        for (final item
+                            in const <(_BaseCampEditorSection, String)>[
+                              (_BaseCampEditorSection.routes, 'ROUTE EDITOR'),
+                              (
+                                _BaseCampEditorSection.buildings,
+                                'BUILDING EDITOR',
+                              ),
+                              (_BaseCampEditorSection.objects, 'OBJECT EDITOR'),
+                              (
+                                _BaseCampEditorSection.smokeOrigin,
+                                'SMOKE ORIGIN',
+                              ),
+                              (_BaseCampEditorSection.labels, 'FACILITY LABEL'),
+                              (_BaseCampEditorSection.waterMask, 'WATER MASK'),
+                              (_BaseCampEditorSection.shoreline, 'SHORELINE'),
+                              (
+                                _BaseCampEditorSection.exclusionMask,
+                                'EXCLUSION MASK',
+                              ),
+                              (
+                                _BaseCampEditorSection.staticSoldiers,
+                                'STATIC SOLDIER',
+                              ),
+                              (
+                                _BaseCampEditorSection.soldierSize,
+                                'SOLDIER SIZE',
+                              ),
+                              (_BaseCampEditorSection.helicopter, 'HELICOPTER'),
+                            ]) ...[
+                          SizedBox(
+                            key: _sectionTabKeys[item.$1],
+                            child: ChoiceChip(
+                              label: Text(item.$2),
+                              selected: _section == item.$1,
+                              onSelected: (_) => _selectSection(item.$1),
+                            ),
+                          ),
+                          if (item.$1 != _BaseCampEditorSection.helicopter)
+                            const SizedBox(width: 6),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
               Expanded(
-                child: _BaseCampEditorCanvas(
-                  key: _canvasKey,
-                  configuration: _working,
-                  section: _section,
-                  selectedRouteId: _routeId,
-                  selectedFacilityId: _facilityId,
-                  selectedObjectId: _objectId,
-                  selectedPoint: _pointIndex,
-                  onPointSelected: _selectPoint,
-                  onDragStarted: _beginDrag,
-                  onPointDragged: (point) =>
-                      _updatePoint(point, recordUndo: false),
-                  onSmokeOriginDragStarted: _beginSmokeOriginDrag,
-                  onSmokeOriginDragged: (point) =>
-                      _updateSmokeOrigin(point, recordUndo: false),
-                  onObjectDragStarted: () {
-                    setState(() => _undo.add(_clone(_working)));
-                  },
-                  onObjectDragged: (point) {
-                    final object = _working.objects[_objectId]!;
-                    _replaceObject(
-                      object.copyWith(position: point),
-                      recordUndo: false,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final metrics = _BaseCampEditorWorkspaceMetrics.fromHeight(
+                      constraints.maxHeight,
+                      _mapWorkspaceFraction,
                     );
-                  },
-                  onLabelDragStarted: () =>
-                      setState(() => _undo.add(_clone(_working))),
-                  onLabelDragged: (position, part) =>
-                      _updateLabelPosition(_facilityId, position, part: part),
-                  selectedWaterFxId: _waterFxId,
-                  selectedWaterArea: _waterAreaIndex,
-                  selectedWaterPoint: _waterPointIndex,
-                  selectedWaterMask: _waterMaskSelected,
-                  selectedExclusionMask: _exclusionMaskIndex,
-                  awaitingWaterPoint: _awaitingWaterPoint,
-                  onWaterCanvasTap: (position, mask) =>
-                      _insertWaterPointAt(position, mask: mask),
-                  awaitingNewWaterArea: _awaitingNewWaterArea,
-                  onNewWaterAreaCanvasTap: _addWaterAreaAt,
-                  awaitingExclusionPoint: _awaitingExclusionPoint,
-                  onExclusionCanvasTap: _insertExclusionPointAt,
-                  onWaterPointSelected: (index, mask) => setState(() {
-                    _waterPointIndex = index;
-                    _waterMaskSelected = mask;
-                  }),
-                  onExclusionSelected: (polygon, point) => setState(() {
-                    _exclusionMaskIndex = polygon;
-                    _waterPointIndex = point;
-                    _waterMaskSelected = false;
-                  }),
-                  onWaterDragStarted: () => setState(() {
-                    _activeWaterDragAreaIndex = _waterAreaIndex;
-                    _undo.add(_clone(_working));
-                  }),
-                  onWaterPointDragged: (index, position, mask) {
-                    if (_activeWaterDragAreaIndex != _waterAreaIndex) return;
-                    _updateWaterPoint(_waterFxId, index, position, mask: mask);
-                  },
-                  onExclusionPointDragged: (polygon, index, position) {
-                    if (_activeWaterDragAreaIndex != _waterAreaIndex) return;
-                    final effect = _working.waterFx[_waterFxId]!;
-                    final areas = _areas(effect);
-                    final areaIndex = _safeAreaIndex(effect);
-                    final area = areas[areaIndex];
-                    if (polygon < 0 || polygon >= area.exclusionMasks.length) {
-                      return;
-                    }
-                    final masks = area.exclusionMasks
-                        .map((item) => List<Offset>.of(item))
-                        .toList(growable: false);
-                    if (index < 0 || index >= masks[polygon].length) return;
-                    masks[polygon][index] = Offset(
-                      position.dx
-                          .clamp(0, baseCampMapArtworkSize.width)
-                          .toDouble(),
-                      position.dy
-                          .clamp(0, baseCampMapArtworkSize.height)
-                          .toDouble(),
-                    );
-                    setState(
-                      () => _working = _working.copyWith(
-                        waterFx: <String, BaseCampWaterFx>{
-                          ..._working.waterFx,
-                          _waterFxId: _withAreas(
-                            effect,
-                            areas
-                              ..[areaIndex] = BaseCampWaterArea(
-                                mask: area.mask,
-                                shoreline: area.shoreline,
-                                exclusionMasks: masks,
-                              ),
+                    return Column(
+                      children: [
+                        SizedBox(
+                          key: const ValueKey('base-camp-editor-map-pane'),
+                          height: metrics.mapHeight,
+                          child: _BaseCampEditorCanvas(
+                            key: _canvasKey,
+                            configuration: _working,
+                            section: _section,
+                            selectedRouteId: _routeId,
+                            selectedFacilityId: _facilityId,
+                            selectedObjectId: _objectId,
+                            selectedPoint: _pointIndex,
+                            onPointSelected: _selectPoint,
+                            onDragStarted: _beginDrag,
+                            onPointDragged: (point) =>
+                                _updatePoint(point, recordUndo: false),
+                            onSmokeOriginDragStarted: _beginSmokeOriginDrag,
+                            onSmokeOriginDragged: (point) =>
+                                _updateSmokeOrigin(point, recordUndo: false),
+                            onObjectDragStarted: () {
+                              setState(() => _undo.add(_clone(_working)));
+                            },
+                            onObjectDragged: (point) {
+                              final object = _working.objects[_objectId]!;
+                              _replaceObject(
+                                object.copyWith(position: point),
+                                recordUndo: false,
+                              );
+                            },
+                            onLabelDragStarted: () =>
+                                setState(() => _undo.add(_clone(_working))),
+                            onLabelDragged: (position, part) =>
+                                _updateLabelPosition(
+                                  _facilityId,
+                                  position,
+                                  part: part,
+                                ),
+                            selectedWaterFxId: _waterFxId,
+                            selectedWaterArea: _waterAreaIndex,
+                            selectedWaterPoint: _waterPointIndex,
+                            selectedWaterMask: _waterMaskSelected,
+                            selectedExclusionMask: _exclusionMaskIndex,
+                            awaitingWaterPoint: _awaitingWaterPoint,
+                            onWaterCanvasTap: (position, mask) =>
+                                _insertWaterPointAt(position, mask: mask),
+                            awaitingNewWaterArea: _awaitingNewWaterArea,
+                            onNewWaterAreaCanvasTap: _addWaterAreaAt,
+                            awaitingExclusionPoint: _awaitingExclusionPoint,
+                            onExclusionCanvasTap: _insertExclusionPointAt,
+                            onWaterPointSelected: (index, mask) => setState(() {
+                              _waterPointIndex = index;
+                              _waterMaskSelected = mask;
+                            }),
+                            onExclusionSelected: (polygon, point) =>
+                                setState(() {
+                                  _exclusionMaskIndex = polygon;
+                                  _waterPointIndex = point;
+                                  _waterMaskSelected = false;
+                                }),
+                            onWaterDragStarted: () => setState(() {
+                              _activeWaterDragAreaIndex = _waterAreaIndex;
+                              _undo.add(_clone(_working));
+                            }),
+                            onWaterPointDragged: (index, position, mask) {
+                              if (_activeWaterDragAreaIndex !=
+                                  _waterAreaIndex) {
+                                return;
+                              }
+                              _updateWaterPoint(
+                                _waterFxId,
+                                index,
+                                position,
+                                mask: mask,
+                              );
+                            },
+                            onExclusionPointDragged:
+                                (polygon, index, position) {
+                                  if (_activeWaterDragAreaIndex !=
+                                      _waterAreaIndex) {
+                                    return;
+                                  }
+                                  final effect = _working.waterFx[_waterFxId]!;
+                                  final areas = _areas(effect);
+                                  final areaIndex = _safeAreaIndex(effect);
+                                  final area = areas[areaIndex];
+                                  if (polygon < 0 ||
+                                      polygon >= area.exclusionMasks.length) {
+                                    return;
+                                  }
+                                  final masks = area.exclusionMasks
+                                      .map((item) => List<Offset>.of(item))
+                                      .toList(growable: false);
+                                  if (index < 0 ||
+                                      index >= masks[polygon].length) {
+                                    return;
+                                  }
+                                  masks[polygon][index] = Offset(
+                                    position.dx
+                                        .clamp(0, baseCampMapArtworkSize.width)
+                                        .toDouble(),
+                                    position.dy
+                                        .clamp(0, baseCampMapArtworkSize.height)
+                                        .toDouble(),
+                                  );
+                                  setState(
+                                    () => _working = _working.copyWith(
+                                      waterFx: <String, BaseCampWaterFx>{
+                                        ..._working.waterFx,
+                                        _waterFxId: _withAreas(
+                                          effect,
+                                          areas
+                                            ..[areaIndex] = BaseCampWaterArea(
+                                              mask: area.mask,
+                                              shoreline: area.shoreline,
+                                              exclusionMasks: masks,
+                                            ),
+                                        ),
+                                      },
+                                    ),
+                                  );
+                                  _scheduleWaterDraftSave();
+                                },
+                            selectedStaticSoldierId: _staticSoldierId,
+                            onStaticSoldierSelected: (id) =>
+                                setState(() => _staticSoldierId = id),
+                            onStaticSoldierDragStarted: (id) => setState(() {
+                              _staticSoldierId = id;
+                              _undo.add(_clone(_working));
+                            }),
+                            onStaticSoldierDragged: (id, position) {
+                              _updateStaticSoldierPosition(id, position);
+                            },
+                            helicopterPart: _helicopterPart,
+                            helicopterInteraction: _helicopterInteraction,
+                            helicopterPreview: _helicopterPreview,
+                            helicopterRotorsOn: _helicopterRotorsOn,
+                            helicopterMainVisible: _helicopterMainVisible,
+                            helicopterTailVisible: _helicopterTailVisible,
+                            helicopterMainFrame: _helicopterMainFrame,
+                            helicopterTailFrame: _helicopterTailFrame,
+                            helicopterTestPosition: _helicopterTestPosition,
+                            helicopterDirection: _helicopterDirection,
+                            helicopterFlightRunId: _helicopterFlightRunId,
+                            onHelicopterFlightComplete: _stopHelicopterFlight,
+                            onHelicopterGestureStart: _beginHelicopterGesture,
+                            onHelicopterGestureUpdate: _updateHelicopterGesture,
                           ),
-                        },
-                      ),
+                        ),
+                        GestureDetector(
+                          key: const ValueKey('base-camp-editor-resize-handle'),
+                          behavior: HitTestBehavior.opaque,
+                          onVerticalDragUpdate: (details) =>
+                              _resizeWorkspace(details, metrics),
+                          child: SizedBox(
+                            height: metrics.handleHeight,
+                            child: Center(
+                              child: Container(
+                                width: 44,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.outlineVariant,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          key: const ValueKey('base-camp-editor-controls-pane'),
+                          child: Scrollbar(
+                            controller: _controlsScrollController,
+                            child: SingleChildScrollView(
+                              key: const ValueKey(
+                                'base-camp-editor-controls-scroll',
+                              ),
+                              controller: _controlsScrollController,
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
+                              child: _editorControls(),
+                            ),
+                          ),
+                        ),
+                      ],
                     );
-                    _scheduleWaterDraftSave();
                   },
-                  selectedStaticSoldierId: _staticSoldierId,
-                  onStaticSoldierSelected: (id) =>
-                      setState(() => _staticSoldierId = id),
-                  onStaticSoldierDragStarted: (id) => setState(() {
-                    _staticSoldierId = id;
-                    _undo.add(_clone(_working));
-                  }),
-                  onStaticSoldierDragged: (id, position) {
-                    _updateStaticSoldierPosition(id, position);
-                  },
-                  helicopterPart: _helicopterPart,
-                  helicopterInteraction: _helicopterInteraction,
-                  helicopterPreview: _helicopterPreview,
-                  helicopterRotorsOn: _helicopterRotorsOn,
-                  helicopterMainVisible: _helicopterMainVisible,
-                  helicopterTailVisible: _helicopterTailVisible,
-                  helicopterMainFrame: _helicopterMainFrame,
-                  helicopterTailFrame: _helicopterTailFrame,
-                  helicopterTestPosition: _helicopterTestPosition,
-                  helicopterDirection: _helicopterDirection,
-                  helicopterFlightRunId: _helicopterFlightRunId,
-                  onHelicopterFlightComplete: _stopHelicopterFlight,
-                  onHelicopterGestureStart: _beginHelicopterGesture,
-                  onHelicopterGestureUpdate: _updateHelicopterGesture,
                 ),
-              ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 170),
-                child: SingleChildScrollView(child: _editorControls()),
               ),
             ],
           ),
@@ -3045,6 +3255,8 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
   final TransformationController _transform = TransformationController();
   final GlobalKey _sourceKey = GlobalKey();
   Size? _viewport;
+  Offset? _pendingViewportAnchorScene;
+  int _viewportAdjustmentGeneration = 0;
   Matrix4? _transformBeforeWaterFocus;
   String? _focusedWaterFxId;
   final ValueNotifier<Duration> _previewElapsed = ValueNotifier<Duration>(
@@ -3118,11 +3330,47 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
     );
   }
 
-  void _setInitialFit(Size viewport) {
+  void _updateViewport(Size viewport) {
     if (_viewport == viewport) return;
+    final previous = _viewport;
+    if (previous == null) {
+      _viewport = viewport;
+      final generation = ++_viewportAdjustmentGeneration;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && generation == _viewportAdjustmentGeneration) {
+          resetView();
+        }
+      });
+      return;
+    }
+
+    _pendingViewportAnchorScene ??= _transform.toScene(
+      previous.center(Offset.zero),
+    );
     _viewport = viewport;
+    final generation = ++_viewportAdjustmentGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) resetView();
+      if (!mounted || generation != _viewportAdjustmentGeneration) return;
+      final focusedId = _focusedWaterFxId;
+      if (focusedId != null) {
+        _pendingViewportAnchorScene = null;
+        _applyWaterFocus(focusedId);
+        return;
+      }
+      final anchorScene = _pendingViewportAnchorScene;
+      _pendingViewportAnchorScene = null;
+      if (anchorScene == null) return;
+      final matrix = Matrix4.copy(_transform.value);
+      final mappedAnchor = MatrixUtils.transformPoint(matrix, anchorScene);
+      final viewportCenter = viewport.center(Offset.zero);
+      final delta = viewportCenter - mappedAnchor;
+      final translation = matrix.getTranslation();
+      matrix.setTranslationRaw(
+        translation.x + delta.dx,
+        translation.y + delta.dy,
+        translation.z,
+      );
+      _transform.value = matrix;
     });
   }
 
@@ -3150,7 +3398,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final viewport = constraints.biggest;
-      _setInitialFit(viewport);
+      _updateViewport(viewport);
       final viewer = InteractiveViewer(
         key: const ValueKey('base-camp-editor-map'),
         transformationController: _transform,

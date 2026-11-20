@@ -16,6 +16,14 @@ import 'package:or_app/features/themes/base_camp/widgets/base_camp_map.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_water_surface_v3b.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+Future<void> _selectMapEditorSection(WidgetTester tester, String label) async {
+  final tab = find.text(label);
+  await tester.ensureVisible(tab);
+  await tester.pump(const Duration(milliseconds: 250));
+  await tester.tap(tab);
+  await tester.pump();
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -1903,8 +1911,7 @@ void main() {
       const Offset(-520, 0),
     );
     await tester.pump();
-    await tester.tap(find.text('SOLDIER SIZE'));
-    await tester.pump();
+    await _selectMapEditorSection(tester, 'SOLDIER SIZE');
     expect(find.text('1/1'), findsOneWidget);
     expect(find.text('2/3'), findsOneWidget);
     expect(find.text('1/2'), findsOneWidget);
@@ -1914,8 +1921,7 @@ void main() {
       find.byKey(const ValueKey('base-camp-editor-reset-view')),
       findsOneWidget,
     );
-    await tester.tap(find.text('SMOKE ORIGIN'));
-    await tester.pump();
+    await _selectMapEditorSection(tester, 'SMOKE ORIGIN');
     expect(
       find.byKey(const ValueKey('base-camp-editor-smoke-origin')),
       findsOneWidget,

@@ -10,6 +10,14 @@ import 'package:or_app/features/themes/base_camp/base_camp_soldier_motion.dart';
 import 'package:or_app/features/themes/base_camp/soldier_live_motion_preview_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+Future<void> _selectMapEditorSection(WidgetTester tester, String label) async {
+  final tab = find.text(label);
+  await tester.ensureVisible(tab);
+  await tester.pump(const Duration(milliseconds: 250));
+  await tester.tap(tab);
+  await tester.pump();
+}
+
 void main() {
   test('approved soldier transform is the production shared reference', () {
     expect(baseCampApprovedRifleGlobalX, -0.9999618530273438);
@@ -230,8 +238,7 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 250));
-      await tester.tap(find.text('STATIC SOLDIER'));
-      await tester.pump();
+      await _selectMapEditorSection(tester, 'STATIC SOLDIER');
 
       final guard1 = find.byKey(
         const ValueKey('base-camp-static-soldier-handle-guard-1'),
@@ -298,8 +305,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: BaseCampMapEditorPage()));
     await tester.pump(const Duration(milliseconds: 200));
 
-    await tester.tap(find.text('WATER MASK'));
-    await tester.pump();
+    await _selectMapEditorSection(tester, 'WATER MASK');
     final newArea = find.byKey(
       const ValueKey('base-camp-editor-water-new-area'),
     );
@@ -375,8 +381,7 @@ void main() {
     expect(find.text('RECOVER WATER EDITS?'), findsOneWidget);
     await tester.tap(find.text('RESTORE'));
     await tester.pump();
-    await tester.tap(find.text('WATER MASK'));
-    await tester.pump();
+    await _selectMapEditorSection(tester, 'WATER MASK');
 
     final restoredSelector = tester.widget<DropdownButton<int>>(
       find.byKey(const ValueKey('base-camp-editor-water-select-area')),
@@ -409,8 +414,7 @@ void main() {
 
       await tester.pumpWidget(editor());
       await tester.pump(const Duration(milliseconds: 200));
-      await tester.tap(find.text('WATER MASK'));
-      await tester.pump();
+      await _selectMapEditorSection(tester, 'WATER MASK');
       await tester.tap(
         find.byKey(const ValueKey('base-camp-editor-water-new-area')),
       );
@@ -433,8 +437,7 @@ void main() {
       expect(find.text('RECOVER WATER EDITS?'), findsOneWidget);
       await tester.tap(find.text('RESTORE'));
       await tester.pump();
-      await tester.tap(find.text('WATER MASK'));
-      await tester.pump();
+      await _selectMapEditorSection(tester, 'WATER MASK');
       final selector = tester.widget<DropdownButton<int>>(
         find.byKey(const ValueKey('base-camp-editor-water-select-area')),
       );
@@ -468,8 +471,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('WATER MASK'));
-    await tester.pump();
+    await _selectMapEditorSection(tester, 'WATER MASK');
     await tester.tap(
       find.byKey(const ValueKey('base-camp-editor-water-new-area')),
     );
@@ -512,8 +514,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('WATER MASK'));
-    await tester.pump();
+    await _selectMapEditorSection(tester, 'WATER MASK');
     await tester.tap(
       find.byKey(const ValueKey('base-camp-editor-water-new-area')),
     );
@@ -554,8 +555,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('WATER MASK'));
-    await tester.pump();
+    await _selectMapEditorSection(tester, 'WATER MASK');
     await tester.tap(
       find.byKey(const ValueKey('base-camp-editor-water-new-area')),
     );
@@ -603,8 +603,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('WATER MASK'));
-    await tester.pump();
+    await _selectMapEditorSection(tester, 'WATER MASK');
 
     final selector = find.byKey(
       const ValueKey('base-camp-editor-water-select-area'),
@@ -699,8 +698,9 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 250));
-      await tester.tap(find.text('HELICOPTER'));
-      await tester.pump();
+      await tester.ensureVisible(find.text('HELICOPTER'));
+      await tester.pump(const Duration(milliseconds: 250));
+      await _selectMapEditorSection(tester, 'HELICOPTER');
 
       expect(
         find.byKey(const ValueKey('base-camp-helicopter-editor-preview')),

@@ -22,7 +22,7 @@ void main() {
     tester,
   ) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
-    await tester.binding.setSurfaceSize(const Size(430, 900));
+    await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = BaseCampMapConfigurationController()
       ..resetForTesting(BaseCampMapConfiguration.defaults());
@@ -53,7 +53,22 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 250));
+    await _capture(tester, boundaryKey, 'layout_route_default_390');
+    await tester.ensureVisible(find.text('HELICOPTER'));
+    await tester.pump(const Duration(milliseconds: 250));
     await tester.tap(find.text('HELICOPTER'));
+    await tester.pump();
+    await _capture(tester, boundaryKey, 'layout_helicopter_default_390');
+    final resizeHandle = find.byKey(
+      const ValueKey('base-camp-editor-resize-handle'),
+    );
+    await tester.drag(resizeHandle, const Offset(0, 100));
+    await tester.pump();
+    await _capture(tester, boundaryKey, 'layout_map_enlarged_390');
+    await tester.drag(resizeHandle, const Offset(0, -180));
+    await tester.pump();
+    await _capture(tester, boundaryKey, 'layout_controls_enlarged_390');
+    await tester.drag(resizeHandle, const Offset(0, 80));
     await tester.pump();
     await _capture(tester, boundaryKey, 'editor_body_selected');
 
@@ -167,8 +182,20 @@ void main() {
         )
         .onPressed
         ?.call();
+    await tester.ensureVisible(find.text('ROUTE EDITOR'));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.text('ROUTE EDITOR'));
+    await tester.pump();
+    await _capture(tester, boundaryKey, 'layout_route_after_resize_390');
     await tester.tap(find.byKey(const ValueKey('base-camp-editor-save')));
     await tester.pump(const Duration(milliseconds: 150));
+    await tester.binding.setSurfaceSize(const Size(320, 480));
+    await tester.pump();
+    await tester.pump();
+    await _capture(tester, boundaryKey, 'layout_short_viewport_320');
+    await tester.binding.setSurfaceSize(const Size(430, 900));
+    await tester.pump();
+    await tester.pump();
 
     final productionBoundary = GlobalKey();
     final interactive = ValueNotifier<bool>(false);

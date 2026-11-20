@@ -7,6 +7,14 @@ import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dar
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+Future<void> _selectEditorSection(WidgetTester tester, String label) async {
+  final tab = find.text(label);
+  await tester.ensureVisible(tab);
+  await tester.pump(const Duration(milliseconds: 250));
+  await tester.tap(tab);
+  await tester.pump();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -25,8 +33,7 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 250));
-      await tester.tap(find.text('HELICOPTER'));
-      await tester.pump();
+      await _selectEditorSection(tester, 'HELICOPTER');
       expect(
         find.byKey(const ValueKey('base-camp-helicopter-editor-preview')),
         findsOneWidget,
@@ -51,8 +58,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.tap(find.text('HELICOPTER'));
-    await tester.pump();
+    await _selectEditorSection(tester, 'HELICOPTER');
     await tester.tap(find.text('MAIN ROTOR'));
     await tester.pump();
 
@@ -120,8 +126,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.tap(find.text('HELICOPTER'));
-    await tester.pump();
+    await _selectEditorSection(tester, 'HELICOPTER');
     await tester.tap(find.text('MAIN ROTOR'));
     await tester.pump();
     final x = find.byKey(const ValueKey('helicopter-mainRotor-X-772.000'));
@@ -158,8 +163,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.tap(find.text('HELICOPTER'));
-    await tester.pump();
+    await _selectEditorSection(tester, 'HELICOPTER');
     await tester.tap(find.text('MAIN ROTOR'));
     await tester.pump();
     final x = find.byKey(const ValueKey('helicopter-mainRotor-X-772.000'));
@@ -192,8 +196,7 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 250));
-      await tester.tap(find.text('HELICOPTER'));
-      await tester.pump();
+      await _selectEditorSection(tester, 'HELICOPTER');
       final run = find.byKey(const ValueKey('helicopter-run-flight'));
       await tester.ensureVisible(run);
       await tester.pump();
@@ -265,8 +268,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.tap(find.text('HELICOPTER'));
-    await tester.pump();
+    await _selectEditorSection(tester, 'HELICOPTER');
 
     Future<void> setSlider(String key, double value) async {
       final finder = find.byKey(ValueKey(key));
@@ -357,8 +359,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.tap(find.text('HELICOPTER'));
-    await tester.pump();
+    await _selectEditorSection(tester, 'HELICOPTER');
     final run = find.byKey(const ValueKey('helicopter-run-flight'));
     await tester.ensureVisible(run);
     await tester.tap(run);
