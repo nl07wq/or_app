@@ -198,11 +198,17 @@ void main() {
       await tester.ensureVisible(run);
       await tester.pump();
       await tester.tap(run);
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       var transform = tester.widget<Transform>(
         find.byKey(const ValueKey('base-camp-helicopter-direction-transform')),
       );
       expect(transform.transform.entry(0, 0), -1);
+      var pitchTransform = tester.widget<Transform>(
+        find.byKey(const ValueKey('base-camp-helicopter-pitch-transform')),
+      );
+      final leftToRightPitchEntry = pitchTransform.transform.entry(0, 1);
+      expect(leftToRightPitchEntry.abs(), greaterThan(0));
       await tester.tap(find.byKey(const ValueKey('helicopter-stop-flight')));
       final reverse = find.byKey(
         const ValueKey('helicopter-direction-right-to-left'),
@@ -212,11 +218,19 @@ void main() {
       await tester.ensureVisible(run);
       await tester.pump();
       await tester.tap(run);
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       transform = tester.widget<Transform>(
         find.byKey(const ValueKey('base-camp-helicopter-direction-transform')),
       );
       expect(transform.transform.entry(0, 0), 1);
+      pitchTransform = tester.widget<Transform>(
+        find.byKey(const ValueKey('base-camp-helicopter-pitch-transform')),
+      );
+      expect(
+        pitchTransform.transform.entry(0, 1),
+        closeTo(-leftToRightPitchEntry, .000001),
+      );
     },
   );
 
@@ -267,13 +281,23 @@ void main() {
 
     await setSlider('helicopter-global-scale', .75);
     await setSlider('helicopter-main-speed', 20);
-    await setSlider('helicopter-tail-speed', 120);
+    await setSlider('helicopter-tail-speed', 5);
+    await setSlider('helicopter-flight-speed', 400);
+    await setSlider('helicopter-forward-pitch', 12);
     expect(find.text('0.75×'), findsOneWidget);
     expect(find.text('20ms/frame · 120ms loop'), findsOneWidget);
-    expect(find.text('120ms/frame · 1920ms loop'), findsOneWidget);
+    expect(find.text('5ms/frame · 80ms loop'), findsOneWidget);
+    expect(find.text('400 MAP px/s'), findsOneWidget);
+    expect(find.text('12°'), findsOneWidget);
+    final stationaryPitch = tester.widget<Transform>(
+      find.byKey(const ValueKey('base-camp-helicopter-pitch-transform')),
+    );
+    expect(stationaryPitch.transform.entry(0, 1), 0);
     expect(controller.value.helicopterAssembly.globalScale, 1);
     expect(controller.value.helicopterAssembly.mainFrameMs, 110);
     expect(controller.value.helicopterAssembly.tailFrameMs, 50);
+    expect(controller.value.helicopterAssembly.flightSpeed, 190);
+    expect(controller.value.helicopterAssembly.forwardPitchDegrees, 4);
 
     final copy = find.byKey(const ValueKey('helicopter-copy-json'));
     await tester.ensureVisible(copy);
@@ -285,22 +309,38 @@ void main() {
     final assembly = decoded['helicopterAssembly'] as Map<String, Object?>;
     expect(assembly['globalScale'], .75);
     expect(assembly['mainFrameMs'], 20);
-    expect(assembly['tailFrameMs'], 120);
+    expect(assembly['tailFrameMs'], 5);
+    expect(assembly['flightSpeed'], 400);
+    expect(assembly['forwardPitchDegrees'], 12);
     expect(assembly.containsKey('routes'), isFalse);
+
+    final resetFlight = find.byKey(
+      const ValueKey('helicopter-reset-flight-settings'),
+    );
+    await tester.ensureVisible(resetFlight);
+    await tester.tap(resetFlight);
+    await tester.pump();
+    expect(find.text('190 MAP px/s'), findsOneWidget);
+    expect(find.text('4°'), findsOneWidget);
+    expect(find.text('0.75×'), findsOneWidget);
+    expect(find.text('20ms/frame · 120ms loop'), findsOneWidget);
+    expect(find.text('5ms/frame · 80ms loop'), findsOneWidget);
 
     final undo = find.byKey(const ValueKey('base-camp-editor-undo'));
     await tester.ensureVisible(undo);
     await tester.tap(undo);
     await tester.pump();
-    expect(find.text('50ms/frame · 800ms loop'), findsOneWidget);
-    await setSlider('helicopter-tail-speed', 120);
+    expect(find.text('400 MAP px/s'), findsOneWidget);
+    expect(find.text('12°'), findsOneWidget);
     final save = find.byKey(const ValueKey('base-camp-editor-save'));
     await tester.ensureVisible(save);
     await tester.tap(save);
     await tester.pump(const Duration(milliseconds: 100));
     expect(controller.value.helicopterAssembly.globalScale, .75);
     expect(controller.value.helicopterAssembly.mainFrameMs, 20);
-    expect(controller.value.helicopterAssembly.tailFrameMs, 120);
+    expect(controller.value.helicopterAssembly.tailFrameMs, 5);
+    expect(controller.value.helicopterAssembly.flightSpeed, 400);
+    expect(controller.value.helicopterAssembly.forwardPitchDegrees, 12);
   });
 
   testWidgets('RUN FLIGHT visibly crosses the editor MAP on frame time', (
@@ -327,12 +367,19 @@ void main() {
       const ValueKey('base-camp-helicopter-editor-preview'),
     );
     final initialLeft = tester.getTopLeft(preview).dx;
-    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(seconds: 1));
+    final firstLeft = tester.getTopLeft(preview).dx;
+    await tester.pump(const Duration(seconds: 1));
+    final secondLeft = tester.getTopLeft(preview).dx;
+    await tester.pump(const Duration(seconds: 1));
+    final thirdLeft = tester.getTopLeft(preview).dx;
+    await tester.pump(const Duration(seconds: 1));
     final middleRect = tester.getRect(preview);
     final mapRect = tester.getRect(
       find.byKey(const ValueKey('base-camp-editor-map')),
     );
     expect(middleRect.left, isNot(initialLeft));
+    expect(secondLeft - firstLeft, closeTo(thirdLeft - secondLeft, .01));
     expect(middleRect.overlaps(mapRect), isTrue);
     expect(tester.takeException(), isNull);
 

@@ -25,29 +25,51 @@ void main() {
     expect(restored.helicopterAssembly.tailScale, .5);
     expect(restored.helicopterAssembly.mainFrameMs, 110);
     expect(restored.helicopterAssembly.tailFrameMs, 50);
+    expect(restored.helicopterAssembly.flightSpeed, 190);
+    expect(restored.helicopterAssembly.forwardPitchDegrees, 4);
   });
 
-  test('legacy V1 assembly JSON adds optional timing defaults', () {
+  test('legacy V1 assembly JSON adds optional motion defaults', () {
     final legacyAssembly = BaseCampHelicopterAssembly.defaults.toJson()
       ..remove('mainFrameMs')
-      ..remove('tailFrameMs');
+      ..remove('tailFrameMs')
+      ..remove('flightSpeed')
+      ..remove('forwardPitchDegrees');
     final restored = BaseCampHelicopterAssembly.tryParse(legacyAssembly);
     expect(restored, isNotNull);
     expect(restored!.mainFrameMs, 110);
     expect(restored.tailFrameMs, 50);
+    expect(restored.flightSpeed, 190);
+    expect(restored.forwardPitchDegrees, 4);
+  });
+
+  test('V1.1 saved tail timing is preserved while motion fields default', () {
+    final v11 = BaseCampHelicopterAssembly.defaults.toJson()
+      ..['tailFrameMs'] = 20
+      ..remove('flightSpeed')
+      ..remove('forwardPitchDegrees');
+    final restored = BaseCampHelicopterAssembly.tryParse(v11);
+    expect(restored, isNotNull);
+    expect(restored!.tailFrameMs, 20);
+    expect(restored.flightSpeed, 190);
+    expect(restored.forwardPitchDegrees, 4);
   });
 
   test('assembly timing round-trips and rejects invalid increments', () {
     const configured = BaseCampHelicopterAssembly(
       globalScale: .75,
       mainFrameMs: 35,
-      tailFrameMs: 115,
+      tailFrameMs: 5,
+      flightSpeed: 400,
+      forwardPitchDegrees: 12,
     );
     final restored = BaseCampHelicopterAssembly.tryParse(configured.toJson());
     expect(restored, isNotNull);
     expect(restored!.globalScale, .75);
     expect(restored.mainFrameMs, 35);
-    expect(restored.tailFrameMs, 115);
+    expect(restored.tailFrameMs, 5);
+    expect(restored.flightSpeed, 400);
+    expect(restored.forwardPitchDegrees, 12);
     expect(
       BaseCampHelicopterAssembly.tryParse(<String, Object?>{
         ...configured.toJson(),
@@ -55,26 +77,34 @@ void main() {
       }),
       isNull,
     );
+    expect(
+      BaseCampHelicopterAssembly.tryParse(<String, Object?>{
+        ...configured.toJson(),
+        'flightSpeed': 195,
+      }),
+      isNull,
+    );
+    expect(
+      BaseCampHelicopterAssembly.tryParse(<String, Object?>{
+        ...configured.toJson(),
+        'forwardPitchDegrees': 13,
+      }),
+      isNull,
+    );
   });
 
   test('independent rotor timing uses elapsed frame duration', () {
-    const elapsed = Duration(milliseconds: 125);
-    expect(
-      baseCampHelicopterFrameIndex(
-        elapsed: elapsed,
-        frameDurationMs: 20,
-        frameCount: 6,
-      ),
-      0,
-    );
-    expect(
-      baseCampHelicopterFrameIndex(
-        elapsed: elapsed,
-        frameDurationMs: 120,
-        frameCount: 16,
-      ),
-      1,
-    );
+    for (final frameMs in <int>[5, 10, 15, 20, 50, 120]) {
+      const elapsed = Duration(milliseconds: 1000);
+      expect(
+        baseCampHelicopterFrameIndex(
+          elapsed: elapsed,
+          frameDurationMs: frameMs,
+          frameCount: 16,
+        ),
+        (1000 ~/ frameMs) % 16,
+      );
+    }
   });
 
   test('helicopter assembly rejects invalid finite geometry', () {
@@ -122,37 +152,91 @@ void main() {
         schedule.laterDelay(random).inMilliseconds,
         inInclusiveRange(20000, 50000),
       );
-      expect(
-        schedule.flightDuration(random).inMilliseconds,
-        inInclusiveRange(7000, 10000),
-      );
     }
   });
 
-  test('both directions start and finish fully outside the map', () {
-    for (final globalScale in <double>[.1, 1, 3]) {
-      final spriteWidth = 390 * .42 * globalScale;
-      for (final direction in BaseCampHelicopterDirection.values) {
-        final start = baseCampHelicopterLeft(
-          progress: 0,
-          viewportWidth: 390,
-          spriteWidth: spriteWidth,
-          direction: direction,
+  test('rotated assembly starts and finishes fully outside at every scale', () {
+    for (final globalScale in <double>[.1, .5, 1, 3]) {
+      for (final pitch in <int>[0, 12]) {
+        final assembly = BaseCampHelicopterAssembly(
+          globalScale: globalScale,
+          forwardPitchDegrees: pitch,
         );
-        final end = baseCampHelicopterLeft(
-          progress: 1,
-          viewportWidth: 390,
-          spriteWidth: spriteWidth,
-          direction: direction,
-        );
-        if (direction == BaseCampHelicopterDirection.leftToRight) {
-          expect(start, closeTo(-spriteWidth, .000001));
-          expect(end, 390);
-        } else {
-          expect(start, 390);
-          expect(end, closeTo(-spriteWidth, .000001));
+        for (final direction in BaseCampHelicopterDirection.values) {
+          final path = baseCampHelicopterFlightPath(
+            mapWidth: 1254,
+            assembly: assembly,
+            direction: direction,
+          );
+          if (direction == BaseCampHelicopterDirection.leftToRight) {
+            expect(
+              path.startLeft + path.visualBounds.right,
+              lessThanOrEqualTo(.000001),
+            );
+            expect(
+              path.endLeft + path.visualBounds.left,
+              greaterThanOrEqualTo(1254 - .000001),
+            );
+          } else {
+            expect(
+              path.startLeft + path.visualBounds.left,
+              greaterThanOrEqualTo(1254 - .000001),
+            );
+            expect(
+              path.endLeft + path.visualBounds.right,
+              lessThanOrEqualTo(.000001),
+            );
+          }
+          expect(
+            path.duration.inMicroseconds,
+            closeTo(path.travelDistance / assembly.flightSpeed * 1000000, 1),
+          );
         }
       }
+    }
+  });
+
+  test('linear path advances equal MAP distances in equal time', () {
+    for (final speed in <int>[80, 190, 400]) {
+      for (final direction in BaseCampHelicopterDirection.values) {
+        final path = baseCampHelicopterFlightPath(
+          mapWidth: 1254,
+          assembly: BaseCampHelicopterAssembly(flightSpeed: speed),
+          direction: direction,
+        );
+        final segments = <double>[
+          path.leftAt(.25) - path.leftAt(0),
+          path.leftAt(.50) - path.leftAt(.25),
+          path.leftAt(.75) - path.leftAt(.50),
+          path.leftAt(1) - path.leftAt(.75),
+        ];
+        for (final segment in segments.skip(1)) {
+          expect(segment, closeTo(segments.first, .000001));
+        }
+      }
+    }
+  });
+
+  test('pitch eases for 600ms with direction-correct nose-down sign', () {
+    for (final pitch in <int>[0, 4, 12]) {
+      final start = baseCampHelicopterSignedPitchRadians(
+        direction: BaseCampHelicopterDirection.leftToRight,
+        forwardPitchDegrees: pitch,
+        elapsed: Duration.zero,
+      );
+      final leftToRight = baseCampHelicopterSignedPitchRadians(
+        direction: BaseCampHelicopterDirection.leftToRight,
+        forwardPitchDegrees: pitch,
+        elapsed: const Duration(milliseconds: 600),
+      );
+      final rightToLeft = baseCampHelicopterSignedPitchRadians(
+        direction: BaseCampHelicopterDirection.rightToLeft,
+        forwardPitchDegrees: pitch,
+        elapsed: const Duration(milliseconds: 600),
+      );
+      expect(start, 0);
+      expect(leftToRight, closeTo(pitch * math.pi / 180, .000001));
+      expect(rightToLeft, closeTo(-leftToRight, .000001));
     }
   });
 
@@ -197,8 +281,6 @@ void main() {
         firstDelayMax: Duration(milliseconds: 10),
         laterDelayMin: Duration(seconds: 1),
         laterDelayMax: Duration(seconds: 1),
-        flightDurationMin: Duration(milliseconds: 100),
-        flightDurationMax: Duration(milliseconds: 100),
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -250,7 +332,12 @@ void main() {
       await tester.pump();
       expect(taps, 1, reason: 'the visual overlay must not intercept map taps');
 
-      await tester.pump(const Duration(milliseconds: 101));
+      final flightDuration = baseCampHelicopterFlightPath(
+        mapWidth: 320,
+        assembly: BaseCampHelicopterAssembly.defaults,
+        direction: BaseCampHelicopterDirection.leftToRight,
+      ).duration;
+      await tester.pump(flightDuration + const Duration(milliseconds: 1));
       await tester.pump();
       expect(events, contains('HELICOPTER_EXIT'));
       expect(
@@ -321,8 +408,6 @@ void main() {
             schedule: const BaseCampHelicopterSchedule(
               firstDelayMin: Duration(milliseconds: 1),
               firstDelayMax: Duration(milliseconds: 1),
-              flightDurationMin: Duration(seconds: 1),
-              flightDurationMax: Duration(seconds: 1),
             ),
             assetLoader: (_, _) async {},
           ),
@@ -362,6 +447,10 @@ void main() {
                 direction: direction,
                 mainRotorFrame: 2,
                 tailRotorFrame: 7,
+                pitchRadians:
+                    direction == BaseCampHelicopterDirection.leftToRight
+                    ? .1
+                    : -.1,
               ),
             ),
           ),
@@ -371,6 +460,10 @@ void main() {
       final transform = tester.widget<Transform>(
         find.byKey(const ValueKey('base-camp-helicopter-direction-transform')),
       );
+      final pitch = tester.widget<Transform>(
+        find.byKey(const ValueKey('base-camp-helicopter-pitch-transform')),
+      );
+      expect(pitch.transform.entry(0, 1), isNot(0));
       expect(
         find.byKey(const ValueKey('base-camp-helicopter-body')),
         findsOneWidget,
@@ -410,8 +503,6 @@ void main() {
               firstDelayMax: Duration(milliseconds: 1),
               laterDelayMin: Duration(milliseconds: 1),
               laterDelayMax: Duration(milliseconds: 1),
-              flightDurationMin: Duration(milliseconds: 100),
-              flightDurationMax: Duration(milliseconds: 100),
             ),
             assetLoader: (_, _) async => loads++,
           ),
@@ -515,6 +606,15 @@ void main() {
       SystemDiagnostics.instance.copyText(),
       isNot(contains('HELICOPTER_ASSET_LOAD_START')),
     );
+    final elements = tester.allElements.toList(growable: false);
+    final labelIndex = elements.indexWhere(
+      (element) => element.widget is BaseCampFacilityLabelLayer,
+    );
+    final helicopterIndex = elements.indexWhere(
+      (element) => element.widget is BaseCampHelicopterFlybyLayer,
+    );
+    expect(labelIndex, greaterThanOrEqualTo(0));
+    expect(helicopterIndex, greaterThan(labelIndex));
     expect(tester.takeException(), isNull);
   });
 }

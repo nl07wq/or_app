@@ -294,7 +294,6 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       BaseCampHelicopterDirection.leftToRight;
   int? _helicopterFlightRunId;
   int _nextHelicopterFlightRunId = 0;
-  Timer? _helicopterFlightTimer;
   BaseCampMapConfiguration? _helicopterGestureStart;
   BaseCampMapConfiguration? _helicopterSliderStart;
   Offset _helicopterGesturePosition = Offset.zero;
@@ -311,7 +310,6 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   @override
   void dispose() {
     baseCampHelicopterEditorActive.value = false;
-    _helicopterFlightTimer?.cancel();
     _waterDraftDebounce?.cancel();
     if (_pendingWaterDraft != null) {
       unawaited(_drainWaterDraftWrites().catchError((_) {}));
@@ -459,19 +457,13 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   }
 
   void _runHelicopterFlight() {
-    _helicopterFlightTimer?.cancel();
     setState(() {
       _helicopterPreview = _HelicopterPreview.flight;
       _helicopterFlightRunId = ++_nextHelicopterFlightRunId;
     });
-    _helicopterFlightTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted) setState(() => _helicopterFlightRunId = null);
-    });
   }
 
   void _stopHelicopterFlight() {
-    _helicopterFlightTimer?.cancel();
-    _helicopterFlightTimer = null;
     if (mounted && _helicopterFlightRunId != null) {
       setState(() => _helicopterFlightRunId = null);
     } else {
@@ -1772,6 +1764,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                   helicopterTestPosition: _helicopterTestPosition,
                   helicopterDirection: _helicopterDirection,
                   helicopterFlightRunId: _helicopterFlightRunId,
+                  onHelicopterFlightComplete: _stopHelicopterFlight,
                   onHelicopterGestureStart: _beginHelicopterGesture,
                   onHelicopterGestureUpdate: _updateHelicopterGesture,
                 ),
@@ -2599,6 +2592,48 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               ),
             ),
           ),
+          _helicopterSlider(
+            label: 'FLIGHT SPEED',
+            valueLabel: '${assembly.flightSpeed} MAP px/s',
+            keyName: 'helicopter-flight-speed',
+            value: assembly.flightSpeed.toDouble(),
+            minimum: BaseCampHelicopterAssembly.minimumFlightSpeed.toDouble(),
+            maximum: BaseCampHelicopterAssembly.maximumFlightSpeed.toDouble(),
+            divisions:
+                (BaseCampHelicopterAssembly.maximumFlightSpeed -
+                    BaseCampHelicopterAssembly.minimumFlightSpeed) ~/
+                BaseCampHelicopterAssembly.flightSpeedStep,
+            onChanged: (value) => _updateHelicopterAssembly(
+              assembly.copyWith(
+                flightSpeed:
+                    (value / BaseCampHelicopterAssembly.flightSpeedStep)
+                        .round() *
+                    BaseCampHelicopterAssembly.flightSpeedStep,
+              ),
+            ),
+          ),
+          _helicopterSlider(
+            label: 'FORWARD PITCH',
+            valueLabel: '${assembly.forwardPitchDegrees}°',
+            keyName: 'helicopter-forward-pitch',
+            value: assembly.forwardPitchDegrees.toDouble(),
+            minimum: BaseCampHelicopterAssembly.minimumForwardPitchDegrees
+                .toDouble(),
+            maximum: BaseCampHelicopterAssembly.maximumForwardPitchDegrees
+                .toDouble(),
+            divisions:
+                (BaseCampHelicopterAssembly.maximumForwardPitchDegrees -
+                    BaseCampHelicopterAssembly.minimumForwardPitchDegrees) ~/
+                BaseCampHelicopterAssembly.forwardPitchDegreesStep,
+            onChanged: (value) => _updateHelicopterAssembly(
+              assembly.copyWith(
+                forwardPitchDegrees:
+                    (value / BaseCampHelicopterAssembly.forwardPitchDegreesStep)
+                        .round() *
+                    BaseCampHelicopterAssembly.forwardPitchDegreesStep,
+              ),
+            ),
+          ),
           Wrap(
             alignment: WrapAlignment.end,
             spacing: 6,
@@ -2624,6 +2659,28 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
                       ),
                 icon: const Icon(Icons.restart_alt),
                 label: const Text('RESET SPEED'),
+              ),
+              TextButton.icon(
+                key: const ValueKey('helicopter-reset-flight-settings'),
+                onPressed:
+                    assembly.flightSpeed ==
+                            BaseCampHelicopterAssembly.defaultFlightSpeed &&
+                        assembly.forwardPitchDegrees ==
+                            BaseCampHelicopterAssembly
+                                .defaultForwardPitchDegrees
+                    ? null
+                    : () => _mutate(
+                        _working.copyWith(
+                          helicopterAssembly: assembly.copyWith(
+                            flightSpeed:
+                                BaseCampHelicopterAssembly.defaultFlightSpeed,
+                            forwardPitchDegrees: BaseCampHelicopterAssembly
+                                .defaultForwardPitchDegrees,
+                          ),
+                        ),
+                      ),
+                icon: const Icon(Icons.restart_alt),
+                label: const Text('RESET FLIGHT SETTINGS'),
               ),
               OutlinedButton.icon(
                 key: const ValueKey('helicopter-copy-json'),
@@ -2925,6 +2982,7 @@ class _BaseCampEditorCanvas extends StatefulWidget {
     required this.helicopterTestPosition,
     required this.helicopterDirection,
     required this.helicopterFlightRunId,
+    required this.onHelicopterFlightComplete,
     required this.onHelicopterGestureStart,
     required this.onHelicopterGestureUpdate,
   });
@@ -2974,6 +3032,7 @@ class _BaseCampEditorCanvas extends StatefulWidget {
   final Offset helicopterTestPosition;
   final BaseCampHelicopterDirection helicopterDirection;
   final int? helicopterFlightRunId;
+  final VoidCallback onHelicopterFlightComplete;
   final VoidCallback onHelicopterGestureStart;
   final void Function(Offset mapDelta, Offset bodyDelta, double scale)
   onHelicopterGestureUpdate;
@@ -3212,6 +3271,7 @@ class _BaseCampEditorCanvasState extends State<_BaseCampEditorCanvas> {
             helicopterTestPosition: widget.helicopterTestPosition,
             helicopterDirection: widget.helicopterDirection,
             helicopterFlightRunId: widget.helicopterFlightRunId,
+            onHelicopterFlightComplete: widget.onHelicopterFlightComplete,
             onHelicopterGestureStart: widget.onHelicopterGestureStart,
             onHelicopterGestureUpdate: widget.onHelicopterGestureUpdate,
           ),
@@ -3312,6 +3372,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
     required this.helicopterTestPosition,
     required this.helicopterDirection,
     required this.helicopterFlightRunId,
+    required this.onHelicopterFlightComplete,
     required this.onHelicopterGestureStart,
     required this.onHelicopterGestureUpdate,
   });
@@ -3361,6 +3422,7 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
   final Offset helicopterTestPosition;
   final BaseCampHelicopterDirection helicopterDirection;
   final int? helicopterFlightRunId;
+  final VoidCallback onHelicopterFlightComplete;
   final VoidCallback onHelicopterGestureStart;
   final void Function(Offset mapDelta, Offset bodyDelta, double scale)
   onHelicopterGestureUpdate;
@@ -3427,6 +3489,14 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             ),
           ),
         ),
+        // Facility plates stay above terrain/facilities, while the aircraft
+        // crosses above them exactly as it does on the production MAP.
+        IgnorePointer(
+          child: BaseCampFacilityLabelLayer(
+            configuration: configuration,
+            geometry: geometry,
+          ),
+        ),
         if (section == _BaseCampEditorSection.helicopter)
           _HelicopterEditorOverlay(
             assembly: configuration.helicopterAssembly,
@@ -3441,17 +3511,10 @@ class _BaseCampEditorSourceMap extends StatelessWidget {
             testPosition: helicopterTestPosition,
             direction: helicopterDirection,
             flightRunId: helicopterFlightRunId,
+            onFlightComplete: onHelicopterFlightComplete,
             onGestureStart: onHelicopterGestureStart,
             onGestureUpdate: onHelicopterGestureUpdate,
           ),
-        // Keep the editor preview's paint order identical to the normal map:
-        // labels must remain readable above facilities, smoke and patrols.
-        IgnorePointer(
-          child: BaseCampFacilityLabelLayer(
-            configuration: configuration,
-            geometry: geometry,
-          ),
-        ),
         if ((section == _BaseCampEditorSection.waterMask ||
                 section == _BaseCampEditorSection.shoreline ||
                 section == _BaseCampEditorSection.exclusionMask) &&
@@ -3704,6 +3767,7 @@ class _HelicopterEditorOverlay extends StatefulWidget {
     required this.testPosition,
     required this.direction,
     required this.flightRunId,
+    required this.onFlightComplete,
     required this.onGestureStart,
     required this.onGestureUpdate,
   });
@@ -3717,6 +3781,7 @@ class _HelicopterEditorOverlay extends StatefulWidget {
   final Offset testPosition;
   final BaseCampHelicopterDirection direction;
   final int? flightRunId;
+  final VoidCallback onFlightComplete;
   final VoidCallback onGestureStart;
   final void Function(Offset mapDelta, Offset bodyDelta, double scale)
   onGestureUpdate;
@@ -3732,6 +3797,7 @@ class _HelicopterEditorOverlayState extends State<_HelicopterEditorOverlay>
   Duration _elapsed = Duration.zero;
   Duration _tickerBase = Duration.zero;
   Duration? _flightStartedAt;
+  bool _completionSent = false;
 
   bool get _needsTicker => widget.rotorsOn || widget.flightRunId != null;
 
@@ -3740,7 +3806,20 @@ class _HelicopterEditorOverlayState extends State<_HelicopterEditorOverlay>
     super.initState();
     _ticker = createTicker((sinceStart) {
       if (!mounted) return;
-      setState(() => _elapsed = _tickerBase + sinceStart);
+      final elapsed = _tickerBase + sinceStart;
+      setState(() => _elapsed = elapsed);
+      final flightStartedAt = _flightStartedAt;
+      if (flightStartedAt != null && !_completionSent) {
+        final path = baseCampHelicopterFlightPath(
+          mapWidth: baseCampMapArtworkSize.width,
+          assembly: widget.assembly,
+          direction: widget.direction,
+        );
+        if (elapsed - flightStartedAt >= path.duration) {
+          _completionSent = true;
+          scheduleMicrotask(widget.onFlightComplete);
+        }
+      }
     });
     if (widget.flightRunId != null) _flightStartedAt = Duration.zero;
     if (_needsTicker) _ticker.start();
@@ -3751,6 +3830,7 @@ class _HelicopterEditorOverlayState extends State<_HelicopterEditorOverlay>
     super.didUpdateWidget(oldWidget);
     if (widget.flightRunId != oldWidget.flightRunId) {
       _flightStartedAt = widget.flightRunId == null ? null : _elapsed;
+      _completionSent = false;
     }
     if (_needsTicker && !_ticker.isActive) {
       _tickerBase = _elapsed;
@@ -3777,21 +3857,25 @@ class _HelicopterEditorOverlayState extends State<_HelicopterEditorOverlay>
         BaseCampHelicopterSprite.sourceSize.width;
     final flight = widget.preview == _HelicopterPreview.flight;
     final flightStart = _flightStartedAt;
+    final path = baseCampHelicopterFlightPath(
+      mapWidth: mapSize.width,
+      assembly: widget.assembly,
+      direction: widget.direction,
+    );
+    final flightElapsed = flightStart == null
+        ? Duration.zero
+        : _elapsed - flightStart;
     final progress = flightStart == null
         ? 0.0
-        : ((_elapsed - flightStart).inMicroseconds /
-                  const Duration(seconds: 8).inMicroseconds)
-              .clamp(0.0, 1.0);
-    final left = flight
-        ? baseCampHelicopterLeft(
-            progress: Curves.easeInOut.transform(progress),
-            viewportWidth: mapSize.width,
-            spriteWidth: width,
-            direction: widget.direction,
-          )
-        : widget.testPosition.dx;
-    final top = flight ? mapSize.height * .1 : widget.testPosition.dy;
-    final animateRotors = flight || widget.rotorsOn;
+        : (flightElapsed.inMicroseconds / path.duration.inMicroseconds).clamp(
+            0.0,
+            1.0,
+          );
+    final left = flight ? path.leftAt(progress) : widget.testPosition.dx;
+    final top = flight
+        ? math.max(mapSize.height * .1, -path.visualBounds.top)
+        : widget.testPosition.dy;
+    final animateRotors = widget.flightRunId != null || widget.rotorsOn;
     final elapsed = _elapsed;
     final mainFrame = animateRotors
         ? baseCampHelicopterFrameIndex(
@@ -3822,6 +3906,13 @@ class _HelicopterEditorOverlayState extends State<_HelicopterEditorOverlay>
         assembly: widget.assembly,
         showMainRotor: widget.mainVisible,
         showTailRotor: widget.tailVisible,
+        pitchRadians: flight
+            ? baseCampHelicopterSignedPitchRadians(
+                direction: widget.direction,
+                forwardPitchDegrees: widget.assembly.forwardPitchDegrees,
+                elapsed: flightElapsed,
+              )
+            : 0,
       ),
     );
     return Positioned(

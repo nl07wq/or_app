@@ -57,25 +57,18 @@ class BaseCampHelicopterSchedule {
     this.firstDelayMax = const Duration(seconds: 25),
     this.laterDelayMin = const Duration(seconds: 20),
     this.laterDelayMax = const Duration(seconds: 50),
-    this.flightDurationMin = const Duration(seconds: 7),
-    this.flightDurationMax = const Duration(seconds: 10),
   });
 
   final Duration firstDelayMin;
   final Duration firstDelayMax;
   final Duration laterDelayMin;
   final Duration laterDelayMax;
-  final Duration flightDurationMin;
-  final Duration flightDurationMax;
 
   Duration firstDelay(math.Random random) =>
       _randomDuration(random, firstDelayMin, firstDelayMax);
 
   Duration laterDelay(math.Random random) =>
       _randomDuration(random, laterDelayMin, laterDelayMax);
-
-  Duration flightDuration(math.Random random) =>
-      _randomDuration(random, flightDurationMin, flightDurationMax);
 }
 
 Duration _randomDuration(
@@ -112,6 +105,171 @@ double baseCampHelicopterLeft({
       ? viewportWidth
       : -spriteWidth;
   return start + (end - start) * normalized;
+}
+
+@immutable
+class BaseCampHelicopterFlightPath {
+  const BaseCampHelicopterFlightPath({
+    required this.startLeft,
+    required this.endLeft,
+    required this.travelDistance,
+    required this.duration,
+    required this.visualBounds,
+  });
+
+  final double startLeft;
+  final double endLeft;
+  final double travelDistance;
+  final Duration duration;
+  final Rect visualBounds;
+
+  double leftAt(double progress) =>
+      startLeft + (endLeft - startLeft) * progress.clamp(0.0, 1.0);
+}
+
+Rect baseCampHelicopterAssemblySourceBounds(
+  BaseCampHelicopterAssembly assembly,
+) {
+  final main = Rect.fromLTWH(
+    assembly.mainHub.dx -
+        BaseCampHelicopterSprite.mainRotorHubInFrame.dx * assembly.mainScale,
+    assembly.mainHub.dy -
+        BaseCampHelicopterSprite.mainRotorHubInFrame.dy * assembly.mainScale,
+    BaseCampHelicopterSprite.mainRotorSize.width * assembly.mainScale,
+    BaseCampHelicopterSprite.mainRotorSize.height * assembly.mainScale,
+  );
+  final tail = Rect.fromLTWH(
+    assembly.tailHub.dx -
+        BaseCampHelicopterSprite.tailRotorHubInFrame.dx * assembly.tailScale,
+    assembly.tailHub.dy -
+        BaseCampHelicopterSprite.tailRotorHubInFrame.dy * assembly.tailScale,
+    BaseCampHelicopterSprite.tailRotorSize.width * assembly.tailScale,
+    BaseCampHelicopterSprite.tailRotorSize.height * assembly.tailScale,
+  );
+  return Rect.fromLTWH(
+    0,
+    0,
+    BaseCampHelicopterAssembly.sourceSize.width,
+    BaseCampHelicopterAssembly.sourceSize.height,
+  ).expandToInclude(main).expandToInclude(tail);
+}
+
+double baseCampHelicopterSignedPitchRadians({
+  required BaseCampHelicopterDirection direction,
+  required int forwardPitchDegrees,
+  required Duration elapsed,
+}) {
+  if (forwardPitchDegrees == 0) return 0;
+  final progress =
+      (elapsed.inMicroseconds /
+              const Duration(milliseconds: 600).inMicroseconds)
+          .clamp(0.0, 1.0);
+  final magnitude =
+      forwardPitchDegrees *
+      math.pi /
+      180 *
+      Curves.easeOutCubic.transform(progress);
+  return direction == BaseCampHelicopterDirection.leftToRight
+      ? magnitude
+      : -magnitude;
+}
+
+BaseCampHelicopterFlightPath baseCampHelicopterFlightPath({
+  required double mapWidth,
+  required BaseCampHelicopterAssembly assembly,
+  required BaseCampHelicopterDirection direction,
+}) {
+  final sourceBounds = baseCampHelicopterAssemblySourceBounds(assembly);
+  final signedPitch =
+      assembly.forwardPitchDegrees *
+      math.pi /
+      180 *
+      (direction == BaseCampHelicopterDirection.leftToRight ? 1 : -1);
+  final envelope = _rotationEnvelope(
+    bounds: sourceBounds,
+    mirrorX: direction == BaseCampHelicopterDirection.leftToRight,
+    endAngle: signedPitch,
+  );
+  final bodyWidth = mapWidth * .42 * assembly.globalScale;
+  final displayScale = bodyWidth / BaseCampHelicopterAssembly.sourceSize.width;
+  final visualBounds = Rect.fromLTRB(
+    envelope.left * displayScale,
+    envelope.top * displayScale,
+    envelope.right * displayScale,
+    envelope.bottom * displayScale,
+  );
+  final startLeft = direction == BaseCampHelicopterDirection.leftToRight
+      ? -visualBounds.right
+      : mapWidth - visualBounds.left;
+  final endLeft = direction == BaseCampHelicopterDirection.leftToRight
+      ? mapWidth - visualBounds.left
+      : -visualBounds.right;
+  final distance = (endLeft - startLeft).abs();
+  return BaseCampHelicopterFlightPath(
+    startLeft: startLeft,
+    endLeft: endLeft,
+    travelDistance: distance,
+    duration: Duration(
+      microseconds: (distance / assembly.flightSpeed * 1000000).round(),
+    ),
+    visualBounds: visualBounds,
+  );
+}
+
+Rect _rotationEnvelope({
+  required Rect bounds,
+  required bool mirrorX,
+  required double endAngle,
+}) {
+  final center = BaseCampHelicopterAssembly.sourceSize.center(Offset.zero);
+  final mirrored = mirrorX
+      ? Rect.fromLTRB(
+          center.dx * 2 - bounds.right,
+          bounds.top,
+          center.dx * 2 - bounds.left,
+          bounds.bottom,
+        )
+      : bounds;
+  final relativeCorners = <Offset>[
+    mirrored.topLeft - center,
+    mirrored.topRight - center,
+    mirrored.bottomLeft - center,
+    mirrored.bottomRight - center,
+  ];
+  final minimumAngle = math.min(0, endAngle).toDouble();
+  final maximumAngle = math.max(0, endAngle).toDouble();
+  var minimumX = double.infinity;
+  var maximumX = double.negativeInfinity;
+  var minimumY = double.infinity;
+  var maximumY = double.negativeInfinity;
+
+  void include(Offset point, double angle) {
+    final cosine = math.cos(angle);
+    final sine = math.sin(angle);
+    final x = point.dx * cosine - point.dy * sine + center.dx;
+    final y = point.dx * sine + point.dy * cosine + center.dy;
+    minimumX = math.min(minimumX, x);
+    maximumX = math.max(maximumX, x);
+    minimumY = math.min(minimumY, y);
+    maximumY = math.max(maximumY, y);
+  }
+
+  for (final point in relativeCorners) {
+    final candidates = <double>[minimumAngle, maximumAngle];
+    final xCritical = math.atan2(-point.dy, point.dx);
+    final yCritical = math.atan2(point.dx, point.dy);
+    for (var turn = -2; turn <= 2; turn++) {
+      candidates
+        ..add(xCritical + turn * math.pi)
+        ..add(yCritical + turn * math.pi);
+    }
+    for (final angle in candidates) {
+      if (angle >= minimumAngle && angle <= maximumAngle) {
+        include(point, angle);
+      }
+    }
+  }
+  return Rect.fromLTRB(minimumX, minimumY, maximumX, maximumY);
 }
 
 int baseCampHelicopterFrameIndex({
@@ -165,6 +323,7 @@ class BaseCampHelicopterDebugFlight {
     this.altitudeFactor = .1,
     this.mainRotorFrame = 0,
     this.tailRotorFrame = 0,
+    this.elapsed = const Duration(milliseconds: 600),
   });
 
   final double progress;
@@ -172,6 +331,7 @@ class BaseCampHelicopterDebugFlight {
   final double altitudeFactor;
   final int mainRotorFrame;
   final int tailRotorFrame;
+  final Duration elapsed;
 }
 
 class _BaseCampHelicopterFlybyLayerState
@@ -190,6 +350,7 @@ class _BaseCampHelicopterFlybyLayerState
   bool _hasCompletedFlight = false;
   int _loadGeneration = 0;
   double _altitudeFactor = .1;
+  Size _mapSize = BaseCampHelicopterAssembly.sourceSize;
   BaseCampHelicopterDirection _direction =
       BaseCampHelicopterDirection.leftToRight;
 
@@ -296,16 +457,25 @@ class _BaseCampHelicopterFlybyLayerState
     }
     if (!_assetsReady && !await _prepareAssets()) return;
     if (!mounted || !_appResumed || !_motionAllowed) return;
-    final duration = widget.schedule.flightDuration(_random);
+    final direction = baseCampHelicopterRandomDirection(_random);
+    final path = baseCampHelicopterFlightPath(
+      mapWidth: _mapSize.width,
+      assembly: widget.assembly,
+      direction: direction,
+    );
+    final duration = path.duration;
     setState(() {
       _active = true;
-      _direction = baseCampHelicopterRandomDirection(_random);
+      _direction = direction;
       _altitudeFactor = .06 + _random.nextDouble() * .1;
       _flightController.duration = duration;
     });
     _record('BASE_CAMP', 'HELICOPTER_SPAWN', <String, Object?>{
       'direction': _direction.name,
       'flightDurationMs': duration.inMilliseconds,
+      'flightSpeedMapPxPerSecond': widget.assembly.flightSpeed,
+      'travelDistanceMapPx': path.travelDistance,
+      'forwardPitchDegrees': widget.assembly.forwardPitchDegrees,
       'altitudeFactor': _altitudeFactor,
     });
     _rotorController
@@ -404,34 +574,41 @@ class _BaseCampHelicopterFlybyLayerState
   @override
   Widget build(BuildContext context) {
     final debug = widget.debugFlight;
-    if (!_active && debug == null) return const SizedBox.expand();
     return IgnorePointer(
       key: const ValueKey('base-camp-helicopter-ignore-pointer'),
       child: ExcludeSemantics(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            _mapSize = Size(constraints.maxWidth, constraints.maxHeight);
+            if (!_active && debug == null) return const SizedBox.expand();
             final spriteWidth =
                 constraints.maxWidth * .42 * widget.assembly.globalScale;
             final spriteHeight =
                 spriteWidth *
                 BaseCampHelicopterSprite.sourceSize.height /
                 BaseCampHelicopterSprite.sourceSize.width;
-            final altitude =
+            final requestedAltitude =
                 constraints.maxHeight *
                 (debug?.altitudeFactor ?? _altitudeFactor);
+            final direction = debug?.direction ?? _direction;
+            final path = baseCampHelicopterFlightPath(
+              mapWidth: constraints.maxWidth,
+              assembly: widget.assembly,
+              direction: direction,
+            );
+            final altitude = math.max(
+              requestedAltitude,
+              -path.visualBounds.top,
+            );
             Widget flightAt(
               double progress,
               BaseCampHelicopterDirection direction,
               int mainFrame,
               int tailFrame,
+              Duration flightElapsed,
             ) => Positioned(
               key: const ValueKey('base-camp-helicopter-positioned'),
-              left: baseCampHelicopterLeft(
-                progress: progress,
-                viewportWidth: constraints.maxWidth,
-                spriteWidth: spriteWidth,
-                direction: direction,
-              ),
+              left: path.leftAt(progress),
               top: altitude,
               width: spriteWidth,
               height: spriteHeight,
@@ -440,6 +617,11 @@ class _BaseCampHelicopterFlybyLayerState
                 mainRotorFrame: mainFrame,
                 tailRotorFrame: tailFrame,
                 assembly: widget.assembly,
+                pitchRadians: baseCampHelicopterSignedPitchRadians(
+                  direction: direction,
+                  forwardPitchDegrees: widget.assembly.forwardPitchDegrees,
+                  elapsed: flightElapsed,
+                ),
               ),
             );
 
@@ -452,6 +634,7 @@ class _BaseCampHelicopterFlybyLayerState
                     debug.direction,
                     debug.mainRotorFrame,
                     debug.tailRotorFrame,
+                    debug.elapsed,
                   ),
                 ],
               );
@@ -467,11 +650,17 @@ class _BaseCampHelicopterFlybyLayerState
                             _rotorController.duration!.inMilliseconds)
                         .floor();
                 final elapsed = Duration(milliseconds: elapsedMs);
+                final flightElapsed = Duration(
+                  microseconds:
+                      (_flightController.value *
+                              _flightController.duration!.inMicroseconds)
+                          .round(),
+                );
                 return Stack(
                   clipBehavior: Clip.none,
                   children: <Widget>[
                     flightAt(
-                      Curves.easeInOut.transform(_flightController.value),
+                      _flightController.value,
                       _direction,
                       baseCampHelicopterFrameIndex(
                         elapsed: elapsed,
@@ -483,6 +672,7 @@ class _BaseCampHelicopterFlybyLayerState
                         frameDurationMs: widget.assembly.tailFrameMs,
                         frameCount: baseCampHelicopterTailRotorAssets.length,
                       ),
+                      flightElapsed,
                     ),
                   ],
                 );
@@ -504,6 +694,7 @@ class BaseCampHelicopterSprite extends StatelessWidget {
     this.assembly = BaseCampHelicopterAssembly.defaults,
     this.showMainRotor = true,
     this.showTailRotor = true,
+    this.pitchRadians = 0,
   });
 
   static const sourceSize = BaseCampHelicopterAssembly.sourceSize;
@@ -524,76 +715,83 @@ class BaseCampHelicopterSprite extends StatelessWidget {
   final BaseCampHelicopterAssembly assembly;
   final bool showMainRotor;
   final bool showTailRotor;
+  final double pitchRadians;
 
   @override
-  Widget build(BuildContext context) => Transform.flip(
-    key: const ValueKey('base-camp-helicopter-direction-transform'),
-    flipX: direction == BaseCampHelicopterDirection.leftToRight,
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final scale = constraints.maxWidth / sourceSize.width;
-        final mainLeft =
-            (assembly.mainHub.dx -
-                mainRotorHubInFrame.dx * assembly.mainScale) *
-            scale;
-        final mainTop =
-            (assembly.mainHub.dy -
-                mainRotorHubInFrame.dy * assembly.mainScale) *
-            scale;
-        final tailWidth = tailRotorSize.width * assembly.tailScale * scale;
-        final tailHeight = tailRotorSize.height * assembly.tailScale * scale;
-        final tailLeft =
-            (assembly.tailHub.dx -
-                tailRotorHubInFrame.dx * assembly.tailScale) *
-            scale;
-        final tailTop =
-            (assembly.tailHub.dy -
-                tailRotorHubInFrame.dy * assembly.tailScale) *
-            scale;
-        return Stack(
-          fit: StackFit.expand,
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            Image.asset(
-              baseCampHelicopterBodyAsset,
-              key: const ValueKey('base-camp-helicopter-body'),
-              fit: BoxFit.fill,
-              filterQuality: FilterQuality.none,
-              gaplessPlayback: true,
-            ),
-            if (showMainRotor)
-              Positioned(
-                left: mainLeft,
-                top: mainTop,
-                width: mainRotorSize.width * assembly.mainScale * scale,
-                height: mainRotorSize.height * assembly.mainScale * scale,
-                child: Image.asset(
-                  baseCampHelicopterMainRotorAssets[mainRotorFrame %
-                      baseCampHelicopterMainRotorAssets.length],
-                  key: const ValueKey('base-camp-helicopter-main-rotor'),
-                  fit: BoxFit.fill,
-                  filterQuality: FilterQuality.none,
-                  gaplessPlayback: true,
-                ),
+  Widget build(BuildContext context) => Transform.rotate(
+    key: const ValueKey('base-camp-helicopter-pitch-transform'),
+    angle: pitchRadians,
+    alignment: Alignment.center,
+    transformHitTests: false,
+    child: Transform.flip(
+      key: const ValueKey('base-camp-helicopter-direction-transform'),
+      flipX: direction == BaseCampHelicopterDirection.leftToRight,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = constraints.maxWidth / sourceSize.width;
+          final mainLeft =
+              (assembly.mainHub.dx -
+                  mainRotorHubInFrame.dx * assembly.mainScale) *
+              scale;
+          final mainTop =
+              (assembly.mainHub.dy -
+                  mainRotorHubInFrame.dy * assembly.mainScale) *
+              scale;
+          final tailWidth = tailRotorSize.width * assembly.tailScale * scale;
+          final tailHeight = tailRotorSize.height * assembly.tailScale * scale;
+          final tailLeft =
+              (assembly.tailHub.dx -
+                  tailRotorHubInFrame.dx * assembly.tailScale) *
+              scale;
+          final tailTop =
+              (assembly.tailHub.dy -
+                  tailRotorHubInFrame.dy * assembly.tailScale) *
+              scale;
+          return Stack(
+            fit: StackFit.expand,
+            clipBehavior: Clip.none,
+            children: <Widget>[
+              Image.asset(
+                baseCampHelicopterBodyAsset,
+                key: const ValueKey('base-camp-helicopter-body'),
+                fit: BoxFit.fill,
+                filterQuality: FilterQuality.none,
+                gaplessPlayback: true,
               ),
-            if (showTailRotor)
-              Positioned(
-                left: tailLeft,
-                top: tailTop,
-                width: tailWidth,
-                height: tailHeight,
-                child: Image.asset(
-                  baseCampHelicopterTailRotorAssets[tailRotorFrame %
-                      baseCampHelicopterTailRotorAssets.length],
-                  key: const ValueKey('base-camp-helicopter-tail-rotor'),
-                  fit: BoxFit.fill,
-                  filterQuality: FilterQuality.none,
-                  gaplessPlayback: true,
+              if (showMainRotor)
+                Positioned(
+                  left: mainLeft,
+                  top: mainTop,
+                  width: mainRotorSize.width * assembly.mainScale * scale,
+                  height: mainRotorSize.height * assembly.mainScale * scale,
+                  child: Image.asset(
+                    baseCampHelicopterMainRotorAssets[mainRotorFrame %
+                        baseCampHelicopterMainRotorAssets.length],
+                    key: const ValueKey('base-camp-helicopter-main-rotor'),
+                    fit: BoxFit.fill,
+                    filterQuality: FilterQuality.none,
+                    gaplessPlayback: true,
+                  ),
                 ),
-              ),
-          ],
-        );
-      },
+              if (showTailRotor)
+                Positioned(
+                  left: tailLeft,
+                  top: tailTop,
+                  width: tailWidth,
+                  height: tailHeight,
+                  child: Image.asset(
+                    baseCampHelicopterTailRotorAssets[tailRotorFrame %
+                        baseCampHelicopterTailRotorAssets.length],
+                    key: const ValueKey('base-camp-helicopter-tail-rotor'),
+                    fit: BoxFit.fill,
+                    filterQuality: FilterQuality.none,
+                    gaplessPlayback: true,
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
     ),
   );
 }

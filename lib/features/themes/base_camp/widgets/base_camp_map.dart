@@ -1570,22 +1570,23 @@ class _BaseCampMapState extends State<BaseCampMap>
                               ),
                             ),
                           ),
+                        // Plates remain input-transparent; the bounded plate
+                        // targets and alpha facility targets live in the
+                        // separate transformed input stack below.
+                        IgnorePointer(
+                          child: BaseCampFacilityLabelLayer(
+                            configuration: configuration,
+                            geometry: geometry,
+                          ),
+                        ),
+                        // The aircraft remains inside the established MAP
+                        // transform but paints above every facility plate.
                         BaseCampHelicopterFlybyLayer(
                           key: const ValueKey(
                             'base-camp-helicopter-flyby-layer',
                           ),
                           dashboardInteractive: _helicopterInteractive,
                           assembly: configuration.helicopterAssembly,
-                        ),
-                        // This must be the final visual MAP layer. Labels
-                        // remain input-transparent; the bounded plate targets
-                        // and alpha facility targets live in the separate
-                        // transformed input stack below.
-                        IgnorePointer(
-                          child: BaseCampFacilityLabelLayer(
-                            configuration: configuration,
-                            geometry: geometry,
-                          ),
                         ),
                         if (_nightFilterActive)
                           const IgnorePointer(

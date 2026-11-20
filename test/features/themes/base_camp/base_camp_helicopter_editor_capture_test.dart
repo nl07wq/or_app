@@ -70,7 +70,9 @@ void main() {
 
     await setSlider('helicopter-global-scale', 1.5);
     await setSlider('helicopter-main-speed', 20);
-    await setSlider('helicopter-tail-speed', 120);
+    await setSlider('helicopter-tail-speed', 5);
+    await setSlider('helicopter-flight-speed', 400);
+    await setSlider('helicopter-forward-pitch', 12);
     await tester.ensureVisible(
       find.byKey(const ValueKey('helicopter-copy-json')),
     );
@@ -134,6 +136,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 4));
     await _capture(tester, boundaryKey, 'flight_left_to_right');
+    await tester.pump(const Duration(milliseconds: 900));
+    await _capture(tester, boundaryKey, 'flight_left_to_right_near_exit');
     tester
         .widget<OutlinedButton>(
           find.byKey(const ValueKey('helicopter-stop-flight')),

@@ -11,6 +11,8 @@ class BaseCampHelicopterAssembly {
     this.tailScale = .5,
     this.mainFrameMs = defaultMainFrameMs,
     this.tailFrameMs = defaultTailFrameMs,
+    this.flightSpeed = defaultFlightSpeed,
+    this.forwardPitchDegrees = defaultForwardPitchDegrees,
   });
 
   static const defaults = BaseCampHelicopterAssembly();
@@ -21,9 +23,17 @@ class BaseCampHelicopterAssembly {
   static const defaultTailFrameMs = 50;
   static const minimumMainFrameMs = 20;
   static const maximumMainFrameMs = 200;
-  static const minimumTailFrameMs = 20;
+  static const minimumTailFrameMs = 5;
   static const maximumTailFrameMs = 120;
   static const frameMsStep = 5;
+  static const defaultFlightSpeed = 190;
+  static const minimumFlightSpeed = 80;
+  static const maximumFlightSpeed = 400;
+  static const flightSpeedStep = 10;
+  static const defaultForwardPitchDegrees = 4;
+  static const minimumForwardPitchDegrees = 0;
+  static const maximumForwardPitchDegrees = 12;
+  static const forwardPitchDegreesStep = 1;
 
   final double globalScale;
   final Offset mainHub;
@@ -32,6 +42,8 @@ class BaseCampHelicopterAssembly {
   final double tailScale;
   final int mainFrameMs;
   final int tailFrameMs;
+  final int flightSpeed;
+  final int forwardPitchDegrees;
 
   bool get isValid =>
       globalScale.isFinite &&
@@ -49,6 +61,12 @@ class BaseCampHelicopterAssembly {
       tailScale <= maximumScale &&
       _validFrameMs(mainFrameMs, minimumMainFrameMs, maximumMainFrameMs) &&
       _validFrameMs(tailFrameMs, minimumTailFrameMs, maximumTailFrameMs) &&
+      flightSpeed >= minimumFlightSpeed &&
+      flightSpeed <= maximumFlightSpeed &&
+      flightSpeed % flightSpeedStep == 0 &&
+      forwardPitchDegrees >= minimumForwardPitchDegrees &&
+      forwardPitchDegrees <= maximumForwardPitchDegrees &&
+      forwardPitchDegrees % forwardPitchDegreesStep == 0 &&
       _validHub(mainHub) &&
       _validHub(tailHub);
 
@@ -69,6 +87,8 @@ class BaseCampHelicopterAssembly {
     double? tailScale,
     int? mainFrameMs,
     int? tailFrameMs,
+    int? flightSpeed,
+    int? forwardPitchDegrees,
   }) => BaseCampHelicopterAssembly(
     globalScale: globalScale ?? this.globalScale,
     mainHub: mainHub ?? this.mainHub,
@@ -77,6 +97,8 @@ class BaseCampHelicopterAssembly {
     tailScale: tailScale ?? this.tailScale,
     mainFrameMs: mainFrameMs ?? this.mainFrameMs,
     tailFrameMs: tailFrameMs ?? this.tailFrameMs,
+    flightSpeed: flightSpeed ?? this.flightSpeed,
+    forwardPitchDegrees: forwardPitchDegrees ?? this.forwardPitchDegrees,
   );
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -89,6 +111,8 @@ class BaseCampHelicopterAssembly {
     'tailScale': tailScale,
     'mainFrameMs': mainFrameMs,
     'tailFrameMs': tailFrameMs,
+    'flightSpeed': flightSpeed,
+    'forwardPitchDegrees': forwardPitchDegrees,
   };
 
   static BaseCampHelicopterAssembly? tryParse(Object? raw) {
@@ -116,6 +140,11 @@ class BaseCampHelicopterAssembly {
 
     final mainFrameMs = frameMs('mainFrameMs', defaultMainFrameMs);
     final tailFrameMs = frameMs('tailFrameMs', defaultTailFrameMs);
+    final flightSpeed = frameMs('flightSpeed', defaultFlightSpeed);
+    final forwardPitchDegrees = frameMs(
+      'forwardPitchDegrees',
+      defaultForwardPitchDegrees,
+    );
     if (globalScale == null ||
         mainX == null ||
         mainY == null ||
@@ -124,7 +153,9 @@ class BaseCampHelicopterAssembly {
         tailY == null ||
         tailScale == null ||
         mainFrameMs == null ||
-        tailFrameMs == null) {
+        tailFrameMs == null ||
+        flightSpeed == null ||
+        forwardPitchDegrees == null) {
       return null;
     }
     final result = BaseCampHelicopterAssembly(
@@ -135,6 +166,8 @@ class BaseCampHelicopterAssembly {
       tailScale: tailScale,
       mainFrameMs: mainFrameMs,
       tailFrameMs: tailFrameMs,
+      flightSpeed: flightSpeed,
+      forwardPitchDegrees: forwardPitchDegrees,
     );
     return result.isValid ? result : null;
   }
