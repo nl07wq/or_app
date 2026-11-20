@@ -489,7 +489,9 @@ Future<void> _captureBoundary(
   await tester.pump();
   await tester.runAsync(() async {
     final directory = Directory(_captureDirectory)..createSync(recursive: true);
-    final image = await boundary.toImage(pixelRatio: 1);
+    final image = await boundary.toImage(
+      pixelRatio: tester.view.devicePixelRatio,
+    );
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     await File(
       '${directory.path}/$name',

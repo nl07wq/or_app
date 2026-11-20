@@ -169,10 +169,38 @@ void main() {
   testWidgets('fixed upper image retains the original presentation offset', (
     tester,
   ) async {
+    const level = SoldierPixelationLevel.extreme;
+    DeviceSettingsController.instance.update(
+      const DeviceSettings(breathingPixelLevel: level),
+    );
     final profile = baseCampSoldierPixelProfile(
       viewport: const Size(360, 300),
       devicePixelRatio: 3,
     );
+    await tester.runAsync(
+      () => BaseCampSoldierPixelCache.instance.prepareMotionRequests(
+        profile.breathingRequests,
+        BaseCampSoldierMotion.breathing,
+        level,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SizedBox(
+          width: 360,
+          height: 300,
+          child: BaseCampBreathingSoldier(dy: 0, pixelProfile: profile),
+        ),
+      ),
+    );
+    await tester.pump();
+    final renderedUpper = _pixelatedImage(
+      level,
+      baseCampBreathingSoldierUpperAsset,
+    );
+    expect(renderedUpper, findsOneWidget);
+    final restingTop = tester.getTopLeft(renderedUpper);
+
     await tester.pumpWidget(
       MaterialApp(
         home: SizedBox(
@@ -182,6 +210,7 @@ void main() {
         ),
       ),
     );
+    await tester.pump();
     final upper = tester.widget<BaseCampSoldierAssetImage>(
       find.byKey(const ValueKey('base-camp-soldier-upper')),
     );
@@ -190,6 +219,10 @@ void main() {
     expect(
       upper.request,
       same(profile.requestFor(baseCampBreathingSoldierUpperAsset)),
+    );
+    expect(
+      tester.getTopLeft(renderedUpper).dy,
+      closeTo(restingTop.dy - .625, .001),
     );
   });
 

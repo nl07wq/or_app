@@ -515,7 +515,7 @@ class BaseCampSoldierAssetImage extends StatelessWidget {
 
   Widget _render(BaseCampSoldierPixelFrame frame) {
     recordBaseCampAssetReady(request.asset);
-    return Stack(
+    final positioned = Stack(
       fit: StackFit.expand,
       clipBehavior: Clip.hardEdge,
       children: <Widget>[
@@ -532,5 +532,8 @@ class BaseCampSoldierAssetImage extends StatelessWidget {
         ),
       ],
     );
+    return originalOffset == Offset.zero
+        ? positioned
+        : Transform.translate(offset: originalOffset, child: positioned);
   }
 }
