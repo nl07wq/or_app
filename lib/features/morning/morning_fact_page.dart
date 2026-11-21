@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../themes/base_camp/base_camp_presentation.dart';
 import '../themes/base_camp/base_camp_retro_terminal.dart';
+import '../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
@@ -196,20 +197,37 @@ class _MorningFactPageState extends State<MorningFactPage> {
   Future<bool> _confirmDailyBriefCreation() async =>
       await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('DAILY BRIEF'),
-          content: const Text('DAILY BRIEFを作成できます。\n今すぐ作成しますか？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('YES'),
-            ).actionableFeedback(),
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('NO'),
-            ).actionableFeedback(),
-          ],
-        ),
+        builder: (dialogContext) => BaseCampPresentation.isActive(context)
+            ? BaseCampOperationPanel(
+                title: 'DAILY BRIEF',
+                state: BaseCampOperationPanelState.confirmation,
+                message: 'DAILY BRIEFを作成できます。\n今すぐ作成しますか？',
+                actions: <Widget>[
+                  BaseCampOperationPanelButton(
+                    label: 'CANCEL',
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                  ),
+                  BaseCampOperationPanelButton(
+                    label: 'CREATE',
+                    primary: true,
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                  ),
+                ],
+              )
+            : AlertDialog(
+                title: const Text('DAILY BRIEF'),
+                content: const Text('DAILY BRIEFを作成できます。\n今すぐ作成しますか？'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text('YES'),
+                  ).actionableFeedback(),
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text('NO'),
+                  ).actionableFeedback(),
+                ],
+              ),
       ) ??
       false;
 

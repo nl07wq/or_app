@@ -44,116 +44,119 @@ class BaseCampTerminalPopup extends StatelessWidget {
           elevation: 0,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 390),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: BaseCampTerminalPalette.housing,
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(
-                  color: BaseCampTerminalPalette.housingEdge,
-                  width: 2,
-                ),
-                boxShadow: const <BoxShadow>[
-                  BoxShadow(
-                    color: BaseCampTerminalPalette.housingShadow,
-                    blurRadius: 12,
-                    offset: Offset(0, 5),
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: BaseCampTerminalPalette.housing,
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(
+                    color: BaseCampTerminalPalette.housingEdge,
+                    width: 2,
                   ),
-                ],
-              ),
-              child: Stack(
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        _TerminalPopupHeader(
-                          title: title,
-                          stateLabel: stateLabel,
-                          palette: palette,
-                        ),
-                        const SizedBox(height: 9),
-                        BaseCampLcdSurface(
-                          palette: palette,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 13,
-                            vertical: 14,
+                  boxShadow: const <BoxShadow>[
+                    BoxShadow(
+                      color: BaseCampTerminalPalette.housingShadow,
+                      blurRadius: 12,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          _TerminalPopupHeader(
+                            title: title,
+                            stateLabel: stateLabel,
+                            palette: palette,
                           ),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(minHeight: 76),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: <Widget>[
-                                if (busy) ...<Widget>[
-                                  SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      key: const ValueKey(
-                                        'base-camp-terminal-popup-progress',
+                          const SizedBox(height: 9),
+                          BaseCampLcdSurface(
+                            palette: palette,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 13,
+                              vertical: 14,
+                            ),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minHeight: 76),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: <Widget>[
+                                  if (busy) ...<Widget>[
+                                    SizedBox.square(
+                                      dimension: 18,
+                                      child: CircularProgressIndicator(
+                                        key: const ValueKey(
+                                          'base-camp-terminal-popup-progress',
+                                        ),
+                                        strokeWidth: 2,
+                                        color: palette.primaryText,
                                       ),
-                                      strokeWidth: 2,
-                                      color: palette.primaryText,
+                                    ),
+                                    const SizedBox(width: 11),
+                                  ],
+                                  Expanded(
+                                    child: MixedScriptText(
+                                      message,
+                                      key: const ValueKey(
+                                        'base-camp-terminal-popup-message',
+                                      ),
+                                      style: TextStyle(
+                                        color: palette.primaryText,
+                                        fontFamily:
+                                            MixedScriptTypography.latinFamily,
+                                        fontFamilyFallback: const <String>[
+                                          MixedScriptTypography.japaneseFamily,
+                                        ],
+                                        fontSize: 12,
+                                        height: 1.65,
+                                        letterSpacing: -.2,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(width: 11),
                                 ],
-                                Expanded(
-                                  child: MixedScriptText(
-                                    message,
-                                    key: const ValueKey(
-                                      'base-camp-terminal-popup-message',
-                                    ),
-                                    style: TextStyle(
-                                      color: palette.primaryText,
-                                      fontFamily:
-                                          MixedScriptTypography.latinFamily,
-                                      fontFamilyFallback: const <String>[
-                                        MixedScriptTypography.japaneseFamily,
-                                      ],
-                                      fontSize: 12,
-                                      height: 1.65,
-                                      letterSpacing: -.2,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                        if (actions.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 10),
-                          Wrap(
-                            alignment: WrapAlignment.end,
-                            spacing: 8,
-                            runSpacing: 7,
-                            children: actions,
-                          ),
+                          if (actions.isNotEmpty) ...<Widget>[
+                            const SizedBox(height: 10),
+                            Wrap(
+                              alignment: WrapAlignment.end,
+                              spacing: 8,
+                              runSpacing: 7,
+                              children: actions,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  const Positioned(
-                    left: 5,
-                    top: 5,
-                    child: _TerminalPopupScrew(),
-                  ),
-                  const Positioned(
-                    right: 5,
-                    top: 5,
-                    child: _TerminalPopupScrew(),
-                  ),
-                  const Positioned(
-                    left: 5,
-                    bottom: 5,
-                    child: _TerminalPopupScrew(),
-                  ),
-                  const Positioned(
-                    right: 5,
-                    bottom: 5,
-                    child: _TerminalPopupScrew(),
-                  ),
-                ],
+                    const Positioned(
+                      left: 5,
+                      top: 5,
+                      child: _TerminalPopupScrew(),
+                    ),
+                    const Positioned(
+                      right: 5,
+                      top: 5,
+                      child: _TerminalPopupScrew(),
+                    ),
+                    const Positioned(
+                      left: 5,
+                      bottom: 5,
+                      child: _TerminalPopupScrew(),
+                    ),
+                    const Positioned(
+                      right: 5,
+                      bottom: 5,
+                      child: _TerminalPopupScrew(),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -147,20 +147,65 @@ BaseCampBootPhase baseCampBootPhaseFor(AppInitializationState state) {
 
 enum _TerminalCheckState { checking, ready }
 
-class _BaseCampBootTerminal extends StatelessWidget {
+class _BaseCampBootTerminal extends StatefulWidget {
   const _BaseCampBootTerminal({required this.state, required this.palette});
 
   final AppInitializationState state;
   final BaseCampTerminalPalette palette;
 
   @override
-  Widget build(BuildContext context) {
+  State<_BaseCampBootTerminal> createState() => _BaseCampBootTerminalState();
+}
+
+class _BaseCampBootTerminalState extends State<_BaseCampBootTerminal>
+    with SingleTickerProviderStateMixin {
+  static const _wakeDuration = Duration(milliseconds: 1650);
+  late final AnimationController _wakeController;
+  bool _wakeStarted = false;
+
+  AppInitializationState get state => widget.state;
+  BaseCampTerminalPalette get palette => widget.palette;
+
+  @override
+  void initState() {
+    super.initState();
+    _wakeController = AnimationController(vsync: this, duration: _wakeDuration);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reducedMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reducedMotion) {
+      _wakeStarted = true;
+      _wakeController.value = 1;
+    } else if (!_wakeStarted) {
+      _wakeStarted = true;
+      _wakeController.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _wakeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _wakeController,
+    builder: (context, _) => _buildTerminal(context),
+  );
+
+  Widget _buildTerminal(BuildContext context) {
     final phase = baseCampBootPhaseFor(state);
     final database = _databaseState(state);
     final status = _statusState(state);
     final system = state.mode == PersistenceMode.indexedDbReadWrite
         ? _TerminalCheckState.ready
         : _TerminalCheckState.checking;
+    final wakeProgress = _wakeController.value;
     return ColoredBox(
       key: const ValueKey('base-camp-boot'),
       color: const Color(0xff11150f),
@@ -170,105 +215,162 @@ class _BaseCampBootTerminal extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
-              child: DecoratedBox(
-                key: const ValueKey('base-camp-boot-housing'),
-                decoration: BoxDecoration(
-                  color: const Color(0xff788a66),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xff273326), width: 3),
-                  boxShadow: const <BoxShadow>[
-                    BoxShadow(
-                      color: Color(0xaa0b0f09),
-                      blurRadius: 12,
-                      offset: Offset(0, 7),
+              child: Opacity(
+                opacity: _terminalOpacity(wakeProgress),
+                child: DecoratedBox(
+                  key: const ValueKey('base-camp-boot-housing'),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff788a66),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xff273326),
+                      width: 3,
                     ),
-                  ],
-                ),
-                child: Stack(
-                  children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          _TerminalHeader(phase: phase),
-                          const SizedBox(height: 11),
-                          BaseCampLcdSurface(
-                            palette: palette,
-                            padding: const EdgeInsets.fromLTRB(15, 15, 15, 14),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minHeight: 278),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: <Widget>[
-                                  Text(
-                                    'OPERATION REBOOT',
-                                    key: const ValueKey(
-                                      'base-camp-boot-identification',
-                                    ),
-                                    style: _lcdText(
-                                      palette.primaryText,
-                                      15,
-                                      height: 1.35,
-                                    ),
+                    boxShadow: const <BoxShadow>[
+                      BoxShadow(
+                        color: Color(0xaa0b0f09),
+                        blurRadius: 12,
+                        offset: Offset(0, 7),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: <Widget>[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            _TerminalHeader(phase: phase),
+                            const SizedBox(height: 11),
+                            Opacity(
+                              opacity: _lcdOpacity(wakeProgress),
+                              child: BaseCampLcdSurface(
+                                palette: palette,
+                                padding: const EdgeInsets.fromLTRB(
+                                  15,
+                                  15,
+                                  15,
+                                  14,
+                                ),
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: 318,
                                   ),
-                                  const SizedBox(height: 7),
-                                  Text(
-                                    'BASE CAMP / COMMAND TERMINAL',
-                                    style: _lcdText(
-                                      palette.auxiliaryText,
-                                      8,
-                                      height: 1.45,
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: <Widget>[
+                                      Text(
+                                        'OPERATION REBOOT',
+                                        key: const ValueKey(
+                                          'base-camp-boot-identification',
+                                        ),
+                                        style: _lcdText(
+                                          palette.primaryText,
+                                          15,
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 7),
+                                      Text(
+                                        'BASE CAMP / COMMAND TERMINAL',
+                                        style: _lcdText(
+                                          palette.auxiliaryText,
+                                          8,
+                                          height: 1.45,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _InitializationLines(
+                                        progress: wakeProgress,
+                                        palette: palette,
+                                      ),
+                                      const SizedBox(height: 14),
+                                      _CheckLine(
+                                        label: 'DATABASE',
+                                        state: database,
+                                        palette: palette,
+                                        visible: wakeProgress >= .46,
+                                      ),
+                                      const SizedBox(height: 9),
+                                      _CheckLine(
+                                        label: 'STATUS',
+                                        state: status,
+                                        palette: palette,
+                                        visible: wakeProgress >= .60,
+                                      ),
+                                      const SizedBox(height: 9),
+                                      _CheckLine(
+                                        label: 'SYSTEM',
+                                        state: system,
+                                        palette: palette,
+                                        visible: wakeProgress >= .72,
+                                      ),
+                                      const SizedBox(height: 24),
+                                      _LinkReadout(
+                                        phase: phase,
+                                        palette: palette,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _VerifiedProgress(
+                                        phase: phase,
+                                        palette: palette,
+                                      ),
+                                      if (phase ==
+                                          BaseCampBootPhase.systemReady) ...[
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'ALL SYSTEMS READY',
+                                          key: const ValueKey(
+                                            'base-camp-boot-all-systems-ready',
+                                          ),
+                                          style: _lcdText(
+                                            palette.primaryText,
+                                            8,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Text(
+                                          'BASE CAMP ONLINE',
+                                          key: const ValueKey(
+                                            'base-camp-boot-online',
+                                          ),
+                                          style: _lcdText(
+                                            palette.primaryText,
+                                            8,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                  const SizedBox(height: 18),
-                                  _CheckLine(
-                                    label: 'DATABASE',
-                                    state: database,
-                                    palette: palette,
-                                  ),
-                                  const SizedBox(height: 9),
-                                  _CheckLine(
-                                    label: 'STATUS',
-                                    state: status,
-                                    palette: palette,
-                                  ),
-                                  const SizedBox(height: 9),
-                                  _CheckLine(
-                                    label: 'SYSTEM',
-                                    state: system,
-                                    palette: palette,
-                                  ),
-                                  const SizedBox(height: 24),
-                                  _LinkReadout(phase: phase, palette: palette),
-                                  const SizedBox(height: 12),
-                                  _VerifiedProgress(
-                                    phase: phase,
-                                    palette: palette,
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 11),
-                          const _TerminalFooter(),
-                        ],
+                            const SizedBox(height: 11),
+                            _TerminalFooter(powered: wakeProgress >= .12),
+                          ],
+                        ),
                       ),
-                    ),
-                    const Positioned(left: 8, top: 8, child: _HousingScrew()),
-                    const Positioned(right: 8, top: 8, child: _HousingScrew()),
-                    const Positioned(
-                      left: 8,
-                      bottom: 8,
-                      child: _HousingScrew(),
-                    ),
-                    const Positioned(
-                      right: 8,
-                      bottom: 8,
-                      child: _HousingScrew(),
-                    ),
-                  ],
+                      const Positioned(left: 8, top: 8, child: _HousingScrew()),
+                      const Positioned(
+                        right: 8,
+                        top: 8,
+                        child: _HousingScrew(),
+                      ),
+                      const Positioned(
+                        left: 8,
+                        bottom: 8,
+                        child: _HousingScrew(),
+                      ),
+                      const Positioned(
+                        right: 8,
+                        bottom: 8,
+                        child: _HousingScrew(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -277,6 +379,48 @@ class _BaseCampBootTerminal extends StatelessWidget {
       ),
     );
   }
+
+  double _terminalOpacity(double value) {
+    if (value < .04) return .04;
+    if (value < .08) return .68;
+    if (value < .12) return .18;
+    return (.18 + ((value - .12) / .16).clamp(0, 1) * .82)
+        .clamp(0, 1)
+        .toDouble();
+  }
+
+  double _lcdOpacity(double value) =>
+      ((value - .04) / .17).clamp(0, 1).toDouble();
+}
+
+class _InitializationLines extends StatelessWidget {
+  const _InitializationLines({required this.progress, required this.palette});
+
+  final double progress;
+  final BaseCampTerminalPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: <Widget>[
+      _line('POWER ON', .12),
+      const SizedBox(height: 4),
+      _line('INITIALIZING DISPLAY', .24),
+      const SizedBox(height: 4),
+      _line('LOADING TERMINAL SHELL', .36),
+    ],
+  );
+
+  Widget _line(String label, double threshold) => Opacity(
+    opacity: progress >= threshold ? 1 : 0,
+    child: Text(
+      label,
+      key: ValueKey<String>(
+        'base-camp-boot-${label.toLowerCase().replaceAll(' ', '-')}',
+      ),
+      style: _lcdText(palette.auxiliaryText, 7, height: 1.25),
+    ),
+  );
 }
 
 class _TerminalHeader extends StatelessWidget {
@@ -317,38 +461,43 @@ class _CheckLine extends StatelessWidget {
     required this.label,
     required this.state,
     required this.palette,
+    this.visible = true,
   });
 
   final String label;
   final _TerminalCheckState state;
   final BaseCampTerminalPalette palette;
+  final bool visible;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: <Widget>[
-      Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(
-          color: state == _TerminalCheckState.ready
-              ? palette.primaryText
-              : Colors.transparent,
-          border: Border.all(color: palette.primaryText),
+  Widget build(BuildContext context) => Opacity(
+    opacity: visible ? 1 : 0,
+    child: Row(
+      children: <Widget>[
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: state == _TerminalCheckState.ready
+                ? palette.primaryText
+                : Colors.transparent,
+            border: Border.all(color: palette.primaryText),
+          ),
         ),
-      ),
-      const SizedBox(width: 9),
-      Expanded(child: Text(label, style: _lcdText(palette.primaryText, 9))),
-      Text(
-        state == _TerminalCheckState.ready ? 'READY' : 'CHECKING',
-        key: ValueKey<String>('base-camp-boot-${label.toLowerCase()}-state'),
-        style: _lcdText(
-          state == _TerminalCheckState.ready
-              ? palette.primaryText
-              : palette.auxiliaryText,
-          8,
+        const SizedBox(width: 9),
+        Expanded(child: Text(label, style: _lcdText(palette.primaryText, 9))),
+        Text(
+          state == _TerminalCheckState.ready ? 'READY' : 'CHECKING',
+          key: ValueKey<String>('base-camp-boot-${label.toLowerCase()}-state'),
+          style: _lcdText(
+            state == _TerminalCheckState.ready
+                ? palette.primaryText
+                : palette.auxiliaryText,
+            8,
+          ),
         ),
-      ),
-    ],
+      ],
+    ),
   );
 }
 
@@ -374,13 +523,24 @@ class _LinkReadout extends StatelessWidget {
           children: <Widget>[
             Expanded(
               child: Text(
-                phase == BaseCampBootPhase.systemReady
-                    ? 'SYSTEM READY'
-                    : 'BASE CAMP LINK',
+                'BASE CAMP LINK',
                 key: const ValueKey('base-camp-boot-link-label'),
                 style: _lcdText(palette.primaryText, 8),
               ),
             ),
+            Text(
+              phase == BaseCampBootPhase.systemReady
+                  ? 'LINK ESTABLISHED'
+                  : 'LINKING...',
+              key: const ValueKey('base-camp-boot-link-state'),
+              style: _lcdText(
+                phase == BaseCampBootPhase.systemReady
+                    ? palette.primaryText
+                    : palette.auxiliaryText,
+                7,
+              ),
+            ),
+            const SizedBox(width: 5),
             ...List<Widget>.generate(
               5,
               (index) => Padding(
@@ -436,14 +596,16 @@ class _VerifiedProgress extends StatelessWidget {
 }
 
 class _TerminalFooter extends StatelessWidget {
-  const _TerminalFooter();
+  const _TerminalFooter({required this.powered});
+
+  final bool powered;
 
   @override
   Widget build(BuildContext context) => Row(
     children: <Widget>[
-      const DecoratedBox(
+      DecoratedBox(
         decoration: BoxDecoration(
-          color: Color(0xffaeb894),
+          color: powered ? const Color(0xffaeb894) : const Color(0xff273326),
           shape: BoxShape.circle,
           border: Border.fromBorderSide(
             BorderSide(color: Color(0xff273326), width: 2),

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../operation_date/models/daily_finalize_result.dart';
-import '../../themes/base_camp/widgets/base_camp_terminal_popup.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 const baseCampTerminalSuccessHold = Duration(milliseconds: 1500);
 
@@ -56,13 +56,19 @@ class _BaseCampFinalizeDayDialogState extends State<BaseCampFinalizeDayDialog> {
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: false,
-    child: BaseCampTerminalPopup(
+    child: BaseCampOperationPanel(
       title: 'FINALIZE DAY',
-      stateLabel: switch (_state) {
-        _FinalizePopupState.confirm => 'CONFIRM',
-        _FinalizePopupState.processing => 'PROCESSING',
-        _FinalizePopupState.complete => 'COMPLETE',
-        _FinalizePopupState.failed => 'FAILED',
+      state: switch (_state) {
+        _FinalizePopupState.confirm => BaseCampOperationPanelState.confirmation,
+        _FinalizePopupState.processing =>
+          BaseCampOperationPanelState.processing,
+        _FinalizePopupState.complete ||
+        _FinalizePopupState.failed => BaseCampOperationPanelState.result,
+      },
+      result: switch (_state) {
+        _FinalizePopupState.complete => BaseCampOperationPanelResult.success,
+        _FinalizePopupState.failed => BaseCampOperationPanelResult.failure,
+        _ => null,
       },
       message: switch (_state) {
         _FinalizePopupState.confirm => '本日の記録を確定します。',
@@ -70,18 +76,17 @@ class _BaseCampFinalizeDayDialogState extends State<BaseCampFinalizeDayDialog> {
         _FinalizePopupState.complete => '本日の記録を確定しました。',
         _FinalizePopupState.failed => 'FINALIZE DAYに失敗しました。\n${_error ?? ''}',
       },
-      busy: _state == _FinalizePopupState.processing,
       actions: _actions(),
     ),
   );
 
   List<Widget> _actions() => switch (_state) {
     _FinalizePopupState.confirm => <Widget>[
-      BaseCampTerminalPopupButton(
+      BaseCampOperationPanelButton(
         label: 'CANCEL',
         onPressed: () => Navigator.pop(context, false),
       ),
-      BaseCampTerminalPopupButton(
+      BaseCampOperationPanelButton(
         label: 'FINALIZE',
         primary: true,
         onPressed: _finalize,
@@ -91,12 +96,12 @@ class _BaseCampFinalizeDayDialogState extends State<BaseCampFinalizeDayDialog> {
     _FinalizePopupState.complete => const <Widget>[],
     _FinalizePopupState.failed => <Widget>[
       if (_error case DailyFinalizeException(:final diagnostics?))
-        BaseCampTerminalPopupButton(
+        BaseCampOperationPanelButton(
           label: 'COPY DIAGNOSTICS',
           onPressed: () =>
               Clipboard.setData(ClipboardData(text: diagnostics.toCopyText())),
         ),
-      BaseCampTerminalPopupButton(
+      BaseCampOperationPanelButton(
         label: 'CLOSE',
         primary: true,
         onPressed: () => Navigator.pop(context, false),

@@ -29,9 +29,18 @@ void main() {
     await _renderAndCapture(
       tester,
       directory: directory,
-      name: 'power_on_320_light',
+      name: 'power_on_initial_320_light',
       width: 320,
       negative: false,
+      state: const AppInitializationState.initializing(),
+    );
+    await _renderAndCapture(
+      tester,
+      directory: directory,
+      name: 'terminal_initializing_320_light',
+      width: 320,
+      negative: false,
+      wakeElapsed: const Duration(milliseconds: 500),
       state: const AppInitializationState.initializing(),
     );
     await _renderAndCapture(
@@ -40,16 +49,19 @@ void main() {
       name: 'system_check_375_light',
       width: 375,
       negative: false,
+      wakeElapsed: const Duration(milliseconds: 1200),
       state: const AppInitializationState.initializing(
         currentStage: InitializationStage.migratingFood,
       ),
     );
+    await _captureMotionFrames(tester, directory);
     await _renderAndCapture(
       tester,
       directory: directory,
       name: 'base_camp_link_390_inv',
       width: 390,
       negative: true,
+      wakeElapsed: const Duration(milliseconds: 1650),
       state: const AppInitializationState.initializing(
         currentStage: InitializationStage.verifyingRepositories,
       ),
@@ -60,6 +72,7 @@ void main() {
       name: 'system_ready_430_light',
       width: 430,
       negative: false,
+      wakeElapsed: const Duration(milliseconds: 1650),
       state: const AppInitializationState(
         mode: PersistenceMode.indexedDbReadWrite,
         currentStage: InitializationStage.complete,
@@ -68,6 +81,50 @@ void main() {
 
     DeviceSettingsController.instance.resetForTesting(const DeviceSettings());
   });
+}
+
+Future<void> _captureMotionFrames(
+  WidgetTester tester,
+  Directory directory,
+) async {
+  tester.view.physicalSize = const Size(390, 640);
+  tester.view.devicePixelRatio = 1;
+  DeviceSettingsController.instance.resetForTesting(
+    const DeviceSettings(presentationTheme: AppPresentationTheme.baseCamp),
+  );
+  final boundaryKey = GlobalKey();
+  final initialization = ValueNotifier<AppInitializationState>(
+    const AppInitializationState.initializing(
+      currentStage: InitializationStage.migratingFood,
+    ),
+  );
+  await tester.pumpWidget(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: RepaintBoundary(
+        key: boundaryKey,
+        child: BaseCampBootSequenceGate(
+          initialization: initialization,
+          fallbackBuilder: (_) => const SizedBox.shrink(),
+          onPresentationReleased: () {},
+        ),
+      ),
+    ),
+  );
+  final boundary =
+      boundaryKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  for (var frame = 0; frame <= 11; frame++) {
+    if (frame > 0) await tester.pump(const Duration(milliseconds: 150));
+    await _writeBoundary(
+      tester,
+      boundary,
+      '${directory.path}${Platform.pathSeparator}'
+      'boot_motion_${frame.toString().padLeft(2, '0')}.png',
+    );
+  }
+  initialization.dispose();
+  tester.view.resetPhysicalSize();
+  tester.view.resetDevicePixelRatio();
 }
 
 Future<void> _loadFont(String family, String asset) async {
@@ -84,6 +141,7 @@ Future<void> _renderAndCapture(
   required double width,
   required bool negative,
   required AppInitializationState state,
+  Duration wakeElapsed = Duration.zero,
 }) async {
   tester.view.physicalSize = Size(width, 640);
   tester.view.devicePixelRatio = 1;
@@ -108,6 +166,9 @@ Future<void> _renderAndCapture(
       ),
     ),
   );
+  if (wakeElapsed > Duration.zero) {
+    await tester.pump(wakeElapsed);
+  }
   // flutter_test may restore debug-paint globals while installing a new root.
   // Reassert production paint settings and force the capture frame to repaint.
   debugPaintBaselinesEnabled = false;
@@ -119,21 +180,37 @@ Future<void> _renderAndCapture(
   expect(debugPaintBaselinesEnabled, isFalse);
   expect(tester.takeException(), isNull);
 
-  await tester.runAsync(() async {
-    debugPaintBaselinesEnabled = false;
-    debugPaintSizeEnabled = false;
-    _markPaintTreeDirty(boundary);
-    RendererBinding.instance.drawFrame();
-    final image = await boundary.toImage(pixelRatio: 2);
-    final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    await File(
-      '${directory.path}${Platform.pathSeparator}$name.png',
-    ).writeAsBytes(data!.buffer.asUint8List());
-    image.dispose();
-  });
+  await _writeBoundary(
+    tester,
+    boundary,
+    '${directory.path}${Platform.pathSeparator}$name.png',
+    pixelRatio: 2,
+  );
   initialization.dispose();
   tester.view.resetPhysicalSize();
   tester.view.resetDevicePixelRatio();
+}
+
+Future<void> _writeBoundary(
+  WidgetTester tester,
+  RenderRepaintBoundary boundary,
+  String path, {
+  double pixelRatio = 1,
+}) async {
+  debugPaintBaselinesEnabled = false;
+  debugPaintSizeEnabled = false;
+  _markPaintTreeDirty(boundary);
+  await tester.pump();
+  await tester.runAsync(() async {
+    // The capture-only test needs the marked boundary painted synchronously
+    // before reading its layer outside the fake async zone.
+    // ignore: invalid_use_of_protected_member
+    RendererBinding.instance.drawFrame();
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    await File(path).writeAsBytes(data!.buffer.asUint8List());
+    image.dispose();
+  });
 }
 
 void _markPaintTreeDirty(RenderObject object) {

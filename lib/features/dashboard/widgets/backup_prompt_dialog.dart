@@ -8,7 +8,7 @@ import '../../import_export/services/backup_file_export_service.dart';
 import '../../import_export/services/backup_file_gateway.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
 import '../../themes/base_camp/widgets/base_camp_communication_motion.dart';
-import '../../themes/base_camp/widgets/base_camp_terminal_popup.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import 'base_camp_finalize_day_dialog.dart';
 
 class BackupPromptDialog extends StatefulWidget {
@@ -77,8 +77,23 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
     if (BaseCampPresentation.isActive(context)) {
       return PopScope(
         canPop: false,
-        child: BaseCampTerminalPopup(
+        child: BaseCampOperationPanel(
           title: 'BACKUP',
+          state: switch (_state) {
+            _BackupPromptState.ready =>
+              BaseCampOperationPanelState.confirmation,
+            _BackupPromptState.exporting =>
+              BaseCampOperationPanelState.processing,
+            _BackupPromptState.exported ||
+            _BackupPromptState.cancelled ||
+            _BackupPromptState.failed => BaseCampOperationPanelState.result,
+          },
+          result: switch (_state) {
+            _BackupPromptState.exported => BaseCampOperationPanelResult.success,
+            _BackupPromptState.cancelled ||
+            _BackupPromptState.failed => BaseCampOperationPanelResult.failure,
+            _ => null,
+          },
           stateLabel: switch (_state) {
             _BackupPromptState.ready => 'REQUIRED',
             _BackupPromptState.exporting => 'EXPORTING',
@@ -93,7 +108,6 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
             _BackupPromptState.cancelled => 'BACKUPの保存をキャンセルしました。',
             _BackupPromptState.failed => 'BACKUPの出力に失敗しました。\n${_error ?? ''}',
           },
-          busy: _busy,
           actions: _baseCampActions(),
         ),
       );
@@ -113,11 +127,11 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
 
   List<Widget> _baseCampActions() => switch (_state) {
     _BackupPromptState.ready => <Widget>[
-      BaseCampTerminalPopupButton(
+      BaseCampOperationPanelButton(
         label: 'NOT NOW',
         onPressed: () => Navigator.pop(context),
       ),
-      BaseCampTerminalPopupButton(
+      BaseCampOperationPanelButton(
         label: 'EXPORT BACKUP',
         primary: true,
         onPressed: _export,
@@ -126,18 +140,18 @@ class _BackupPromptDialogState extends State<BackupPromptDialog> {
     _BackupPromptState.exporting ||
     _BackupPromptState.exported => const <Widget>[],
     _BackupPromptState.cancelled => <Widget>[
-      BaseCampTerminalPopupButton(
+      BaseCampOperationPanelButton(
         label: 'CLOSE',
         primary: true,
         onPressed: () => Navigator.pop(context),
       ),
     ],
     _BackupPromptState.failed => <Widget>[
-      BaseCampTerminalPopupButton(
+      BaseCampOperationPanelButton(
         label: 'CLOSE',
         onPressed: () => Navigator.pop(context),
       ),
-      BaseCampTerminalPopupButton(
+      BaseCampOperationPanelButton(
         label: 'RETRY',
         primary: true,
         onPressed: _export,

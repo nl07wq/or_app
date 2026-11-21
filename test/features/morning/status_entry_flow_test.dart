@@ -17,6 +17,7 @@ import 'package:or_app/features/morning/services/morning_submit_service.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../operation_date/operation_date_test_fixture.dart';
@@ -222,6 +223,37 @@ void main() {
   );
 
   testWidgets(
+    'BASE CAMP keeps the existing DAILY BRIEF decision in operation-panel chrome',
+    (tester) async {
+      DeviceSettingsController.instance.resetForTesting(
+        originalDeviceSettings.copyWith(
+          ambientKineticFieldEnabled: false,
+          presentationTheme: AppPresentationTheme.baseCamp,
+        ),
+      );
+      await _pumpEntry(tester, baseCamp: true);
+      await tester.ensureVisible(find.text('SAVE STATUS'));
+      await tester.tap(find.text('SAVE STATUS'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(
+        find.byKey(const ValueKey('base-camp-operation-panel')),
+        findsOneWidget,
+      );
+      expect(find.text('DAILY BRIEF'), findsOneWidget);
+      expect(find.text('DAILY BRIEFを作成できます。\n今すぐ作成しますか？'), findsOneWidget);
+      expect(find.text('CANCEL'), findsOneWidget);
+      expect(find.text('CREATE'), findsOneWidget);
+
+      await tester.tap(find.text('CANCEL'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('DASHBOARD TEST'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'first STATUS save YES opens the existing DAILY BRIEF create page',
     (tester) async {
       await _pumpEntry(tester);
@@ -405,6 +437,7 @@ class _RecordingTouchRippleAudio implements TouchRippleAudio {
 Future<void> _pumpEntry(
   WidgetTester tester, {
   DailyBriefCreationPageBuilder? dailyBriefCreationPageBuilder,
+  bool baseCamp = false,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -429,10 +462,18 @@ Future<void> _pumpEntry(
             child: TextButton(
               onPressed: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(
-                  builder: (_) => MorningFactPage(
-                    dailyBriefCreationPageBuilder:
-                        dailyBriefCreationPageBuilder,
-                  ),
+                  builder: (_) {
+                    final page = MorningFactPage(
+                      dailyBriefCreationPageBuilder:
+                          dailyBriefCreationPageBuilder,
+                    );
+                    return baseCamp
+                        ? BaseCampScreenEntry(
+                            screen: BaseCampScreen.morning,
+                            child: page,
+                          )
+                        : page;
+                  },
                 ),
               ),
               child: const Text('OPEN STATUS FACT TEST'),

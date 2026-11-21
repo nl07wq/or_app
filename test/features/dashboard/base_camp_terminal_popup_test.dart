@@ -20,6 +20,7 @@ import 'package:or_app/features/operation_date/models/operation_local_date.dart'
 import 'package:or_app/features/operation_date/models/operation_state.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_communication_motion.dart';
+import 'package:or_app/features/themes/base_camp/widgets/base_camp_operation_panel.dart';
 import 'package:or_app/features/themes/base_camp/widgets/base_camp_terminal_popup.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -117,6 +118,47 @@ void main() {
     await tester.tap(find.text('CLOSE'));
     await tester.pumpAndSettle();
     expect(find.byType(BaseCampFinalizeDayDialog), findsNothing);
+  });
+
+  testWidgets('operation panel renders explicit lifecycle states', (
+    tester,
+  ) async {
+    await _pumpBaseCampHost(
+      tester,
+      child: const BaseCampOperationPanel(
+        title: 'SAVE STATUS',
+        state: BaseCampOperationPanelState.confirmation,
+        message: 'STATUSを保存しますか？',
+      ),
+    );
+    expect(find.text('CONFIRM'), findsOneWidget);
+    expect(find.text('STATUSを保存しますか？'), findsOneWidget);
+
+    await _pumpBaseCampHost(
+      tester,
+      child: const BaseCampOperationPanel(
+        title: 'SAVE STATUS',
+        state: BaseCampOperationPanelState.processing,
+        message: 'STATUSを保存しています。',
+      ),
+    );
+    expect(find.text('PROCESSING'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('base-camp-terminal-popup-progress')),
+      findsOneWidget,
+    );
+
+    await _pumpBaseCampHost(
+      tester,
+      child: const BaseCampOperationPanel(
+        title: 'SAVE STATUS',
+        state: BaseCampOperationPanelState.result,
+        result: BaseCampOperationPanelResult.failure,
+        message: 'STATUSの保存に失敗しました。',
+      ),
+    );
+    expect(find.text('FAILED'), findsOneWidget);
+    expect(find.text('STATUSの保存に失敗しました。'), findsOneWidget);
   });
 
   testWidgets(
@@ -238,6 +280,36 @@ void main() {
     );
   });
 
+  testWidgets('operation panel remains reachable in a short landscape view', (
+    tester,
+  ) async {
+    await _pumpBaseCampHost(
+      tester,
+      width: 568,
+      height: 280,
+      child: BaseCampOperationPanel(
+        title: 'FINALIZE DAY',
+        state: BaseCampOperationPanelState.result,
+        result: BaseCampOperationPanelResult.failure,
+        message:
+            'FINALIZE DAYに失敗しました。\n'
+            '保存データを確認してから安全に再度実行してください。',
+        actions: <Widget>[
+          BaseCampOperationPanelButton(label: 'CLOSE', onPressed: () {}),
+          BaseCampOperationPanelButton(
+            label: 'COPY DIAGNOSTICS',
+            primary: true,
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('CLOSE'), findsOneWidget);
+    expect(find.text('COPY DIAGNOSTICS'), findsOneWidget);
+  });
+
   testWidgets('renders popup and communication screenshot evidence', (
     tester,
   ) async {
@@ -252,6 +324,7 @@ void main() {
       '${directory.path}${Platform.pathSeparator}$name.png',
     );
 
+    final finalizePending = Completer<void>();
     await _pumpEvidenceSurface(
       tester,
       captureKey: captureKey,
@@ -273,12 +346,16 @@ void main() {
       ),
       child: BaseCampFinalizeDayDialog(
         key: const ValueKey('evidence-finalize-confirm'),
-        onFinalize: () async {},
+        onFinalize: () => finalizePending.future,
         successHold: const Duration(hours: 1),
       ),
     );
     await capture('finalize_confirm_320_light');
     await tester.tap(find.text('FINALIZE'));
+    await tester.pump();
+    expect(find.text('PROCESSING'), findsOneWidget);
+    await capture('finalize_processing_320_light');
+    finalizePending.complete();
     await tester.pump();
     expect(find.text('COMPLETE'), findsOneWidget);
     await capture('finalize_complete_320_light');
@@ -365,6 +442,26 @@ void main() {
       tester,
       captureKey: captureKey,
       width: 390,
+      child: BaseCampOperationPanel(
+        title: 'DAILY BRIEF',
+        state: BaseCampOperationPanelState.confirmation,
+        message: 'DAILY BRIEFを作成できます。\n今すぐ作成しますか？',
+        actions: <Widget>[
+          BaseCampOperationPanelButton(label: 'CANCEL', onPressed: () {}),
+          BaseCampOperationPanelButton(
+            label: 'CREATE',
+            primary: true,
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+    await capture('daily_brief_confirm_390_light');
+
+    await _pumpEvidenceSurface(
+      tester,
+      captureKey: captureKey,
+      width: 390,
       child: const BaseCampCommunicationMotion(
         kind: BaseCampCommunicationKind.dailyBrief,
         phase: BaseCampCommunicationPhase.success,
@@ -392,9 +489,10 @@ Future<void> _pumpBaseCampHost(
   WidgetTester tester, {
   required Widget child,
   double width = 390,
+  double height = 800,
   bool negative = false,
 }) async {
-  tester.view.physicalSize = Size(width, 800);
+  tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);

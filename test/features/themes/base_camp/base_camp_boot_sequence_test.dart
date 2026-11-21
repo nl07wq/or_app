@@ -64,7 +64,12 @@ void main() {
         ),
       );
 
-      expect(find.text('POWER ON'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('base-camp-boot-phase')))
+            .data,
+        'POWER ON',
+      );
       expect(find.text('READY'), findsNothing);
       expect(released, isFalse);
 
@@ -89,7 +94,10 @@ void main() {
         currentStage: InitializationStage.complete,
       );
       await tester.pump();
-      expect(find.text('SYSTEM READY'), findsNWidgets(2));
+      expect(find.text('SYSTEM READY'), findsOneWidget);
+      expect(find.text('ALL SYSTEMS READY'), findsOneWidget);
+      expect(find.text('BASE CAMP ONLINE'), findsOneWidget);
+      expect(find.text('LINK ESTABLISHED'), findsOneWidget);
       expect(find.text('READY'), findsNWidgets(3));
       expect(released, isTrue);
       initialization.dispose();
@@ -119,6 +127,60 @@ void main() {
     expect(find.byKey(const ValueKey('base-camp-boot')), findsNothing);
     await tester.pump(const Duration(seconds: 2));
     expect(released, isFalse);
+    initialization.dispose();
+  });
+
+  testWidgets('slow initialization remains pending without false readiness', (
+    tester,
+  ) async {
+    final initialization = ValueNotifier<AppInitializationState>(
+      const AppInitializationState.initializing(
+        currentStage: InitializationStage.migratingFood,
+      ),
+    );
+    var released = false;
+    await tester.pumpWidget(
+      _Harness(
+        initialization: initialization,
+        onReleased: () => released = true,
+      ),
+    );
+
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(find.text('INITIALIZING DISPLAY'), findsOneWidget);
+    expect(find.text('LOADING TERMINAL SHELL'), findsOneWidget);
+    expect(find.text('LINKING...'), findsOneWidget);
+    expect(find.text('ALL SYSTEMS READY'), findsNothing);
+    expect(released, isFalse);
+    initialization.dispose();
+  });
+
+  testWidgets('reduced motion reveals terminal state without choreography', (
+    tester,
+  ) async {
+    final initialization = ValueNotifier<AppInitializationState>(
+      const AppInitializationState.initializing(),
+    );
+    await tester.pumpWidget(
+      _Harness(
+        initialization: initialization,
+        onReleased: () {},
+        disableAnimations: true,
+      ),
+    );
+
+    expect(find.text('INITIALIZING DISPLAY'), findsOneWidget);
+    expect(find.text('LOADING TERMINAL SHELL'), findsOneWidget);
+    final housing = tester.widget<Opacity>(
+      find
+          .ancestor(
+            of: find.byKey(const ValueKey('base-camp-boot-housing')),
+            matching: find.byType(Opacity),
+          )
+          .first,
+    );
+    expect(housing.opacity, 1);
     initialization.dispose();
   });
 
@@ -162,20 +224,28 @@ void main() {
 }
 
 class _Harness extends StatelessWidget {
-  const _Harness({required this.initialization, required this.onReleased});
+  const _Harness({
+    required this.initialization,
+    required this.onReleased,
+    this.disableAnimations = false,
+  });
 
   final ValueListenable<AppInitializationState> initialization;
   final VoidCallback onReleased;
+  final bool disableAnimations;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    home: BaseCampBootSequenceGate(
-      initialization: initialization,
-      fallbackBuilder: (state) => const ColoredBox(
-        key: ValueKey('startup-fallback'),
-        color: Colors.black,
+    home: MediaQuery(
+      data: MediaQueryData(disableAnimations: disableAnimations),
+      child: BaseCampBootSequenceGate(
+        initialization: initialization,
+        fallbackBuilder: (state) => const ColoredBox(
+          key: ValueKey('startup-fallback'),
+          color: Colors.black,
+        ),
+        onPresentationReleased: onReleased,
       ),
-      onPresentationReleased: onReleased,
     ),
   );
 }
