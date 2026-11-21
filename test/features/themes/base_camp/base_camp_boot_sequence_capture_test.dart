@@ -40,7 +40,7 @@ void main() {
       name: 'terminal_initializing_320_light',
       width: 320,
       negative: false,
-      wakeElapsed: const Duration(milliseconds: 500),
+      wakeElapsed: const Duration(milliseconds: 400),
       state: const AppInitializationState.initializing(),
     );
     await _renderAndCapture(
@@ -49,7 +49,7 @@ void main() {
       name: 'system_check_375_light',
       width: 375,
       negative: false,
-      wakeElapsed: const Duration(milliseconds: 1200),
+      wakeElapsed: const Duration(milliseconds: 800),
       state: const AppInitializationState.initializing(
         currentStage: InitializationStage.migratingFood,
       ),
@@ -61,7 +61,7 @@ void main() {
       name: 'base_camp_link_390_inv',
       width: 390,
       negative: true,
-      wakeElapsed: const Duration(milliseconds: 1650),
+      wakeElapsed: const Duration(milliseconds: 1200),
       state: const AppInitializationState.initializing(
         currentStage: InitializationStage.verifyingRepositories,
       ),
@@ -72,7 +72,7 @@ void main() {
       name: 'system_ready_430_light',
       width: 430,
       negative: false,
-      wakeElapsed: const Duration(milliseconds: 1650),
+      wakeElapsed: const Duration(milliseconds: 1550),
       state: const AppInitializationState(
         mode: PersistenceMode.indexedDbReadWrite,
         currentStage: InitializationStage.complete,

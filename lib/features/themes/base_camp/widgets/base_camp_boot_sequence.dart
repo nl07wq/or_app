@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../../../core/services/device_settings_controller.dart';
 import '../../../../core/services/system_diagnostics.dart';
@@ -29,15 +30,38 @@ class BaseCampBootSequenceGate extends StatefulWidget {
       _BaseCampBootSequenceGateState();
 }
 
-class _BaseCampBootSequenceGateState extends State<BaseCampBootSequenceGate> {
+const _powerOnEnd = Duration(milliseconds: 250);
+const _initializingEnd = Duration(milliseconds: 650);
+const _systemCheckEnd = Duration(milliseconds: 1050);
+const _linkEnd = Duration(milliseconds: 1450);
+const _presentationEnd = Duration(milliseconds: 1750);
+const _readyAcknowledgement = Duration(milliseconds: 300);
+
+class _BaseCampBootSequenceGateState extends State<BaseCampBootSequenceGate>
+    with SingleTickerProviderStateMixin {
   bool _releaseScheduled = false;
   bool _systemInitializedEmitted = false;
+  bool _reducedMotion = false;
+  Duration _presentationElapsed = Duration.zero;
+  Duration _tickerOffset = Duration.zero;
+  Duration? _initializationReadyAt;
   InitializationStage? _lastRecordedStage;
   PersistenceMode? _lastRecordedMode;
+  late final Ticker _presentationTicker;
 
   @override
   void initState() {
     super.initState();
+    _presentationTicker = createTicker((elapsed) {
+      if (!mounted) return;
+      final totalElapsed = _tickerOffset + elapsed;
+      setState(() => _presentationElapsed = totalElapsed);
+      if (totalElapsed >= _presentationEnd &&
+          widget.initialization.value.mode == PersistenceMode.initializing) {
+        _pausePresentationTicker();
+      }
+      _maybeRelease(widget.initialization.value);
+    })..start();
     widget.onEvent?.call(
       BootSequenceEvent(
         type: BootSequenceEventType.bootStart,
@@ -55,6 +79,23 @@ class _BaseCampBootSequenceGateState extends State<BaseCampBootSequenceGate> {
         },
       );
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reducedMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_reducedMotion) {
+      _pausePresentationTicker();
+      return;
+    }
+    _resumePresentationTicker();
+  }
+
+  @override
+  void dispose() {
+    _presentationTicker.dispose();
+    super.dispose();
   }
 
   void _recordState(AppInitializationState state) {
@@ -75,24 +116,74 @@ class _BaseCampBootSequenceGateState extends State<BaseCampBootSequenceGate> {
     );
   }
 
-  void _scheduleRelease(AppInitializationState state) {
-    if (_releaseScheduled || state.mode == PersistenceMode.initializing) return;
-    if (state.mode == PersistenceMode.failed) return;
-    _releaseScheduled = true;
-    if (state.mode == PersistenceMode.indexedDbReadWrite &&
-        !_systemInitializedEmitted) {
-      _systemInitializedEmitted = true;
-      widget.onEvent?.call(
-        BootSequenceEvent(
-          type: BootSequenceEventType.systemInitialized,
-          occurredAt: DateTime.now(),
-        ),
-      );
+  void _observeInitialization(AppInitializationState state) {
+    if (state.mode == PersistenceMode.indexedDbReadWrite) {
+      _initializationReadyAt ??= _presentationElapsed;
+      if (!_reducedMotion) _resumePresentationTicker();
+      if (!_systemInitializedEmitted) {
+        _systemInitializedEmitted = true;
+        widget.onEvent?.call(
+          BootSequenceEvent(
+            type: BootSequenceEventType.systemInitialized,
+            occurredAt: DateTime.now(),
+          ),
+        );
+      }
     }
-    // One frame makes the verified terminal state observable. There is no
-    // completion timer: the existing StartupGate resumes immediately after it.
+    if (state.mode == PersistenceMode.initializing &&
+        _presentationElapsed < _presentationEnd &&
+        !_reducedMotion) {
+      _resumePresentationTicker();
+    }
+    _maybeRelease(state);
+  }
+
+  void _pausePresentationTicker() {
+    if (!_presentationTicker.isActive) return;
+    _tickerOffset = _presentationElapsed;
+    _presentationTicker.stop();
+  }
+
+  void _resumePresentationTicker() {
+    if (_presentationTicker.isActive) return;
+    _tickerOffset = _presentationElapsed;
+    _presentationTicker.start();
+  }
+
+  void _maybeRelease(AppInitializationState state) {
+    if (_releaseScheduled || state.mode == PersistenceMode.failed) return;
+    if (state.mode == PersistenceMode.maintenance ||
+        state.mode == PersistenceMode.legacyReadOnly) {
+      _release(state);
+      return;
+    }
+    if (state.mode != PersistenceMode.indexedDbReadWrite) return;
+    if (_reducedMotion) {
+      _release(state);
+      return;
+    }
+    final initializedAt = _initializationReadyAt ?? _presentationElapsed;
+    final readyVisibleAt = initializedAt > _linkEnd ? initializedAt : _linkEnd;
+    if (_presentationElapsed < _presentationEnd ||
+        _presentationElapsed - readyVisibleAt < _readyAcknowledgement) {
+      return;
+    }
+    _release(state);
+  }
+
+  void _release(AppInitializationState state) {
+    if (_releaseScheduled) return;
+    _releaseScheduled = true;
+    _pausePresentationTicker();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      final currentState = widget.initialization.value;
+      if (currentState.mode == PersistenceMode.failed ||
+          (state.mode == PersistenceMode.indexedDbReadWrite &&
+              currentState.mode != PersistenceMode.indexedDbReadWrite)) {
+        _releaseScheduled = false;
+        return;
+      }
       widget.onEvent?.call(
         BootSequenceEvent(
           type: BootSequenceEventType.bootComplete,
@@ -110,9 +201,10 @@ class _BaseCampBootSequenceGateState extends State<BaseCampBootSequenceGate> {
         builder: (context, state, _) {
           _recordState(state);
           if (state.mode == PersistenceMode.failed) {
+            _pausePresentationTicker();
             return widget.fallbackBuilder(state);
           }
-          _scheduleRelease(state);
+          _observeInitialization(state);
           return ValueListenableBuilder<DeviceSettings>(
             valueListenable: DeviceSettingsController.instance,
             builder: (context, settings, _) {
@@ -121,7 +213,23 @@ class _BaseCampBootSequenceGateState extends State<BaseCampBootSequenceGate> {
               );
               return BaseCampTerminalPaletteScope(
                 palette: palette,
-                child: _BaseCampBootTerminal(state: state, palette: palette),
+                child: _BaseCampBootTerminal(
+                  state: state,
+                  palette: palette,
+                  phase: _reducedMotion
+                      ? baseCampBootPhaseFor(state)
+                      : baseCampBootPresentationPhaseFor(
+                          _presentationElapsed,
+                          initializationReady:
+                              state.mode == PersistenceMode.indexedDbReadWrite,
+                        ),
+                  wakeProgress: _reducedMotion
+                      ? 1
+                      : (_presentationElapsed.inMicroseconds /
+                                _presentationEnd.inMicroseconds)
+                            .clamp(0, 1)
+                            .toDouble(),
+                ),
               );
             },
           );
@@ -129,7 +237,27 @@ class _BaseCampBootSequenceGateState extends State<BaseCampBootSequenceGate> {
       );
 }
 
-enum BaseCampBootPhase { powerOn, systemCheck, baseCampLink, systemReady }
+enum BaseCampBootPhase {
+  powerOn,
+  initializing,
+  systemCheck,
+  baseCampLink,
+  systemReady,
+}
+
+@visibleForTesting
+BaseCampBootPhase baseCampBootPresentationPhaseFor(
+  Duration elapsed, {
+  required bool initializationReady,
+}) {
+  if (elapsed < _powerOnEnd) return BaseCampBootPhase.powerOn;
+  if (elapsed < _initializingEnd) return BaseCampBootPhase.initializing;
+  if (elapsed < _systemCheckEnd) return BaseCampBootPhase.systemCheck;
+  if (elapsed < _linkEnd || !initializationReady) {
+    return BaseCampBootPhase.baseCampLink;
+  }
+  return BaseCampBootPhase.systemReady;
+}
 
 @visibleForTesting
 BaseCampBootPhase baseCampBootPhaseFor(AppInitializationState state) {
@@ -147,65 +275,26 @@ BaseCampBootPhase baseCampBootPhaseFor(AppInitializationState state) {
 
 enum _TerminalCheckState { checking, ready }
 
-class _BaseCampBootTerminal extends StatefulWidget {
-  const _BaseCampBootTerminal({required this.state, required this.palette});
+class _BaseCampBootTerminal extends StatelessWidget {
+  const _BaseCampBootTerminal({
+    required this.state,
+    required this.palette,
+    required this.phase,
+    required this.wakeProgress,
+  });
 
   final AppInitializationState state;
   final BaseCampTerminalPalette palette;
+  final BaseCampBootPhase phase;
+  final double wakeProgress;
 
   @override
-  State<_BaseCampBootTerminal> createState() => _BaseCampBootTerminalState();
-}
-
-class _BaseCampBootTerminalState extends State<_BaseCampBootTerminal>
-    with SingleTickerProviderStateMixin {
-  static const _wakeDuration = Duration(milliseconds: 1650);
-  late final AnimationController _wakeController;
-  bool _wakeStarted = false;
-
-  AppInitializationState get state => widget.state;
-  BaseCampTerminalPalette get palette => widget.palette;
-
-  @override
-  void initState() {
-    super.initState();
-    _wakeController = AnimationController(vsync: this, duration: _wakeDuration);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final reducedMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (reducedMotion) {
-      _wakeStarted = true;
-      _wakeController.value = 1;
-    } else if (!_wakeStarted) {
-      _wakeStarted = true;
-      _wakeController.forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    _wakeController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _wakeController,
-    builder: (context, _) => _buildTerminal(context),
-  );
-
-  Widget _buildTerminal(BuildContext context) {
-    final phase = baseCampBootPhaseFor(state);
+  Widget build(BuildContext context) {
     final database = _databaseState(state);
     final status = _statusState(state);
     final system = state.mode == PersistenceMode.indexedDbReadWrite
         ? _TerminalCheckState.ready
         : _TerminalCheckState.checking;
-    final wakeProgress = _wakeController.value;
     return ColoredBox(
       key: const ValueKey('base-camp-boot'),
       color: const Color(0xff11150f),
@@ -292,25 +381,28 @@ class _BaseCampBootTerminalState extends State<_BaseCampBootTerminal>
                                         label: 'DATABASE',
                                         state: database,
                                         palette: palette,
-                                        visible: wakeProgress >= .46,
+                                        visible: wakeProgress >= .37,
                                       ),
                                       const SizedBox(height: 9),
                                       _CheckLine(
                                         label: 'STATUS',
                                         state: status,
                                         palette: palette,
-                                        visible: wakeProgress >= .60,
+                                        visible: wakeProgress >= .45,
                                       ),
                                       const SizedBox(height: 9),
                                       _CheckLine(
                                         label: 'SYSTEM',
                                         state: system,
                                         palette: palette,
-                                        visible: wakeProgress >= .72,
+                                        visible: wakeProgress >= .52,
                                       ),
                                       const SizedBox(height: 24),
                                       _LinkReadout(
                                         phase: phase,
+                                        initializationReady:
+                                            state.mode ==
+                                            PersistenceMode.indexedDbReadWrite,
                                         palette: palette,
                                       ),
                                       const SizedBox(height: 12),
@@ -319,7 +411,10 @@ class _BaseCampBootTerminalState extends State<_BaseCampBootTerminal>
                                         palette: palette,
                                       ),
                                       if (phase ==
-                                          BaseCampBootPhase.systemReady) ...[
+                                              BaseCampBootPhase.systemReady &&
+                                          state.mode ==
+                                              PersistenceMode
+                                                  .indexedDbReadWrite) ...[
                                         const SizedBox(height: 12),
                                         Text(
                                           'ALL SYSTEMS READY',
@@ -502,9 +597,14 @@ class _CheckLine extends StatelessWidget {
 }
 
 class _LinkReadout extends StatelessWidget {
-  const _LinkReadout({required this.phase, required this.palette});
+  const _LinkReadout({
+    required this.phase,
+    required this.initializationReady,
+    required this.palette,
+  });
 
   final BaseCampBootPhase phase;
+  final bool initializationReady;
   final BaseCampTerminalPalette palette;
 
   @override
@@ -529,12 +629,12 @@ class _LinkReadout extends StatelessWidget {
               ),
             ),
             Text(
-              phase == BaseCampBootPhase.systemReady
+              phase == BaseCampBootPhase.systemReady && initializationReady
                   ? 'LINK ESTABLISHED'
                   : 'LINKING...',
               key: const ValueKey('base-camp-boot-link-state'),
               style: _lcdText(
-                phase == BaseCampBootPhase.systemReady
+                phase == BaseCampBootPhase.systemReady && initializationReady
                     ? palette.primaryText
                     : palette.auxiliaryText,
                 7,
@@ -571,17 +671,20 @@ class _VerifiedProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final completed = phase.index + 1;
+    final completed = switch (phase) {
+      BaseCampBootPhase.powerOn || BaseCampBootPhase.initializing => 1,
+      BaseCampBootPhase.systemCheck => 2,
+      BaseCampBootPhase.baseCampLink => 3,
+      BaseCampBootPhase.systemReady => 4,
+    };
     return Row(
       key: const ValueKey('base-camp-boot-progress'),
       children: List<Widget>.generate(
-        BaseCampBootPhase.values.length,
+        4,
         (index) => Expanded(
           child: Container(
             height: 8,
-            margin: EdgeInsets.only(
-              right: index == BaseCampBootPhase.values.length - 1 ? 0 : 4,
-            ),
+            margin: EdgeInsets.only(right: index == 3 ? 0 : 4),
             decoration: BoxDecoration(
               color: index < completed
                   ? palette.primaryText
@@ -658,6 +761,7 @@ _TerminalCheckState _statusState(AppInitializationState state) =>
 
 String _phaseLabel(BaseCampBootPhase phase) => switch (phase) {
   BaseCampBootPhase.powerOn => 'POWER ON',
+  BaseCampBootPhase.initializing => 'INITIALIZING',
   BaseCampBootPhase.systemCheck => 'SYSTEM CHECK',
   BaseCampBootPhase.baseCampLink => 'BASE CAMP LINK',
   BaseCampBootPhase.systemReady => 'SYSTEM READY',
