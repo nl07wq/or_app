@@ -177,7 +177,7 @@ class BaseCampRifleGlobalAlignment {
     }
     final parsedDurations = durations
         .map((value) {
-          if (value is! num || value.toInt() <= 0 || value.toInt() > 10000) {
+          if (value is! num || value.toInt() < 50 || value.toInt() > 2000) {
             throw const FormatException('Invalid duration');
           }
           return value.toInt();
@@ -662,39 +662,25 @@ class BaseCampBreathingSoldier extends StatelessWidget {
   );
 }
 
-enum BaseCampRifleRegripPhase { breathing, preIdle, rifleRegrip, postIdle }
+enum BaseCampRifleRegripPhase { breathing, rifleRegrip }
 
-const baseCampRifleRegripPreIdleMs = 1000;
+const baseCampRifleRegripPreIdleMs = 0;
 const baseCampRifleRegripAnimationMs = 1850;
-const baseCampRifleRegripPostIdleMs = 1000;
-const baseCampRifleRegripEventMs =
-    baseCampRifleRegripPreIdleMs +
-    baseCampRifleRegripAnimationMs +
-    baseCampRifleRegripPostIdleMs;
+const baseCampRifleRegripPostIdleMs = 0;
+const baseCampRifleRegripRemovedHoldMs = 2000;
+const baseCampRifleRegripEventMs = baseCampRifleRegripAnimationMs;
 const baseCampRifleRegripFrameDurations = <int>[400, 350, 200, 350, 150, 400];
 
 int baseCampRifleRegripEventDurationMs(List<int> durations) =>
-    baseCampRifleRegripPreIdleMs +
-    durations.fold<int>(0, (total, duration) => total + duration) +
-    baseCampRifleRegripPostIdleMs;
+    durations.fold<int>(0, (total, duration) => total + duration);
 
 BaseCampRifleRegripPhase baseCampRifleRegripPhase(
   int elapsedMs, {
   List<int> frameDurations = baseCampRifleRegripFrameDurations,
 }) {
-  final animationMs = frameDurations.fold<int>(
-    0,
-    (total, duration) => total + duration,
-  );
   final eventMs = baseCampRifleRegripEventDurationMs(frameDurations);
-  if (elapsedMs < baseCampRifleRegripPreIdleMs) {
-    return BaseCampRifleRegripPhase.preIdle;
-  }
-  if (elapsedMs < baseCampRifleRegripPreIdleMs + animationMs) {
+  if (elapsedMs >= 0 && elapsedMs < eventMs) {
     return BaseCampRifleRegripPhase.rifleRegrip;
-  }
-  if (elapsedMs < eventMs) {
-    return BaseCampRifleRegripPhase.postIdle;
   }
   return BaseCampRifleRegripPhase.breathing;
 }
@@ -703,7 +689,7 @@ int baseCampRifleRegripFrameIndex(
   int eventElapsedMs, {
   List<int> frameDurations = baseCampRifleRegripFrameDurations,
 }) {
-  var frameElapsed = eventElapsedMs - baseCampRifleRegripPreIdleMs;
+  var frameElapsed = eventElapsedMs.clamp(0, 0x7fffffff);
   for (var index = 0; index < frameDurations.length; index++) {
     final duration = frameDurations[index];
     if (frameElapsed < duration) return index;
@@ -747,6 +733,11 @@ ColorFilter baseCampSoldierColorFilter({
 
 int baseCampRifleRegripIntervalMs(int Function(int max) nextInt) =>
     60000 + nextInt(60001);
+
+/// Keeps the established automatic event start-to-start cadence after the
+/// visual PRE/POST holds were removed from the motion itself.
+int baseCampRifleRegripIntervalAfterEventMs(int Function(int max) nextInt) =>
+    baseCampRifleRegripIntervalMs(nextInt) + baseCampRifleRegripRemovedHoldMs;
 
 const _breathingCycleMs = 2400.0;
 

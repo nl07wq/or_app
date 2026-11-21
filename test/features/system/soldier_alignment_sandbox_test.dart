@@ -146,17 +146,19 @@ void main() {
   });
 
   test('transition preview timing retains the production event sequence', () {
-    expect(baseCampRifleRegripEventMs, 3850);
-    expect(baseCampRifleRegripPhase(0), BaseCampRifleRegripPhase.preIdle);
-    expect(baseCampRifleRegripPhase(999), BaseCampRifleRegripPhase.preIdle);
-    expect(baseCampRifleRegripFrameIndex(1000), 0);
-    expect(baseCampRifleRegripFrameIndex(1400), 1);
-    expect(baseCampRifleRegripFrameIndex(1750), 2);
-    expect(baseCampRifleRegripFrameIndex(1950), 3);
-    expect(baseCampRifleRegripFrameIndex(2300), 4);
-    expect(baseCampRifleRegripFrameIndex(2450), 5);
-    expect(baseCampRifleRegripPhase(2850), BaseCampRifleRegripPhase.postIdle);
-    expect(baseCampRifleRegripPhase(3850), BaseCampRifleRegripPhase.breathing);
+    expect(baseCampRifleRegripEventMs, 1850);
+    expect(baseCampRifleRegripPhase(0), BaseCampRifleRegripPhase.rifleRegrip);
+    expect(baseCampRifleRegripFrameIndex(0), 0);
+    expect(baseCampRifleRegripFrameIndex(400), 1);
+    expect(baseCampRifleRegripFrameIndex(750), 2);
+    expect(baseCampRifleRegripFrameIndex(950), 3);
+    expect(baseCampRifleRegripFrameIndex(1300), 4);
+    expect(baseCampRifleRegripFrameIndex(1450), 5);
+    expect(
+      baseCampRifleRegripPhase(1849),
+      BaseCampRifleRegripPhase.rifleRegrip,
+    );
+    expect(baseCampRifleRegripPhase(1850), BaseCampRifleRegripPhase.breathing);
   });
 
   testWidgets(

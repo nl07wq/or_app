@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_configuration.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_map_editor_page.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_soldier_motion.dart';
@@ -143,25 +144,28 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.byKey(const ValueKey('soldier-live-trigger-regrip')));
+    final trigger = find.byKey(const ValueKey('soldier-live-trigger-regrip'));
+    await tester.ensureVisible(trigger);
+    tester.widget<OperationButton>(trigger).onPressed!();
+    tester
+        .state<ScrollableState>(find.byType(Scrollable).first)
+        .position
+        .jumpTo(0);
     await tester.pump();
-    expect(find.text('PHASE: PREIDLE'), findsOneWidget);
-
-    await tester.pump(const Duration(milliseconds: 1001));
     expect(find.text('PHASE: RIFLEREGRIP'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('soldier-live-rifle-frame-0')),
       findsOneWidget,
     );
 
-    await tester.pump(const Duration(milliseconds: 1850));
-    expect(find.text('PHASE: POSTIDLE'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1849));
+    expect(find.text('PHASE: RIFLEREGRIP'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('soldier-live-rifle-frame-5')),
       findsOneWidget,
     );
 
-    await tester.pump(const Duration(milliseconds: 1000));
+    await tester.pump(const Duration(milliseconds: 1));
     expect(find.text('PHASE: BREATHING'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('base-camp-soldier-lower')),
@@ -205,6 +209,61 @@ void main() {
     expect(find.text('APPLY FAILED — EDITED VALUES RETAINED'), findsOneWidget);
     expect(tester.widget<Slider>(sliderFinder).value, 12);
     expect(controller.value.x, baseCampApprovedRifleGlobalX);
+  });
+
+  testWidgets('live preview edits, resets, and saves six frame timings', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final controller = BaseCampRifleAlignmentController();
+    await tester.binding.setSurfaceSize(const Size(430, 1800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SoldierLiveMotionPreviewPage(alignmentController: controller),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('REGRIP FRAME TIMING'), findsOneWidget);
+    expect(find.text('TOTAL MOTION DURATION: 1850ms'), findsOneWidget);
+    for (var frame = 0; frame < 6; frame++) {
+      expect(
+        find.byKey(ValueKey('soldier-live-frame-duration-f$frame')),
+        findsOneWidget,
+      );
+    }
+
+    final globalX = find.descendant(
+      of: find.ancestor(of: find.text('GLOBAL X'), matching: find.byType(Row)),
+      matching: find.byType(Slider),
+    );
+    tester.widget<Slider>(globalX).onChanged!(12);
+    final f0 = find.byKey(const ValueKey('soldier-live-frame-duration-f0'));
+    tester.widget<Slider>(f0).onChanged!(500);
+    await tester.pump();
+    expect(find.text('TOTAL MOTION DURATION: 1950ms'), findsOneWidget);
+
+    final reset = find.byKey(const ValueKey('soldier-live-reset-frame-timing'));
+    await tester.ensureVisible(reset);
+    await tester.tap(reset);
+    await tester.pump();
+    expect(find.text('TOTAL MOTION DURATION: 1850ms'), findsOneWidget);
+    expect(tester.widget<Slider>(globalX).value, 12);
+
+    final f1 = find.byKey(const ValueKey('soldier-live-frame-duration-f1'));
+    tester.widget<Slider>(f1).onChanged!(600);
+    await tester.pump();
+    final apply = find.byKey(const ValueKey('soldier-live-apply-dashboard'));
+    await tester.ensureVisible(apply);
+    await tester.tap(apply);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(controller.value.frameDurationsMs, [400, 600, 200, 350, 150, 400]);
+    expect(controller.value.x, 12);
+
+    final restored = BaseCampRifleAlignmentController();
+    await restored.load();
+    expect(restored.value.frameDurationsMs, controller.value.frameDurationsMs);
   });
 
   testWidgets(

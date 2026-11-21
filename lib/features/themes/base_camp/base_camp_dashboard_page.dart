@@ -925,14 +925,18 @@ class _BreathingSoldierCompartmentState
       }
       return;
     }
-    _scheduleSpecialEvent();
+    _scheduleSpecialEvent(preservePreviousCadence: true);
   }
 
-  void _scheduleSpecialEvent() {
+  void _scheduleSpecialEvent({bool preservePreviousCadence = false}) {
     _specialTimer?.cancel();
     if (!_active || !mounted) return;
     _specialTimer = Timer(
-      Duration(milliseconds: baseCampRifleRegripIntervalMs(_random.nextInt)),
+      Duration(
+        milliseconds: preservePreviousCadence
+            ? baseCampRifleRegripIntervalAfterEventMs(_random.nextInt)
+            : baseCampRifleRegripIntervalMs(_random.nextInt),
+      ),
       _onAutomaticTimer,
     );
   }
@@ -1132,20 +1136,13 @@ class _BreathingSoldierCompartmentState
                                   : BaseCampRifleRegripPhase.breathing;
                               final showRifleFrame =
                                   _rifleFramesReady &&
-                                  (phase ==
-                                          BaseCampRifleRegripPhase
-                                              .rifleRegrip ||
-                                      phase ==
-                                          BaseCampRifleRegripPhase.postIdle);
+                                  phase == BaseCampRifleRegripPhase.rifleRegrip;
                               if (showRifleFrame) {
-                                final frame =
-                                    phase == BaseCampRifleRegripPhase.postIdle
-                                    ? baseCampRifleRegripAssets.length - 1
-                                    : baseCampRifleRegripFrameIndex(
-                                        elapsed,
-                                        frameDurations:
-                                            _eventAlignment.frameDurationsMs,
-                                      );
+                                final frame = baseCampRifleRegripFrameIndex(
+                                  elapsed,
+                                  frameDurations:
+                                      _eventAlignment.frameDurationsMs,
+                                );
                                 return BaseCampRifleRegripFrame(
                                   frame: frame,
                                   globalX: _eventAlignment.x,
@@ -1167,9 +1164,7 @@ class _BreathingSoldierCompartmentState
                                   ),
                                 );
                               }
-                              final dy =
-                                  phase == BaseCampRifleRegripPhase.preIdle ||
-                                      reduced
+                              final dy = reduced
                                   ? 0.0
                                   : baseCampBreathingOffset(
                                       _breathingController.value *

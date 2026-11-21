@@ -94,8 +94,11 @@ void main() {
       await tester.ensureVisible(trigger);
       await tester.pump();
       tester.widget<OperationButton>(trigger).onPressed!();
+      tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .jumpTo(0);
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1001));
       expect(find.text('PHASE: RIFLEREGRIP'), findsOneWidget);
       expect(
         _pixelatedImage(
@@ -179,6 +182,38 @@ void main() {
     });
   }
 
+  for (final size in <Size>[
+    const Size(320, 844),
+    const Size(375, 812),
+    const Size(390, 844),
+    const Size(430, 932),
+    const Size(844, 320),
+  ]) {
+    testWidgets(
+      'six frame timing controls fit ${size.width.toInt()}x${size.height.toInt()}',
+      (tester) async {
+        await tester.binding.setSurfaceSize(size);
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          const MaterialApp(home: SoldierLiveMotionPreviewPage()),
+        );
+        await tester.pump();
+        final section = find.byKey(
+          const ValueKey('soldier-live-regrip-frame-timing'),
+        );
+        await tester.scrollUntilVisible(
+          section,
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pump();
+        expect(find.text('REGRIP FRAME TIMING'), findsOneWidget);
+        expect(find.text('TOTAL MOTION DURATION: 1850ms'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final level in SoldierPixelationLevel.values.skip(1)) {
     testWidgets('${level.controlLabel} remains active through TRIGGER REGRIP', (
       tester,
@@ -204,7 +239,6 @@ void main() {
       final trigger = find.byKey(const ValueKey('soldier-live-trigger-regrip'));
       tester.widget<OperationButton>(trigger).onPressed!();
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1001));
       expect(
         _pixelatedImage(level, baseCampRifleRegripAssets.first),
         findsOneWidget,
