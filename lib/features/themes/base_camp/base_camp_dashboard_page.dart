@@ -710,6 +710,7 @@ class _BreathingSoldierCompartmentState
     return _pixelProfile = baseCampSoldierPixelProfile(
       viewport: viewport,
       devicePixelRatio: devicePixelRatio,
+      density: BaseCampSoldierPixelDensity.dashboardCorrected,
       globalX: alignment.x,
       globalY: alignment.y,
       globalScale: alignment.scale,

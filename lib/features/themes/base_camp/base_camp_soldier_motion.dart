@@ -365,6 +365,7 @@ const baseCampSoldierPixelFrameCount = 2 + 6;
 BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
   required Size viewport,
   double devicePixelRatio = 1,
+  BaseCampSoldierPixelDensity density = BaseCampSoldierPixelDensity.standard,
   double globalX = baseCampApprovedRifleGlobalX,
   double globalY = baseCampApprovedRifleGlobalY,
   double globalScale = baseCampApprovedRifleGlobalScale,
@@ -381,6 +382,7 @@ BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
     viewport.width.toStringAsFixed(3),
     viewport.height.toStringAsFixed(3),
     effectiveDevicePixelRatio.toStringAsFixed(3),
+    density.name,
     globalX.toStringAsFixed(6),
     globalY.toStringAsFixed(6),
     globalScale.toStringAsFixed(6),
@@ -408,7 +410,9 @@ BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
       profileKey: key,
       viewport: viewport,
       targetRect: breathingRect,
+      sourceSize: _normalSoldierCanvas,
       devicePixelRatio: effectiveDevicePixelRatio,
+      density: density,
     ),
     BaseCampSoldierPixelRequest(
       asset: baseCampBreathingSoldierUpperAsset,
@@ -418,7 +422,9 @@ BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
       // Keep one stable processed grid. The approved breathing displacement is
       // applied later by [BaseCampBreathingSoldier] at presentation time.
       targetRect: breathingRect,
+      sourceSize: _normalSoldierCanvas,
       devicePixelRatio: effectiveDevicePixelRatio,
+      density: density,
     ),
     for (var frame = 0; frame < baseCampRifleRegripAssets.length; frame++)
       BaseCampSoldierPixelRequest(
@@ -426,6 +432,7 @@ BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
         cacheId: 'regrip-frame-$frame',
         profileKey: key,
         viewport: viewport,
+        sourceSize: const Size(_rifleFrameCanvas, _rifleFrameCanvas),
         targetRect: () {
           final transform = baseCampRifleRegripTransform(
             viewport,
@@ -446,6 +453,7 @@ BaseCampSoldierPixelProfile baseCampSoldierPixelProfile({
           );
         }(),
         devicePixelRatio: effectiveDevicePixelRatio,
+        density: density,
       ),
   ]);
 }

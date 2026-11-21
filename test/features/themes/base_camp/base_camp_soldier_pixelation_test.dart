@@ -251,6 +251,7 @@ void main() {
         profileKey: profile.key,
         viewport: const Size(360, 300),
         targetRect: const Rect.fromLTWH(0, 0, 360, 300),
+        sourceSize: const Size(360, 300),
       ),
     ];
     final prepared = await tester.runAsync(

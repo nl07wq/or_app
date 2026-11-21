@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,20 @@ import '../../../core/services/device_settings_controller.dart';
 import 'base_camp_asset_metrics.dart';
 
 enum BaseCampSoldierMotion { breathing, regrip }
+
+enum BaseCampSoldierPixelDensity { standard, dashboardCorrected }
+
+const _dashboardReferenceTargetPhysicalSize = Size(
+  82 * 1312 / 1199 * 3,
+  82 * 3,
+);
+
+const _dashboardReferenceGrids = <SoldierPixelationLevel, Size>{
+  SoldierPixelationLevel.fine: Size(147, 133),
+  SoldierPixelationLevel.medium: Size(110, 100),
+  SoldierPixelationLevel.coarse: Size(98, 89),
+  SoldierPixelationLevel.extreme: Size(80, 73),
+};
 
 /// One source frame projected into the shared Soldier viewport coordinate
 /// system. Every request uses the viewport origin as its pixel-grid origin.
@@ -20,7 +35,9 @@ class BaseCampSoldierPixelRequest {
     required this.profileKey,
     required this.viewport,
     required this.targetRect,
+    required this.sourceSize,
     this.devicePixelRatio = 1,
+    this.density = BaseCampSoldierPixelDensity.standard,
   });
 
   final String asset;
@@ -28,7 +45,9 @@ class BaseCampSoldierPixelRequest {
   final String profileKey;
   final Size viewport;
   final Rect targetRect;
+  final Size sourceSize;
   final double devicePixelRatio;
+  final BaseCampSoldierPixelDensity density;
 
   BaseCampSoldierMotion get motion => cacheId.startsWith('regrip-frame-')
       ? BaseCampSoldierMotion.regrip
@@ -41,7 +60,9 @@ class BaseCampSoldierPixelRequest {
         profileKey: profileKey,
         viewport: viewport,
         targetRect: targetRect,
+        sourceSize: sourceSize,
         devicePixelRatio: devicePixelRatio,
+        density: density,
       );
 
   /// The level contract is expressed in physical display pixels. Flutter
@@ -49,8 +70,46 @@ class BaseCampSoldierPixelRequest {
   /// divide the grid pitch by their device-pixel ratio. Treating the
   /// reference as logical pixels made a 11px LV.4 cell 33 physical pixels on
   /// a 3x iPhone display and destroyed the Soldier silhouette.
-  double logicalBlockSize(SoldierPixelationLevel level) =>
-      level.referenceBlockSize / devicePixelRatio;
+  double logicalBlockSize(SoldierPixelationLevel level) {
+    if (density == BaseCampSoldierPixelDensity.standard) {
+      return level.referenceBlockSize / devicePixelRatio;
+    }
+    final desired = desiredSamplingGrid(level);
+    return math.max(
+      targetRect.width / desired.width,
+      targetRect.height / desired.height,
+    );
+  }
+
+  Size desiredSamplingGrid(SoldierPixelationLevel level) {
+    if (density == BaseCampSoldierPixelDensity.standard) {
+      return reducedSize(level);
+    }
+    final reference = _dashboardReferenceGrids[level];
+    if (reference == null) return sourceSize;
+    final physicalTarget = Size(
+      targetRect.width * devicePixelRatio,
+      targetRect.height * devicePixelRatio,
+    );
+    final scaled = Size(
+      reference.width *
+          physicalTarget.width /
+          _dashboardReferenceTargetPhysicalSize.width,
+      reference.height *
+          physicalTarget.height /
+          _dashboardReferenceTargetPhysicalSize.height,
+    );
+    return Size(
+      scaled.width.clamp(
+        1,
+        math.min(sourceSize.width, physicalTarget.width.ceilToDouble()),
+      ),
+      scaled.height.clamp(
+        1,
+        math.min(sourceSize.height, physicalTarget.height.ceilToDouble()),
+      ),
+    );
+  }
 
   Rect displayRect(SoldierPixelationLevel level) {
     final block = logicalBlockSize(level);
@@ -74,6 +133,7 @@ class BaseCampSoldierPixelRequest {
     final reduced = reducedSize(level);
     final rect = displayRect(level);
     return '$asset|$cacheId@${reduced.width.toInt()}x${reduced.height.toInt()}'
+        ':density=${density.name}'
         ':${rect.left.toStringAsFixed(3)},${rect.top.toStringAsFixed(3)}'
         ':dpr=${devicePixelRatio.toStringAsFixed(3)}';
   }

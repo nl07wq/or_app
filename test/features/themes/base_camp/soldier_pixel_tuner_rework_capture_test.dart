@@ -274,6 +274,7 @@ void main() {
       final profile = baseCampSoldierPixelProfile(
         viewport: viewport,
         devicePixelRatio: 3,
+        density: BaseCampSoldierPixelDensity.dashboardCorrected,
       );
       return Future.wait([
         BaseCampSoldierPixelCache.instance.prepareMotionRequests(

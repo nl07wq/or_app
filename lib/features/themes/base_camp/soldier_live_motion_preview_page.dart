@@ -127,6 +127,7 @@ class _SoldierLiveMotionPreviewPageState
       final profile = baseCampSoldierPixelProfile(
         viewport: viewport,
         devicePixelRatio: _pixelProfileDevicePixelRatio ?? 1,
+        density: BaseCampSoldierPixelDensity.dashboardCorrected,
         globalX: applied.x,
         globalY: applied.y,
         globalScale: applied.scale,

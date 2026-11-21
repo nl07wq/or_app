@@ -336,7 +336,9 @@ class _BreathingExperiment {
       profileKey: profileKey,
       viewport: source.viewport,
       targetRect: targetRect ?? source.targetRect,
+      sourceSize: source.sourceSize,
       devicePixelRatio: source.devicePixelRatio,
+      density: source.density,
     );
 
     final currentUpperRequests = <BaseCampSoldierPixelRequest>[
