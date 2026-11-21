@@ -127,6 +127,19 @@ class BaseCampHelicopterFlightPath {
       startLeft + (endLeft - startLeft) * progress.clamp(0.0, 1.0);
 }
 
+/// Converts artwork-coordinate flight geometry to the current MAP layout.
+/// Flight duration is deliberately not part of this conversion.
+double baseCampHelicopterArtworkToDisplayScale(double displayWidth) =>
+    displayWidth / BaseCampHelicopterAssembly.flightArtworkSize.width;
+
+double baseCampHelicopterDisplayLeft({
+  required BaseCampHelicopterFlightPath path,
+  required double progress,
+  required double displayWidth,
+}) =>
+    path.leftAt(progress) *
+    baseCampHelicopterArtworkToDisplayScale(displayWidth);
+
 Rect baseCampHelicopterAssemblySourceBounds(
   BaseCampHelicopterAssembly assembly,
 ) {
@@ -175,10 +188,10 @@ double baseCampHelicopterSignedPitchRadians({
 }
 
 BaseCampHelicopterFlightPath baseCampHelicopterFlightPath({
-  required double mapWidth,
   required BaseCampHelicopterAssembly assembly,
   required BaseCampHelicopterDirection direction,
 }) {
+  final mapWidth = BaseCampHelicopterAssembly.flightArtworkSize.width;
   final sourceBounds = baseCampHelicopterAssemblySourceBounds(assembly);
   final signedPitch =
       assembly.forwardPitchDegrees *
@@ -350,7 +363,6 @@ class _BaseCampHelicopterFlybyLayerState
   bool _hasCompletedFlight = false;
   int _loadGeneration = 0;
   double _altitudeFactor = .1;
-  Size _mapSize = BaseCampHelicopterAssembly.sourceSize;
   BaseCampHelicopterDirection _direction =
       BaseCampHelicopterDirection.leftToRight;
 
@@ -459,7 +471,6 @@ class _BaseCampHelicopterFlybyLayerState
     if (!mounted || !_appResumed || !_motionAllowed) return;
     final direction = baseCampHelicopterRandomDirection(_random);
     final path = baseCampHelicopterFlightPath(
-      mapWidth: _mapSize.width,
       assembly: widget.assembly,
       direction: direction,
     );
@@ -579,10 +590,15 @@ class _BaseCampHelicopterFlybyLayerState
       child: ExcludeSemantics(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            _mapSize = Size(constraints.maxWidth, constraints.maxHeight);
             if (!_active && debug == null) return const SizedBox.expand();
+            final artworkToDisplay = baseCampHelicopterArtworkToDisplayScale(
+              constraints.maxWidth,
+            );
             final spriteWidth =
-                constraints.maxWidth * .42 * widget.assembly.globalScale;
+                BaseCampHelicopterAssembly.flightArtworkSize.width *
+                .42 *
+                widget.assembly.globalScale *
+                artworkToDisplay;
             final spriteHeight =
                 spriteWidth *
                 BaseCampHelicopterSprite.sourceSize.height /
@@ -592,13 +608,12 @@ class _BaseCampHelicopterFlybyLayerState
                 (debug?.altitudeFactor ?? _altitudeFactor);
             final direction = debug?.direction ?? _direction;
             final path = baseCampHelicopterFlightPath(
-              mapWidth: constraints.maxWidth,
               assembly: widget.assembly,
               direction: direction,
             );
             final altitude = math.max(
               requestedAltitude,
-              -path.visualBounds.top,
+              -path.visualBounds.top * artworkToDisplay,
             );
             Widget flightAt(
               double progress,
@@ -608,7 +623,11 @@ class _BaseCampHelicopterFlybyLayerState
               Duration flightElapsed,
             ) => Positioned(
               key: const ValueKey('base-camp-helicopter-positioned'),
-              left: path.leftAt(progress),
+              left: baseCampHelicopterDisplayLeft(
+                path: path,
+                progress: progress,
+                displayWidth: constraints.maxWidth,
+              ),
               top: altitude,
               width: spriteWidth,
               height: spriteHeight,

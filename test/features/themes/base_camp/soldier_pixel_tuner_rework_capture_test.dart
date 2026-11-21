@@ -205,6 +205,45 @@ void main() {
     );
   });
 
+  testWidgets('captures Preview with the Dashboard consistency settings', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.binding.setSurfaceSize(const Size(430, 932));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.runAsync(
+      () => _selectAndPrepareIndependent(
+        breathing: SoldierPixelationLevel.coarse,
+        regrip: SoldierPixelationLevel.fine,
+      ),
+    );
+    final boundaryKey = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: BaseCampRetroTheme.apply(ThemeData.light()),
+        home: RepaintBoundary(
+          key: boundaryKey,
+          child: const SoldierLiveMotionPreviewPage(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await _capture(
+      tester,
+      boundaryKey,
+      'consistency_preview_breathing_lv3_regrip_lv1.png',
+    );
+
+    final trigger = find.byKey(const ValueKey('soldier-live-trigger-regrip'));
+    await tester.ensureVisible(trigger);
+    await tester.pump();
+    tester.widget<OperationButton>(trigger).onPressed!();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1200));
+    await _capture(tester, boundaryKey, 'consistency_preview_regrip_lv1.png');
+  });
+
   testWidgets('captures selected level on the real Dashboard', (tester) async {
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.resetDevicePixelRatio);

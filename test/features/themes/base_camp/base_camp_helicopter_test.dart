@@ -93,6 +93,24 @@ void main() {
     );
   });
 
+  test('flight speed accepts the complete 80 to 1200 MAP px/s range', () {
+    for (final speed in <int>[80, 190, 400, 800, 1200]) {
+      final configured = BaseCampHelicopterAssembly(flightSpeed: speed);
+      expect(configured.isValid, isTrue);
+      expect(
+        BaseCampHelicopterAssembly.tryParse(configured.toJson())?.flightSpeed,
+        speed,
+      );
+    }
+    expect(
+      BaseCampHelicopterAssembly.tryParse(<String, Object?>{
+        ...BaseCampHelicopterAssembly.defaults.toJson(),
+        'flightSpeed': 1210,
+      }),
+      isNull,
+    );
+  });
+
   test('independent rotor timing uses elapsed frame duration', () {
     for (final frameMs in <int>[5, 10, 15, 20, 50, 120]) {
       const elapsed = Duration(milliseconds: 1000);
@@ -164,7 +182,6 @@ void main() {
         );
         for (final direction in BaseCampHelicopterDirection.values) {
           final path = baseCampHelicopterFlightPath(
-            mapWidth: 1254,
             assembly: assembly,
             direction: direction,
           );
@@ -197,10 +214,9 @@ void main() {
   });
 
   test('linear path advances equal MAP distances in equal time', () {
-    for (final speed in <int>[80, 190, 400]) {
+    for (final speed in <int>[80, 190, 400, 800, 1200]) {
       for (final direction in BaseCampHelicopterDirection.values) {
         final path = baseCampHelicopterFlightPath(
-          mapWidth: 1254,
           assembly: BaseCampHelicopterAssembly(flightSpeed: speed),
           direction: direction,
         );
@@ -215,6 +231,59 @@ void main() {
         }
       }
     }
+  });
+
+  test('Editor and Dashboard widths share one artwork flight duration', () {
+    for (final speed in <int>[80, 190, 400, 800, 1200]) {
+      for (final scale in <double>[.1, .5, 1, 3]) {
+        for (final pitch in <int>[0, 4, 12]) {
+          final assembly = BaseCampHelicopterAssembly(
+            flightSpeed: speed,
+            globalScale: scale,
+            forwardPitchDegrees: pitch,
+          );
+          for (final direction in BaseCampHelicopterDirection.values) {
+            final path = baseCampHelicopterFlightPath(
+              assembly: assembly,
+              direction: direction,
+            );
+            for (final displayWidth in <double>[320, 375, 390, 430, 1254]) {
+              final displayStart = baseCampHelicopterDisplayLeft(
+                path: path,
+                progress: 0,
+                displayWidth: displayWidth,
+              );
+              final displayEnd = baseCampHelicopterDisplayLeft(
+                path: path,
+                progress: 1,
+                displayWidth: displayWidth,
+              );
+              final displayScale = baseCampHelicopterArtworkToDisplayScale(
+                displayWidth,
+              );
+              expect(
+                (displayEnd - displayStart).abs() / displayScale,
+                closeTo(path.travelDistance, .000001),
+              );
+              expect(
+                path.duration.inMicroseconds,
+                closeTo(
+                  path.travelDistance / speed * Duration.microsecondsPerSecond,
+                  1,
+                ),
+              );
+            }
+          }
+        }
+      }
+    }
+  });
+
+  test('flight coordinate contract matches the approved MAP artwork', () {
+    expect(
+      BaseCampHelicopterAssembly.flightArtworkSize,
+      baseCampMapArtworkSize,
+    );
   });
 
   test('pitch eases for 600ms with direction-correct nose-down sign', () {
@@ -333,7 +402,6 @@ void main() {
       expect(taps, 1, reason: 'the visual overlay must not intercept map taps');
 
       final flightDuration = baseCampHelicopterFlightPath(
-        mapWidth: 320,
         assembly: BaseCampHelicopterAssembly.defaults,
         direction: BaseCampHelicopterDirection.leftToRight,
       ).duration;

@@ -264,7 +264,7 @@ void main() {
     expect(BaseCampSoldierPixelCache.instance.lastFailure, isNotNull);
   });
 
-  testWidgets('level change retains the prior complete set until commit', (
+  testWidgets('level change never presents a prior-level frame as exact', (
     tester,
   ) async {
     final profile = baseCampSoldierPixelProfile(viewport: const Size(240, 180));
@@ -286,8 +286,7 @@ void main() {
       profile.requestFor(baseCampRifleRegripAssets.first),
       SoldierPixelationLevel.medium,
     );
-    expect(retained, isNotNull);
-    expect(retained!.level, SoldierPixelationLevel.fine);
+    expect(retained, isNull);
     expect(
       await tester.runAsync(
         () => BaseCampSoldierPixelCache.instance.prepareMotionRequests(
@@ -304,6 +303,86 @@ void main() {
     );
     expect(committed, isNotNull);
     expect(committed!.level, SoldierPixelationLevel.medium);
+  });
+
+  testWidgets('cache rejects a frame from a different viewport profile', (
+    tester,
+  ) async {
+    const level = SoldierPixelationLevel.coarse;
+    final preview = baseCampSoldierPixelProfile(
+      viewport: const Size(398, 294.8148148148),
+      devicePixelRatio: 3,
+    );
+    final dashboard = baseCampSoldierPixelProfile(
+      viewport: const Size(112, 82),
+      devicePixelRatio: 3,
+    );
+    final cache = BaseCampSoldierPixelCache.instance;
+    expect(
+      await tester.runAsync(
+        () => cache.prepareMotionRequests(
+          preview.breathingRequests,
+          BaseCampSoldierMotion.breathing,
+          level,
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      cache.cachedFrame(
+        preview.requestFor(baseCampBreathingSoldierUpperAsset),
+        level,
+      ),
+      isNotNull,
+    );
+    expect(
+      cache.cachedFrame(
+        dashboard.requestFor(baseCampBreathingSoldierUpperAsset),
+        level,
+      ),
+      isNull,
+      reason: 'Preview pixels are not valid for the Dashboard viewport',
+    );
+  });
+
+  testWidgets('cache rejects mismatched DPR alignment and frame identity', (
+    tester,
+  ) async {
+    const level = SoldierPixelationLevel.medium;
+    final exact = baseCampSoldierPixelProfile(
+      viewport: const Size(112, 82),
+      devicePixelRatio: 3,
+      globalX: 2,
+    );
+    final cache = BaseCampSoldierPixelCache.instance;
+    expect(
+      await tester.runAsync(
+        () => cache.prepareMotionRequests(
+          exact.regripRequests,
+          BaseCampSoldierMotion.regrip,
+          level,
+        ),
+      ),
+      isTrue,
+    );
+    final exactRequest = exact.requestFor(baseCampRifleRegripAssets.first);
+    expect(cache.cachedFrame(exactRequest, level), isNotNull);
+
+    for (final mismatch in <BaseCampSoldierPixelRequest>[
+      baseCampSoldierPixelProfile(
+        viewport: const Size(112, 82),
+        devicePixelRatio: 2,
+        globalX: 2,
+      ).requestFor(baseCampRifleRegripAssets.first),
+      baseCampSoldierPixelProfile(
+        viewport: const Size(112, 82),
+        devicePixelRatio: 3,
+        globalX: 3,
+      ).requestFor(baseCampRifleRegripAssets.first),
+      exactRequest.withAsset(baseCampRifleRegripAssets.last),
+    ]) {
+      expect(cache.cachedFrame(mismatch, level), isNull);
+    }
   });
 
   testWidgets('viewport profiles regenerate atomically and remain bounded', (

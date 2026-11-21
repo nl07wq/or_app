@@ -73,7 +73,7 @@ class BaseCampSoldierPixelRequest {
   String cacheKey(SoldierPixelationLevel level) {
     final reduced = reducedSize(level);
     final rect = displayRect(level);
-    return '$cacheId@${reduced.width.toInt()}x${reduced.height.toInt()}'
+    return '$asset|$cacheId@${reduced.width.toInt()}x${reduced.height.toInt()}'
         ':${rect.left.toStringAsFixed(3)},${rect.top.toStringAsFixed(3)}'
         ':dpr=${devicePixelRatio.toStringAsFixed(3)}';
   }
@@ -171,18 +171,12 @@ class BaseCampSoldierPixelCache extends ChangeNotifier {
     final motion = request.motion;
     if (_levels[motion] != level) return null;
     final profile = _profiles['${motion.name}|$level|${request.profileKey}'];
-    final exact = profile?.frames[request.cacheKey(level)];
-    if (exact != null) return exact;
-    for (final entry in _profiles.entries.toList().reversed) {
-      if (entry.value.motion != motion ||
-          !entry.key.endsWith('|${request.profileKey}')) {
-        continue;
-      }
-      for (final frame in entry.value.frames.values) {
-        if (frame.cacheId == request.cacheId) return frame;
-      }
-    }
-    return null;
+    // A cacheId only identifies the source pose. It does not identify the
+    // selected level, viewport, DPR, or alignment transform. Returning a
+    // similarly named frame from another committed profile made Preview-sized
+    // or prior-level pixels appear valid on Dashboard. An exact miss must use
+    // the original asset until the requested profile commits atomically.
+    return profile?.frames[request.cacheKey(level)];
   }
 
   void selectLevel(SoldierPixelationLevel level) {

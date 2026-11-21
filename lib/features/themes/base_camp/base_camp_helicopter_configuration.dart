@@ -28,8 +28,14 @@ class BaseCampHelicopterAssembly {
   static const frameMsStep = 5;
   static const defaultFlightSpeed = 190;
   static const minimumFlightSpeed = 80;
-  static const maximumFlightSpeed = 400;
+  static const maximumFlightSpeed = 1200;
   static const flightSpeedStep = 10;
+
+  /// Authoritative coordinate space for flight distance and speed.
+  ///
+  /// The MAP may be displayed at any logical size, but [flightSpeed] is always
+  /// measured against the approved 1254 x 1254 artwork.
+  static const flightArtworkSize = Size(1254, 1254);
   static const defaultForwardPitchDegrees = 4;
   static const minimumForwardPitchDegrees = 0;
   static const maximumForwardPitchDegrees = 12;

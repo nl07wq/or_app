@@ -4059,7 +4059,6 @@ class _HelicopterEditorOverlayState extends State<_HelicopterEditorOverlay>
       final flightStartedAt = _flightStartedAt;
       if (flightStartedAt != null && !_completionSent) {
         final path = baseCampHelicopterFlightPath(
-          mapWidth: baseCampMapArtworkSize.width,
           assembly: widget.assembly,
           direction: widget.direction,
         );
@@ -4106,7 +4105,6 @@ class _HelicopterEditorOverlayState extends State<_HelicopterEditorOverlay>
     final flight = widget.preview == _HelicopterPreview.flight;
     final flightStart = _flightStartedAt;
     final path = baseCampHelicopterFlightPath(
-      mapWidth: mapSize.width,
       assembly: widget.assembly,
       direction: widget.direction,
     );
