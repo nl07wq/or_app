@@ -33,9 +33,12 @@ class FoodEditPage extends StatelessWidget {
       return false;
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
+        FoodSavedFloatingHud.showFor(
           context,
-        ).showSnackBar(const SnackBar(content: Text('MEALの更新に失敗しました')));
+          label: 'MEAL',
+          failed: true,
+          detail: 'MEALの更新に失敗しました',
+        );
       }
       return false;
     }
@@ -99,9 +102,12 @@ class DailyMealV2EditPage extends StatelessWidget {
       return false;
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
+        FoodSavedFloatingHud.showFor(
           context,
-        ).showSnackBar(const SnackBar(content: Text('MEALの更新に失敗しました')));
+          label: 'MEAL',
+          failed: true,
+          detail: 'MEALの更新に失敗しました',
+        );
       }
       return false;
     }

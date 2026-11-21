@@ -9,6 +9,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import 'fox_run_v1_section.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 /// Session-only human authority capture for future rear-leg rendering work.
 /// It never changes FOX production, pattern geometry, or source assets.
@@ -135,9 +136,11 @@ class _FoxRearLegGeometryLabState extends State<FoxRearLegGeometryLab> {
   Future<void> _copyData() async {
     await Clipboard.setData(ClipboardData(text: _copyText()));
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    showBaseCampOperationNotice(
       context,
-    ).showSnackBar(const SnackBar(content: Text('FOX REAR LEG DATA COPIED')));
+      title: 'FOX GEOMETRY EXPORT',
+      message: 'FOX REAR LEG DATA COPIED',
+    );
   }
 
   String _copyText() {

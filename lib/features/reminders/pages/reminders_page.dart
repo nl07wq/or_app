@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../themes/base_camp/base_camp_presentation.dart';
 import '../../themes/base_camp/base_camp_retro_terminal.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
+import '../../themes/base_camp/widgets/base_camp_terminal_popup.dart';
 
 import '../../../core/services/touch_ripple_audio.dart';
 import '../../../core/widgets/holographic_ambient_background.dart';
@@ -204,35 +206,73 @@ class _RemindersPageState extends State<RemindersPage>
     final recurring = value.definition.recurrence != ReminderRecurrence.none;
     final choice = await showDialog<_DeleteChoice>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('REMINDERを削除'),
-        content: Text(recurring ? '削除する範囲を選択してください。' : 'このREMINDERを削除しますか？'),
-        actions: recurring
-            ? [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('キャンセル'),
-                ).actionableFeedback(),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, _DeleteChoice.once),
-                  child: const Text('今回のみ削除'),
-                ).actionableFeedback(),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, _DeleteChoice.future),
-                  child: const Text('今後すべて削除'),
-                ).actionableFeedback(),
-              ]
-            : [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('キャンセル'),
-                ).actionableFeedback(),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, _DeleteChoice.single),
-                  child: const Text('削除'),
-                ).actionableFeedback(),
-              ],
-      ),
+      builder: (dialogContext) {
+        final message = recurring ? '削除する範囲を選択してください。' : 'このREMINDERを削除しますか？';
+        if (BaseCampPresentation.isActive(context)) {
+          return BaseCampTerminalPopup(
+            title: 'DELETE REMINDER',
+            stateLabel: 'CONFIRM',
+            message: message,
+            actions: <Widget>[
+              BaseCampTerminalPopupButton(
+                label: 'キャンセル',
+                onPressed: () => Navigator.pop(dialogContext),
+              ),
+              if (recurring) ...<Widget>[
+                BaseCampTerminalPopupButton(
+                  label: '今回のみ削除',
+                  onPressed: () =>
+                      Navigator.pop(dialogContext, _DeleteChoice.once),
+                ),
+                BaseCampTerminalPopupButton(
+                  label: '今後すべて削除',
+                  primary: true,
+                  onPressed: () =>
+                      Navigator.pop(dialogContext, _DeleteChoice.future),
+                ),
+              ] else
+                BaseCampTerminalPopupButton(
+                  label: '削除',
+                  primary: true,
+                  onPressed: () =>
+                      Navigator.pop(dialogContext, _DeleteChoice.single),
+                ),
+            ],
+          );
+        }
+        return AlertDialog(
+          title: const Text('REMINDERを削除'),
+          content: Text(message),
+          actions: recurring
+              ? [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('キャンセル'),
+                  ).actionableFeedback(),
+                  TextButton(
+                    onPressed: () =>
+                        Navigator.pop(dialogContext, _DeleteChoice.once),
+                    child: const Text('今回のみ削除'),
+                  ).actionableFeedback(),
+                  TextButton(
+                    onPressed: () =>
+                        Navigator.pop(dialogContext, _DeleteChoice.future),
+                    child: const Text('今後すべて削除'),
+                  ).actionableFeedback(),
+                ]
+              : [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('キャンセル'),
+                  ).actionableFeedback(),
+                  TextButton(
+                    onPressed: () =>
+                        Navigator.pop(dialogContext, _DeleteChoice.single),
+                    child: const Text('削除'),
+                  ).actionableFeedback(),
+                ],
+        );
+      },
     );
     if (choice == null) return;
     final repository = AppRepositoryRegistry.container.reminders;
@@ -350,24 +390,14 @@ class _RemindersPageState extends State<RemindersPage>
   }
 
   Future<void> _deleteDefinitionFuture(ReminderDefinition definition) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('今後すべて削除'),
-        content: const Text('過去と完了履歴は保持します。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ).actionableFeedback(),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('削除'),
-          ).actionableFeedback(),
-        ],
-      ),
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: '今後すべて削除',
+      message: '過去と完了履歴は保持します。',
+      confirmLabel: '削除',
+      cancelLabel: 'キャンセル',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     final now = DateTime.now();
     final boundary = DateUtils.dateOnly(now).subtract(const Duration(days: 1));
     await AppRepositoryRegistry.container.reminders.saveDefinition(
@@ -1228,23 +1258,14 @@ class _ReminderEditorState extends State<_ReminderEditor> {
       _close();
       return;
     }
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        content: const Text('変更内容が保存されていません。破棄しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('編集を続ける'),
-          ).actionableFeedback(),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('破棄する'),
-          ).actionableFeedback(role: ActionableFeedbackRole.exit),
-        ],
-      ),
+    final discard = await showBaseCampOperationConfirmation(
+      context,
+      title: 'DISCARD REMINDER EDITS',
+      message: '変更内容が保存されていません。破棄しますか？',
+      confirmLabel: '破棄する',
+      cancelLabel: '編集を続ける',
     );
-    if (discard == true && mounted) _close();
+    if (discard && mounted) _close();
   }
 
   void _close([_ReminderDraft? draft]) {

@@ -29,6 +29,7 @@ import '../../repositories/app_repository_container.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
 import 'backup_prompt_dialog.dart';
 import 'base_camp_finalize_day_dialog.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 typedef DailyLogReviewCompleted =
     Future<void> Function(OperationLocalDate previousOperationDate);
@@ -90,26 +91,16 @@ Future<bool> presentWeeklyReportInvitationForFinalizedDate({
   if (!navigator.mounted) {
     throw StateError('Weekly report navigator is unavailable.');
   }
-  final approved = await showDialog<bool>(
-    context: navigator.context,
-    useRootNavigator: false,
+  final approved = await showBaseCampOperationConfirmation(
+    navigator.context,
+    title: 'CREATE WEEKLY REPORT',
+    message: '確定した週のWEEKLY REPORT作成へ進みます。',
+    confirmLabel: 'YES',
+    cancelLabel: 'NO',
     barrierDismissible: false,
-    builder: (context) => AlertDialog(
-      title: const Text('WEEKLY REPORTを作成しますか？'),
-      content: const Text('確定した週のWEEKLY REPORT作成へ進みます。'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('NO'),
-        ).actionableFeedback(),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('YES'),
-        ).actionableFeedback(),
-      ],
-    ),
+    useRootNavigator: false,
   );
-  if (approved != true || !navigator.mounted) return false;
+  if (!approved || !navigator.mounted) return false;
   await navigator.push<void>(
     MaterialPageRoute(
       builder: (_) => PeriodicReportPage(
@@ -296,9 +287,12 @@ class _DailyLogSectionState extends State<DailyLogSection> {
     } catch (error) {
       widget.onFinalizePresentationReleased?.call();
       if (formalFinalizeSucceeded && promptNavigator.mounted) {
-        ScaffoldMessenger.maybeOf(
+        showBaseCampOperationNotice(
           promptNavigator.context,
-        )?.showSnackBar(SnackBar(content: Text('BACKUPを表示できませんでした: $error')));
+          title: 'BACKUP',
+          message: 'BACKUPを表示できませんでした: $error',
+          result: BaseCampOperationNoticeResult.failure,
+        );
         return;
       }
       if (!mounted) return;
@@ -309,18 +303,18 @@ class _DailyLogSectionState extends State<DailyLogSection> {
           diagnostics != null && !diagnostics.detailedFieldComparisonAvailable
           ? '\nDIAGNOSTICS UNAVAILABLE: ${diagnostics.validationStage}'
           : '';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('FINALIZE DAYに失敗しました: $error$diagnosticsNotice'),
-          action: diagnostics == null
-              ? null
-              : SnackBarAction(
-                  label: 'COPY DIAGNOSTICS',
-                  onPressed: () => Clipboard.setData(
-                    ClipboardData(text: diagnostics.toCopyText()),
-                  ),
-                ),
-        ),
+      showBaseCampOperationNotice(
+        context,
+        title: 'FINALIZE DAY',
+        message: 'FINALIZE DAYに失敗しました: $error$diagnosticsNotice',
+        result: BaseCampOperationNoticeResult.failure,
+        duration: const Duration(seconds: 4),
+        actionLabel: diagnostics == null ? null : 'COPY DIAGNOSTICS',
+        onAction: diagnostics == null
+            ? null
+            : () => Clipboard.setData(
+                ClipboardData(text: diagnostics.toCopyText()),
+              ),
       );
     } finally {
       if (mounted) setState(() => _isFinalizing = false);
@@ -379,9 +373,12 @@ class _DailyLogSectionState extends State<DailyLogSection> {
     } catch (error) {
       widget.onFinalizePresentationReleased?.call();
       if (formalFinalizeSucceeded && promptNavigator.mounted) {
-        ScaffoldMessenger.maybeOf(
+        showBaseCampOperationNotice(
           promptNavigator.context,
-        )?.showSnackBar(SnackBar(content: Text('BACKUPを表示できませんでした: $error')));
+          title: 'BACKUP',
+          message: 'BACKUPを表示できませんでした: $error',
+          result: BaseCampOperationNoticeResult.failure,
+        );
       }
     } finally {
       if (mounted) setState(() => _isFinalizing = false);

@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/widgets/base_camp_terminal_popup.dart';
 
 /// FOOD success feedback only. The floating SnackBar keeps the existing
 /// ScaffoldMessenger lifecycle, keyboard avoidance, and route hand-off.
@@ -87,31 +88,31 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final classicTerminal = BaseCampPresentation.isActive(context);
-    final scheme = Theme.of(context).colorScheme;
+    if (classicTerminal) {
+      return BaseCampTerminalNotice(
+        title: label,
+        stateLabel: failed ? 'FAILED' : successLabel,
+        message: detail ?? '$label ${failed ? 'SAVE FAILED' : successLabel}',
+        failure: failed,
+      );
+    }
     final content = DecoratedBox(
       key: const ValueKey('food-saved-floating-hud-glass'),
       decoration: BoxDecoration(
-        color: classicTerminal ? scheme.surfaceContainerHighest : null,
-        gradient: classicTerminal
-            ? null
-            : const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xbc2d4b60), Color(0x9c162b3d)],
-              ),
-        border: Border.all(
-          color: classicTerminal ? scheme.outline : const Color(0xc078a8b8),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xbc2d4b60), Color(0x9c162b3d)],
         ),
-        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 14),
-        boxShadow: classicTerminal
-            ? const <BoxShadow>[]
-            : const [
-                BoxShadow(
-                  color: Color(0x55020c16),
-                  blurRadius: 5,
-                  offset: Offset(0, 2),
-                ),
-              ],
+        border: Border.all(color: const Color(0xc078a8b8)),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x55020c16),
+            blurRadius: 5,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(vertical: detail == null ? 0 : 8),
@@ -140,8 +141,6 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
                               size: 19,
                               color: failed
                                   ? const Color(0xffff9ea9)
-                                  : classicTerminal
-                                  ? scheme.primary
                                   : FoodSavedFloatingHud._accent,
                             ),
                             SizedBox(width: 9),
@@ -150,8 +149,6 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
                               style: TextStyle(
                                 color: failed
                                     ? const Color(0xffffdce1)
-                                    : classicTerminal
-                                    ? scheme.onSurface
                                     : FoodSavedFloatingHud._iceBlue,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
@@ -164,8 +161,6 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
                               style: TextStyle(
                                 color: failed
                                     ? const Color(0xffe8a3b1)
-                                    : classicTerminal
-                                    ? scheme.onSurfaceVariant
                                     : FoodSavedFloatingHud._confirmed,
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
@@ -183,8 +178,6 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
                           child: ColoredBox(
                             color: failed
                                 ? const Color(0xffff9ea9)
-                                : classicTerminal
-                                ? scheme.primary
                                 : FoodSavedFloatingHud._accent,
                           ),
                         ),
@@ -200,9 +193,7 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 10,
-                        color: classicTerminal
-                            ? scheme.onSurface
-                            : const Color(0xffffd5dc),
+                        color: const Color(0xffffd5dc),
                       ),
                     ),
                   ),
@@ -216,13 +207,11 @@ class _FoodSavedFloatingHudSurface extends StatelessWidget {
       key: const ValueKey('food-saved-floating-hud'),
       height: detail == null ? 46 : null,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(classicTerminal ? 4 : 14),
-        child: classicTerminal
-            ? content
-            : BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 4.5, sigmaY: 4.5),
-                child: content,
-              ),
+        borderRadius: BorderRadius.circular(14),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 4.5, sigmaY: 4.5),
+          child: content,
+        ),
       ),
     );
   }

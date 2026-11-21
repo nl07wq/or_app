@@ -7,6 +7,9 @@ import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../models/notification_configuration.dart';
 import '../services/notification_profile_controller.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
+import '../../themes/base_camp/widgets/base_camp_terminal_popup.dart';
 
 class NotificationSettingsCard extends StatelessWidget {
   const NotificationSettingsCard({
@@ -107,9 +110,8 @@ class NotificationSettingsCard extends StatelessWidget {
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text('RECOVERY SECRET'),
-          content: Column(
+        builder: (dialogContext) {
+          final content = Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -117,17 +119,35 @@ class NotificationSettingsCard extends StatelessWidget {
               const SizedBox(height: 12),
               SelectableText(recovery),
             ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('保存しました'),
-            ).actionableFeedback(),
-          ],
-        ),
+          );
+          if (BaseCampPresentation.isActive(context)) {
+            return BaseCampTerminalPopup(
+              title: 'RECOVERY SECRET',
+              stateLabel: 'REQUIRED',
+              lcdChild: content,
+              actions: <Widget>[
+                BaseCampTerminalPopupButton(
+                  label: '保存しました',
+                  primary: true,
+                  onPressed: () => Navigator.pop(dialogContext),
+                ),
+              ],
+            );
+          }
+          return AlertDialog(
+            title: const Text('RECOVERY SECRET'),
+            content: content,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('保存しました'),
+              ).actionableFeedback(),
+            ],
+          );
+        },
       );
     } catch (error) {
-      if (context.mounted) _message(context, error);
+      if (context.mounted) _message(context, error, failure: true);
     }
   }
 
@@ -137,9 +157,8 @@ class NotificationSettingsCard extends StatelessWidget {
       if (!context.mounted) return;
       await showDialog<void>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('SECURE QR PAIRING'),
-          content: Column(
+        builder: (dialogContext) {
+          final content = Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               QrImageView(data: payload, size: 220),
@@ -149,11 +168,28 @@ class NotificationSettingsCard extends StatelessWidget {
                 children: [SelectableText(payload)],
               ),
             ],
-          ),
-        ),
+          );
+          return BaseCampPresentation.isActive(context)
+              ? BaseCampTerminalPopup(
+                  title: 'SECURE QR PAIRING',
+                  stateLabel: 'PAIRING',
+                  lcdChild: content,
+                  actions: <Widget>[
+                    BaseCampTerminalPopupButton(
+                      label: 'CLOSE',
+                      primary: true,
+                      onPressed: () => Navigator.pop(dialogContext),
+                    ),
+                  ],
+                )
+              : AlertDialog(
+                  title: const Text('SECURE QR PAIRING'),
+                  content: content,
+                );
+        },
       );
     } catch (error) {
-      if (context.mounted) _message(context, error);
+      if (context.mounted) _message(context, error, failure: true);
     }
   }
 
@@ -184,7 +220,7 @@ class NotificationSettingsCard extends StatelessWidget {
       await action();
       if (context.mounted) _message(context, '完了しました。');
     } catch (error) {
-      if (context.mounted) _message(context, error);
+      if (context.mounted) _message(context, error, failure: true);
     }
   }
 
@@ -197,30 +233,57 @@ class NotificationSettingsCard extends StatelessWidget {
     final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextField(
+      builder: (dialogContext) {
+        final field = TextField(
           controller: controller,
           obscureText: obscure,
           decoration: InputDecoration(labelText: label),
-        ).inputFeedback(),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('キャンセル'),
-          ).actionableFeedback(),
-          TextButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('続行'),
-          ).actionableFeedback(),
-        ],
-      ),
+        ).inputFeedback();
+        if (BaseCampPresentation.isActive(context)) {
+          return BaseCampTerminalPopup(
+            title: title,
+            stateLabel: 'INPUT',
+            lcdChild: field,
+            actions: <Widget>[
+              BaseCampTerminalPopupButton(
+                label: 'キャンセル',
+                onPressed: () => Navigator.pop(dialogContext),
+              ),
+              BaseCampTerminalPopupButton(
+                label: '続行',
+                primary: true,
+                onPressed: () => Navigator.pop(dialogContext, controller.text),
+              ),
+            ],
+          );
+        }
+        return AlertDialog(
+          title: Text(title),
+          content: field,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('キャンセル'),
+            ).actionableFeedback(),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, controller.text),
+              child: const Text('続行'),
+            ).actionableFeedback(),
+          ],
+        );
+      },
     );
     controller.dispose();
     return result;
   }
 
-  void _message(BuildContext context, Object message) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(message.toString())));
+  void _message(BuildContext context, Object message, {bool failure = false}) =>
+      showBaseCampOperationNotice(
+        context,
+        title: 'NOTIFICATION SETTINGS',
+        message: message.toString(),
+        result: failure
+            ? BaseCampOperationNoticeResult.failure
+            : BaseCampOperationNoticeResult.success,
+      );
 }

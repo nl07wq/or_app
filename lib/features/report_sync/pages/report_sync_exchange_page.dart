@@ -28,6 +28,8 @@ import '../services/report_human_presentation.dart';
 import '../services/report_sync_persistence_service.dart';
 import '../widgets/report_sync_action_bar.dart';
 import '../../themes/base_camp/base_camp_retro_terminal.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 typedef ReportSyncClipboardWriter = Future<void> Function(String text);
 typedef ReportSyncPageScaffoldBuilder =
@@ -538,20 +540,37 @@ class _ReportSyncExchangePanelState extends State<ReportSyncExchangePanel> {
     if (preview == null || !preview.canApply) return;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(_importLabel(widget.exchangeType)),
-        content: Text('${preview.operationDate} の内容を保存しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('CONFIRM IMPORT'),
-          ).actionableFeedback(),
-        ],
-      ),
+      builder: (dialogContext) => BaseCampPresentation.isActive(context)
+          ? BaseCampOperationPanel(
+              title: _importLabel(widget.exchangeType),
+              state: BaseCampOperationPanelState.confirmation,
+              message: '${preview.operationDate} の内容を保存しますか？',
+              actions: <Widget>[
+                BaseCampOperationPanelButton(
+                  label: 'CANCEL',
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                ),
+                BaseCampOperationPanelButton(
+                  label: 'CONFIRM IMPORT',
+                  primary: true,
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                ),
+              ],
+            )
+          : AlertDialog(
+              title: Text(_importLabel(widget.exchangeType)),
+              content: Text('${preview.operationDate} の内容を保存しますか？'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('CANCEL'),
+                ).actionableFeedback(),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('CONFIRM IMPORT'),
+                ).actionableFeedback(),
+              ],
+            ),
     );
     if (confirmed != true || !mounted) {
       ActionableFeedbackRegion.dismissDeferred();

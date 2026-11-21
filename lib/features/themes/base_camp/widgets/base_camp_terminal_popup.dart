@@ -14,14 +14,19 @@ class BaseCampTerminalPopup extends StatelessWidget {
     super.key,
     required this.title,
     required this.stateLabel,
-    required this.message,
+    this.message,
+    this.lcdChild,
     this.actions = const <Widget>[],
     this.busy = false,
-  });
+  }) : assert(
+         (message == null) != (lcdChild == null),
+         'Provide exactly one of message or lcdChild.',
+       );
 
   final String title;
   final String stateLabel;
-  final String message;
+  final String? message;
+  final Widget? lcdChild;
   final List<Widget> actions;
   final bool busy;
 
@@ -101,23 +106,26 @@ class BaseCampTerminalPopup extends StatelessWidget {
                                     const SizedBox(width: 11),
                                   ],
                                   Expanded(
-                                    child: MixedScriptText(
-                                      message,
-                                      key: const ValueKey(
-                                        'base-camp-terminal-popup-message',
-                                      ),
-                                      style: TextStyle(
-                                        color: palette.primaryText,
-                                        fontFamily:
-                                            MixedScriptTypography.latinFamily,
-                                        fontFamilyFallback: const <String>[
-                                          MixedScriptTypography.japaneseFamily,
-                                        ],
-                                        fontSize: 12,
-                                        height: 1.65,
-                                        letterSpacing: -.2,
-                                      ),
-                                    ),
+                                    child:
+                                        lcdChild ??
+                                        MixedScriptText(
+                                          message!,
+                                          key: const ValueKey(
+                                            'base-camp-terminal-popup-message',
+                                          ),
+                                          style: TextStyle(
+                                            color: palette.primaryText,
+                                            fontFamily: MixedScriptTypography
+                                                .latinFamily,
+                                            fontFamilyFallback: const <String>[
+                                              MixedScriptTypography
+                                                  .japaneseFamily,
+                                            ],
+                                            fontSize: 12,
+                                            height: 1.65,
+                                            letterSpacing: -.2,
+                                          ),
+                                        ),
                                   ),
                                 ],
                               ),
@@ -159,6 +167,138 @@ class BaseCampTerminalPopup extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// Compact, non-blocking member of the same terminal family used by
+/// [BaseCampTerminalPopup]. It is intended for an existing SnackBar lifecycle;
+/// it does not add a modal barrier or change dismissal semantics.
+class BaseCampTerminalNotice extends StatelessWidget {
+  const BaseCampTerminalNotice({
+    super.key,
+    required this.title,
+    required this.stateLabel,
+    required this.message,
+    this.failure = false,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String stateLabel;
+  final String message;
+  final bool failure;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<DeviceSettings>(
+    valueListenable: DeviceSettingsController.instance,
+    builder: (context, settings, _) {
+      final palette = BaseCampTerminalPalette(
+        negative: settings.baseCampLcdNegative,
+      );
+      return BaseCampTerminalPaletteScope(
+        palette: palette,
+        child: DecoratedBox(
+          key: const ValueKey('base-camp-terminal-notice'),
+          decoration: BoxDecoration(
+            color: BaseCampTerminalPalette.housing,
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(
+              color: BaseCampTerminalPalette.housingEdge,
+              width: 2,
+            ),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: BaseCampTerminalPalette.housingShadow,
+                blurRadius: 8,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    _TerminalPopupHeader(
+                      title: title,
+                      stateLabel: stateLabel,
+                      palette: palette,
+                    ),
+                    const SizedBox(height: 7),
+                    BaseCampLcdSurface(
+                      palette: palette,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 9,
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Icon(
+                            failure
+                                ? Icons.error_outline
+                                : Icons.check_circle_outline,
+                            size: 16,
+                            color: palette.primaryText,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: MixedScriptText(
+                              message,
+                              key: const ValueKey(
+                                'base-camp-terminal-notice-message',
+                              ),
+                              style: TextStyle(
+                                color: palette.primaryText,
+                                fontFamily: MixedScriptTypography.latinFamily,
+                                fontFamilyFallback: const <String>[
+                                  MixedScriptTypography.japaneseFamily,
+                                ],
+                                fontSize: 10,
+                                height: 1.45,
+                                letterSpacing: -.15,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (actionLabel != null && onAction != null) ...<Widget>[
+                      const SizedBox(height: 7),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: BaseCampTerminalPopupButton(
+                          label: actionLabel!,
+                          primary: true,
+                          onPressed: onAction,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const Positioned(left: 4, top: 4, child: _TerminalPopupScrew()),
+              const Positioned(right: 4, top: 4, child: _TerminalPopupScrew()),
+              const Positioned(
+                left: 4,
+                bottom: 4,
+                child: _TerminalPopupScrew(),
+              ),
+              const Positioned(
+                right: 4,
+                bottom: 4,
+                child: _TerminalPopupScrew(),
+              ),
+            ],
           ),
         ),
       );

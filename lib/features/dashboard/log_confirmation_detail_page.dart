@@ -18,6 +18,7 @@ import '../morning/models/morning_fact_state.dart';
 import '../operation_date/services/daily_finalize_undo_service.dart';
 import '../repositories/app_repository_container.dart';
 import '../training/models/training_summary_state.dart';
+import '../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import 'widgets/daily_review_body.dart';
 
 class LogConfirmationDetailPage extends StatefulWidget {
@@ -80,31 +81,19 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
   Future<void> _confirmUndo(_LastFinalizeState state) async {
     final inspection = state.undoInspection;
     if (_undoing || inspection == null || !inspection.canUndo) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('UNDO LAST FINALIZE'),
-        content: Text(
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'UNDO LAST FINALIZE',
+      message:
           '${state.localDate}のFINALIZEを取り消しますか？\n\n'
           'Operation Dateを${state.localDate}へ戻します。\n\n'
           '入力済みのSTATUS・FOOD・ACTIVITY・TRAININGは削除されません。\n\n'
           'このUNDOを実行すると、続けて前の日のFINALIZEを取り消すことはできません。\n\n'
           '再びFINALIZE DAYを実行すると、その新しいFINALIZEを一度だけUNDOできます。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('FINALIZEを取り消す'),
-          ).actionableFeedback(),
-        ],
-      ),
+      confirmLabel: 'FINALIZEを取り消す',
+      barrierDismissible: false,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     setState(() => _undoing = true);
     try {
@@ -113,13 +102,12 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
       ).undo(expectedRevision: inspection.revision);
       await DailyStateRestoreService.restore(force: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      showBaseCampOperationNotice(
+        context,
+        title: 'UNDO LAST FINALIZE',
+        message:
             'LAST FINALIZEを取り消しました。\n'
             'Operation Dateを${result.restoredOperationDate}へ戻しました。',
-          ),
-        ),
       );
       Navigator.pushNamedAndRemoveUntil(
         context,
@@ -132,12 +120,11 @@ class _LogConfirmationDetailPageState extends State<LogConfirmationDetailPage> {
         _undoing = false;
         _state = _load();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${error.code.name} · ${error.stage}\n${error.message}',
-          ),
-        ),
+      showBaseCampOperationNotice(
+        context,
+        title: 'UNDO LAST FINALIZE',
+        message: '${error.code.name} · ${error.stage}\n${error.message}',
+        result: BaseCampOperationNoticeResult.failure,
       );
     }
   }

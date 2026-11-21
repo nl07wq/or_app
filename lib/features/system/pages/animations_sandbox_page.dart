@@ -12,6 +12,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../dashboard/widgets/dashboard_ambient_wildlife_stage.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import 'bat_v3_flight_motion_poc.dart';
 import 'bird_v1_flight_preview.dart';
 import 'ambient_wildlife_v2.dart';
@@ -2828,9 +2829,11 @@ String _effectJson(Map<String, Object?> value) =>
 Future<void> _copyEffectParameters(BuildContext context, String json) async {
   await Clipboard.setData(ClipboardData(text: json));
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(const SnackBar(content: Text('CODEX PARAMETERSをコピーしました')));
+  showBaseCampOperationNotice(
+    context,
+    title: 'PARAMETER EXPORT',
+    message: 'CODEX PARAMETERSをコピーしました',
+  );
 }
 
 class _EffectParametersOutput extends StatelessWidget {
@@ -3007,9 +3010,11 @@ class _HeadlightTestPageState extends State<_HeadlightTestPage> {
   Future<void> _apply() async {
     await widget.session.saveHeadlight(_parameters);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('HEADLIGHTをLABへ適用しました')));
+    showBaseCampOperationNotice(
+      context,
+      title: 'HEADLIGHT',
+      message: 'HEADLIGHTをLABへ適用しました',
+    );
   }
 
   Future<void> _reset() async {
@@ -3017,11 +3022,11 @@ class _HeadlightTestPageState extends State<_HeadlightTestPage> {
     setState(() => _parameters = value);
     await widget.session.saveHeadlight(value);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('HEADLIGHTをFactory Defaultへ戻しました')),
-      );
+    showBaseCampOperationNotice(
+      context,
+      title: 'HEADLIGHT',
+      message: 'HEADLIGHTをFactory Defaultへ戻しました',
+    );
   }
 
   @override
@@ -3336,9 +3341,11 @@ class _DustTestPageState extends State<_DustTestPage>
   Future<void> _apply() async {
     await widget.session.saveDust(_parameters);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('DUSTをLABへ適用しました')));
+    showBaseCampOperationNotice(
+      context,
+      title: 'DUST',
+      message: 'DUSTをLABへ適用しました',
+    );
   }
 
   Future<void> _reset() async {
@@ -3346,11 +3353,11 @@ class _DustTestPageState extends State<_DustTestPage>
     setState(() => _parameters = value);
     await widget.session.saveDust(value);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('DUSTをFactory Defaultへ戻しました')),
-      );
+    showBaseCampOperationNotice(
+      context,
+      title: 'DUST',
+      message: 'DUSTをFactory Defaultへ戻しました',
+    );
   }
 
   @override
@@ -3748,9 +3755,12 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
     if (timeMs == null ||
         timeMs < 0 ||
         timeMs > _scene1TravelDuration.inMilliseconds) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('0〜6000msで入力してください')));
+      showBaseCampOperationNotice(
+        context,
+        title: 'SUSPENSION INPUT',
+        message: '0〜6000msで入力してください',
+        result: BaseCampOperationNoticeResult.failure,
+      );
       return;
     }
     if (_parameters.impulseTimeline.contains(timeMs)) return;
@@ -3793,9 +3803,11 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
   Future<void> _apply() async {
     await widget.session.saveSuspension(_parameters);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('SUSPENSIONをLABへ適用しました')));
+    showBaseCampOperationNotice(
+      context,
+      title: 'SUSPENSION',
+      message: 'SUSPENSIONをLABへ適用しました',
+    );
   }
 
   Future<void> _reset() async {
@@ -3803,11 +3815,11 @@ class _SuspensionTestPageState extends State<_SuspensionTestPage>
     setState(() => _parameters = value);
     await widget.session.saveSuspension(value);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('SUSPENSIONをFactory Defaultへ戻しました')),
-      );
+    showBaseCampOperationNotice(
+      context,
+      title: 'SUSPENSION',
+      message: 'SUSPENSIONをFactory Defaultへ戻しました',
+    );
   }
 
   @override
@@ -4607,11 +4619,11 @@ class _AssemblyCalibrationPageState extends State<_AssemblyCalibrationPage> {
   Future<void> _copyParameters() async {
     await Clipboard.setData(ClipboardData(text: _parametersJson));
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('ASSEMBLY PARAMETERSをコピーしました')),
-      );
+    showBaseCampOperationNotice(
+      context,
+      title: 'ASSEMBLY EXPORT',
+      message: 'ASSEMBLY PARAMETERSをコピーしました',
+    );
   }
 
   @override
@@ -5005,9 +5017,11 @@ class _MotionCalibrationPageState extends State<_MotionCalibrationPage>
   Future<void> _copyParameters() async {
     await Clipboard.setData(ClipboardData(text: _parametersJson));
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('CODEX PARAMETERSをコピーしました')));
+    showBaseCampOperationNotice(
+      context,
+      title: 'PARAMETER EXPORT',
+      message: 'CODEX PARAMETERSをコピーしました',
+    );
   }
 
   @override
@@ -5952,9 +5966,11 @@ class _Scene2LayoutTestPageState extends State<_Scene2LayoutTestPage> {
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: _parametersJson));
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    showBaseCampOperationNotice(
       context,
-    ).showSnackBar(const SnackBar(content: Text('CODEX PARAMETERSをコピーしました')));
+      title: 'PARAMETER EXPORT',
+      message: 'CODEX PARAMETERSをコピーしました',
+    );
   }
 
   @override
@@ -6233,9 +6249,11 @@ class _Scene2ZoomTestPageState extends State<_Scene2ZoomTestPage>
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: _parametersJson));
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    showBaseCampOperationNotice(
       context,
-    ).showSnackBar(const SnackBar(content: Text('CODEX PARAMETERSをコピーしました')));
+      title: 'PARAMETER EXPORT',
+      message: 'CODEX PARAMETERSをコピーしました',
+    );
   }
 
   @override
@@ -6517,9 +6535,11 @@ class _Scene2CompositeTestPageState extends State<_Scene2CompositeTestPage>
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: _parametersJson));
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    showBaseCampOperationNotice(
       context,
-    ).showSnackBar(const SnackBar(content: Text('CODEX PARAMETERSをコピーしました')));
+      title: 'PARAMETER EXPORT',
+      message: 'CODEX PARAMETERSをコピーしました',
+    );
   }
 
   @override

@@ -181,16 +181,30 @@ class _MorningFactPageState extends State<MorningFactPage> {
   void _showError(String message) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('入力エラー'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ).actionableFeedback(),
-        ],
-      ),
+      builder: (dialogContext) => BaseCampPresentation.isActive(context)
+          ? BaseCampOperationPanel(
+              title: 'STATUS VALIDATION',
+              state: BaseCampOperationPanelState.result,
+              result: BaseCampOperationPanelResult.failure,
+              message: message,
+              actions: <Widget>[
+                BaseCampOperationPanelButton(
+                  label: 'OK',
+                  primary: true,
+                  onPressed: () => Navigator.pop(dialogContext),
+                ),
+              ],
+            )
+          : AlertDialog(
+              title: const Text('入力エラー'),
+              content: Text(message),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('OK'),
+                ).actionableFeedback(),
+              ],
+            ),
     );
   }
 

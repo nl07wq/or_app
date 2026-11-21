@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../core/data/default_training_templates.dart';
 import '../../core/widgets/operation_card.dart';
 import 'widgets/training_dot_matrix_title.dart';
 import 'widgets/training_led_back_button.dart';
 import 'widgets/training_kinetic_scaffold.dart';
+import '../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 class TrainingPlanPage extends StatelessWidget {
   final Function(List<String>) onSelect;
@@ -33,25 +33,15 @@ class TrainingPlanPage extends StatelessWidget {
             child: OperationCard(
               selectable: true,
               onTap: () async {
-                final result = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('トレーニングプランを適用しますか？'),
-                    content: const Text('現在の種目は置き換えられます。'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('キャンセル'),
-                      ).actionableFeedback(),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('適用'),
-                      ).actionableFeedback(),
-                    ],
-                  ),
+                final result = await showBaseCampOperationConfirmation(
+                  context,
+                  title: 'APPLY TRAINING PLAN',
+                  message: 'トレーニングプランを適用しますか？\n現在の種目は置き換えられます。',
+                  confirmLabel: '適用',
+                  cancelLabel: 'キャンセル',
                 );
 
-                if (result != true) return;
+                if (!result) return;
 
                 onSelect(plan.exercises);
 

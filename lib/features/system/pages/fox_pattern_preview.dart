@@ -9,6 +9,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import 'fox_run_v1_section.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 /// A session-only, frame-aware mask editor. It deliberately does not feed the
 /// production FOX pattern or Ambient Wildlife renderer.
@@ -226,9 +227,11 @@ class _FoxPatternPreviewState extends State<FoxPatternPreview> {
   Future<void> _copyPatternData() async {
     await Clipboard.setData(ClipboardData(text: _copyText()));
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    showBaseCampOperationNotice(
       context,
-    ).showSnackBar(const SnackBar(content: Text('FOX PATTERN DATA COPIED')));
+      title: 'FOX PATTERN EXPORT',
+      message: 'FOX PATTERN DATA COPIED',
+    );
   }
 
   String _copyText() {

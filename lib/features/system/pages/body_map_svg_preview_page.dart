@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../training/services/training_history_domain_service.dart';
 import '../../training/widgets/body_map_svg_prototype.dart';
 import '../services/body_map_geometry_tuner.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 class BodyMapSvgPreviewPage extends StatefulWidget {
   const BodyMapSvgPreviewPage({super.key});
@@ -128,30 +129,19 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
   Future<void> _copy(String content, String label) async {
     await Clipboard.setData(ClipboardData(text: content));
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    showBaseCampOperationNotice(
       context,
-    ).showSnackBar(SnackBar(content: Text('$label copied to clipboard.')));
+      title: 'BODY MAP EXPORT',
+      message: '$label copied to clipboard.',
+    );
   }
 
   Future<void> _confirmResetAll() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('RESET ALL TUNER CHANGES?'),
-        content: const Text(
-          'This clears only the locally saved geometry draft.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('RESET ALL'),
-          ).actionableFeedback(),
-        ],
-      ),
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'RESET ALL TUNER CHANGES?',
+      message: 'This clears only the locally saved geometry draft.',
+      confirmLabel: 'RESET ALL',
     );
     if (confirmed == true) {
       _tuner.resetAll();
@@ -160,27 +150,15 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
   }
 
   Future<void> _confirmRestoreRecoveryDraft() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('RESTORE PRODUCT OWNER RECOVERY DRAFT?'),
-        content: Text(
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'RESTORE PRODUCT OWNER RECOVERY DRAFT?',
+      message:
           'This restores ${_tuner.recoveryFixtureFrontCount} FRONT and '
           '${_tuner.recoveryFixtureBackCount} BACK regions, including one '
           'two-component TRAPEZIUS. Existing valid drafts are not overwritten '
           'automatically.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('RESTORE DRAFT'),
-          ).actionableFeedback(),
-        ],
-      ),
+      confirmLabel: 'RESTORE DRAFT',
     );
     if (confirmed == true && _tuner.restoreProductOwnerRecoveryDraft()) {
       setState(() {
@@ -191,25 +169,13 @@ class _BodyMapSvgPreviewPageState extends State<BodyMapSvgPreviewPage> {
   }
 
   Future<void> _confirmRestoreBackupDraft() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('RESTORE PREVIOUS TUNER BACKUP?'),
-        content: const Text(
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'RESTORE PREVIOUS TUNER BACKUP?',
+      message:
           'This replaces the unavailable current draft with the last valid '
           'local backup.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('RESTORE BACKUP'),
-          ).actionableFeedback(),
-        ],
-      ),
+      confirmLabel: 'RESTORE BACKUP',
     );
     if (confirmed == true && _tuner.restoreBackupDraft()) {
       setState(() {

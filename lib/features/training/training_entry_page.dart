@@ -29,6 +29,7 @@ import '../training_analysis/pages/training_analysis_page.dart';
 import '../food/widgets/food_saved_floating_hud.dart';
 import '../themes/base_camp/base_camp_presentation.dart';
 import '../themes/base_camp/base_camp_retro_terminal.dart';
+import '../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import 'training_plan_page.dart';
 import 'widgets/training_cardio_v2_editor.dart';
 import 'widgets/training_dot_matrix_title.dart';
@@ -213,10 +214,12 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       _form.isPaused = previousPaused;
       _draftWritesEnabled = true;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('トレーニングの保存に失敗しました。入力内容を維持しています。')),
+        FoodSavedFloatingHud.showFor(
+          context,
+          label: 'TRAINING',
+          failed: true,
+          detail: 'トレーニングの保存に失敗しました。入力内容を維持しています。',
         );
-        FoodSavedFloatingHud.showFor(context, label: 'TRAINING', failed: true);
       }
       ActionableFeedbackRegion.resolveDeferred(
         ActionableFeedbackResult.unavailable,
@@ -231,23 +234,13 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
       label: 'TRAINING',
       successLabel: _isEditing ? 'UPDATED' : 'SAVED',
     );
-    final createReport = await showDialog<bool>(
-      context: context,
+    final createReport = await showBaseCampOperationConfirmation(
+      context,
+      title: 'TRAINING REPORT',
+      message: 'TRAINING REPORTを作成しますか？',
+      confirmLabel: 'YES',
+      cancelLabel: 'NO',
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('TRAINING REPORT'),
-        content: const Text('TRAINING REPORTを作成しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('NO'),
-          ).actionableFeedback(),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('YES'),
-          ).actionableFeedback(),
-        ],
-      ),
     );
     if (!mounted) return;
     if (createReport == true && savedRecord != null) {
@@ -384,25 +377,42 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   }
 
   void _showTimeError(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    showBaseCampOperationNotice(
+      context,
+      title: 'TRAINING TIME',
+      message: message,
+      result: BaseCampOperationNoticeResult.failure,
+    );
   }
 
   void _showError(String message) {
     if (!mounted) return;
     showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('入力エラー'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ).actionableFeedback(),
-        ],
-      ),
+      builder: (dialogContext) => BaseCampPresentation.isActive(context)
+          ? BaseCampOperationPanel(
+              title: 'TRAINING VALIDATION',
+              state: BaseCampOperationPanelState.result,
+              result: BaseCampOperationPanelResult.failure,
+              message: message,
+              actions: <Widget>[
+                BaseCampOperationPanelButton(
+                  label: 'OK',
+                  primary: true,
+                  onPressed: () => Navigator.pop(dialogContext),
+                ),
+              ],
+            )
+          : AlertDialog(
+              title: const Text('入力エラー'),
+              content: Text(message),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('OK'),
+                ).actionableFeedback(),
+              ],
+            ),
     );
   }
 
@@ -444,28 +454,14 @@ class _TrainingEntryPageState extends State<TrainingEntryPage> {
   }) async {
     if (mounted) setState(() => _confirmationOpen = true);
     try {
-      return (await showDialog<bool>(
-            context: context,
-            builder: (dialogContext) => AlertDialog(
-              title: Text(title),
-              content: Text(content),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('キャンセル'),
-                ).actionableFeedback(),
-                TextButton(
-                  key: confirmKey,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(dialogContext).colorScheme.error,
-                  ),
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  child: Text(confirmLabel),
-                ).actionableFeedback(),
-              ],
-            ),
-          )) ??
-          false;
+      return showBaseCampOperationConfirmation(
+        context,
+        title: title,
+        message: content,
+        confirmLabel: confirmLabel,
+        cancelLabel: 'キャンセル',
+        confirmKey: confirmKey,
+      );
     } finally {
       if (mounted) setState(() => _confirmationOpen = false);
     }

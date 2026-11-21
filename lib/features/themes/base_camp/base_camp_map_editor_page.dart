@@ -14,6 +14,8 @@ import 'base_camp_map_export.dart';
 import 'base_camp_helicopter_configuration.dart';
 import 'widgets/base_camp_map.dart';
 import 'widgets/base_camp_helicopter.dart';
+import 'widgets/base_camp_operation_panel.dart';
+import 'widgets/base_camp_terminal_popup.dart';
 
 enum _BaseCampEditorSection {
   routes,
@@ -600,15 +602,23 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     try {
       await Clipboard.setData(ClipboardData(text: source));
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('HELICOPTER JSON COPIED')));
+      _showEditorNotice('HELICOPTER JSON COPIED');
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('HELICOPTER JSON COPY FAILED')),
-      );
+      _showEditorNotice('HELICOPTER JSON COPY FAILED', failure: true);
     }
+  }
+
+  void _showEditorNotice(String message, {bool failure = false}) {
+    showBaseCampOperationNotice(
+      context,
+      title: 'MAP EDITOR',
+      message: message,
+      result: failure
+          ? BaseCampOperationNoticeResult.failure
+          : BaseCampOperationNoticeResult.success,
+      duration: const Duration(seconds: 3),
+    );
   }
 
   bool get _dirty =>
@@ -687,9 +697,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       } catch (_) {
         if (mounted) {
           setState(() => _waterDraftError = 'WATER DRAFT AUTO-SAVE FAILED');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('WATER DRAFT AUTO-SAVE FAILED')),
-          );
+          _showEditorNotice('WATER DRAFT AUTO-SAVE FAILED', failure: true);
         } else {
           _waterDraftError = 'WATER DRAFT AUTO-SAVE FAILED';
         }
@@ -840,9 +848,10 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       final approved = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text('IMPORT WATER JSON?'),
-          content: Column(
+        builder: (dialogContext) => BaseCampTerminalPopup(
+          title: 'IMPORT WATER JSON?',
+          stateLabel: 'CONFIRM',
+          lcdChild: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -860,13 +869,14 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
             ],
           ),
           actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('CANCEL'),
+            BaseCampTerminalPopupButton(
+              label: 'CANCEL',
+              onPressed: () => Navigator.pop(dialogContext, false),
             ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('REPLACE WATER'),
+            BaseCampTerminalPopupButton(
+              label: 'REPLACE WATER',
+              primary: true,
+              onPressed: () => Navigator.pop(dialogContext, true),
             ),
           ],
         ),
@@ -882,21 +892,16 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         _awaitingWaterPoint = false;
         _awaitingExclusionPoint = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('WATER IMPORT READY — PRESS SAVE TO PERSIST'),
-        ),
-      );
+      _showEditorNotice('WATER IMPORT READY — PRESS SAVE TO PERSIST');
     } on FormatException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('WATER IMPORT REJECTED — ${error.message}')),
+      _showEditorNotice(
+        'WATER IMPORT REJECTED — ${error.message}',
+        failure: true,
       );
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('WATER IMPORT FAILED — DATA UNCHANGED')),
-      );
+      _showEditorNotice('WATER IMPORT FAILED — DATA UNCHANGED', failure: true);
     }
   }
 
@@ -1018,9 +1023,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     final segment = _nearestPolygonSegment(points, safe, closed: mask);
     points.insert(segment + 1, safe);
     if (mask && _selfIntersects(points)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SELF-INTERSECTING WATER MASK REJECTED')),
-      );
+      _showEditorNotice('SELF-INTERSECTING WATER MASK REJECTED', failure: true);
       return;
     }
     _mutate(
@@ -1173,9 +1176,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     final segment = _nearestPolygonSegment(polygon, safe, closed: true);
     polygon.insert(segment + 1, safe);
     if (_selfIntersects(polygon)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SELF-INTERSECTING EXCLUSION REJECTED')),
-      );
+      _showEditorNotice('SELF-INTERSECTING EXCLUSION REJECTED', failure: true);
       return;
     }
     _mutate(
@@ -1408,10 +1409,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       await _configurationController.save(_working);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('SAVE FAILED — EDITS AND WATER DRAFT RETAINED'),
-          ),
+        _showEditorNotice(
+          'SAVE FAILED — EDITS AND WATER DRAFT RETAINED',
+          failure: true,
         );
       }
       return false;
@@ -1420,10 +1420,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       await _waterDraftStore.discard();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('MAP SAVED — OLD WATER DRAFT COULD NOT BE CLEARED'),
-          ),
+        _showEditorNotice(
+          'MAP SAVED — OLD WATER DRAFT COULD NOT BE CLEARED',
+          failure: true,
         );
       }
     }
@@ -1443,35 +1442,21 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
   }
 
   Future<void> _resetToDefaults() async {
-    final approved = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('RESET TO DEFAULT'),
-        content: const Text(
-          'Restore all routes, facility outlines and soldier size?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('RESET'),
-          ),
-        ],
-      ),
+    final approved = await showBaseCampOperationConfirmation(
+      context,
+      title: 'RESET TO DEFAULT',
+      message: 'Restore all routes, facility outlines and soldier size?',
+      confirmLabel: 'RESET',
     );
-    if (approved != true) return;
+    if (!approved) return;
     await _configurationController.resetToDefaults();
     try {
       await _waterDraftStore.discard();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('MAP RESET — OLD WATER DRAFT COULD NOT BE CLEARED'),
-          ),
+        _showEditorNotice(
+          'MAP RESET — OLD WATER DRAFT COULD NOT BE CLEARED',
+          failure: true,
         );
       }
     }
@@ -1488,21 +1473,23 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     if (!_dirty) return true;
     final choice = await showDialog<_ExitChoice>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('UNSAVED BASE CAMP MAP'),
-        content: const Text('Save changes before leaving the editor?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, _ExitChoice.cancel),
-            child: const Text('CANCEL'),
+      builder: (dialogContext) => BaseCampTerminalPopup(
+        title: 'UNSAVED BASE CAMP MAP',
+        stateLabel: 'CONFIRM',
+        message: 'Save changes before leaving the editor?',
+        actions: <Widget>[
+          BaseCampTerminalPopupButton(
+            label: 'CANCEL',
+            onPressed: () => Navigator.pop(dialogContext, _ExitChoice.cancel),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, _ExitChoice.discard),
-            child: const Text('DISCARD'),
+          BaseCampTerminalPopupButton(
+            label: 'DISCARD',
+            onPressed: () => Navigator.pop(dialogContext, _ExitChoice.discard),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, _ExitChoice.save),
-            child: const Text('SAVE'),
+          BaseCampTerminalPopupButton(
+            label: 'SAVE',
+            primary: true,
+            onPressed: () => Navigator.pop(dialogContext, _ExitChoice.save),
           ),
         ],
       ),
@@ -1515,9 +1502,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         await _waterDraftStore.discard();
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('WATER DRAFT DISCARD FAILED')),
-          );
+          _showEditorNotice('WATER DRAFT DISCARD FAILED', failure: true);
         }
         return false;
       }
@@ -1527,26 +1512,14 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
 
   Future<void> _cancelUnsavedChanges() async {
     if (!_dirty) return;
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('DISCARD UNSAVED EDITS?'),
-        content: const Text(
-          'This also discards the recoverable BASE CAMP WATER draft.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('KEEP EDITING'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('DISCARD'),
-          ),
-        ],
-      ),
+    final discard = await showBaseCampOperationConfirmation(
+      context,
+      title: 'DISCARD UNSAVED EDITS?',
+      message: 'This also discards the recoverable BASE CAMP WATER draft.',
+      confirmLabel: 'DISCARD',
+      cancelLabel: 'KEEP EDITING',
     );
-    if (discard != true) return;
+    if (!discard) return;
     try {
       await _waterDraftStore.discard();
       if (mounted) {
@@ -1558,49 +1531,32 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('WATER DRAFT DISCARD FAILED')),
-        );
+        _showEditorNotice('WATER DRAFT DISCARD FAILED', failure: true);
       }
     }
   }
 
   Future<void> _resolveWaterDraft(BaseCampWaterDraftLoadResult result) async {
     if (result.state == BaseCampWaterDraftState.unavailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('WATER DRAFT STORAGE UNAVAILABLE')),
-      );
+      _showEditorNotice('WATER DRAFT STORAGE UNAVAILABLE', failure: true);
       return;
     }
     if (result.state == BaseCampWaterDraftState.corrupt) {
-      final discard = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text('WATER DRAFT NEEDS RECOVERY'),
-          content: const Text(
+      final discard = await showBaseCampOperationConfirmation(
+        context,
+        title: 'WATER DRAFT NEEDS RECOVERY',
+        message:
             'The draft is damaged or belongs to another schema. Keep it for recovery or discard it.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('KEEP'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('DISCARD'),
-            ),
-          ],
-        ),
+        confirmLabel: 'DISCARD',
+        cancelLabel: 'KEEP',
+        barrierDismissible: false,
       );
-      if (discard == true) {
+      if (discard) {
         try {
           await _waterDraftStore.discard();
         } catch (_) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('WATER DRAFT DISCARD FAILED')),
-            );
+            _showEditorNotice('WATER DRAFT DISCARD FAILED', failure: true);
           }
         }
       }
@@ -1608,27 +1564,16 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
     }
     final draft = result.draft;
     if (draft == null) return;
-    final restore = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('RECOVER WATER EDITS?'),
-        content: const Text(
+    final restore = await showBaseCampOperationConfirmation(
+      context,
+      title: 'RECOVER WATER EDITS?',
+      message:
           'An unsaved BASE CAMP WATER draft was found. RESTORE keeps it isolated from Dashboard until SAVE.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('DISCARD'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('RESTORE'),
-          ),
-        ],
-      ),
+      confirmLabel: 'RESTORE',
+      cancelLabel: 'DISCARD',
+      barrierDismissible: false,
     );
-    if (restore == true) {
+    if (restore) {
       if (mounted) {
         setState(() {
           _working = _clone(draft.applyTo(_configurationController.value));
@@ -1640,9 +1585,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         await _waterDraftStore.discard();
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('WATER DRAFT DISCARD FAILED')),
-          );
+          _showEditorNotice('WATER DRAFT DISCARD FAILED', failure: true);
         }
       }
     }
@@ -3032,9 +2975,7 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
               parsed >= BaseCampHelicopterAssembly.minimumScale &&
               parsed <= BaseCampHelicopterAssembly.maximumScale);
       if (parsed == null || !parsed.isFinite || !scaleValid) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('INVALID HELICOPTER VALUE')),
-        );
+        _showEditorNotice('INVALID HELICOPTER VALUE', failure: true);
         return;
       }
       _setHelicopterValue(
@@ -3105,15 +3046,12 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         'invalid_asset' => 'Use a PNG, GIF, or JPEG image under 8 MB.',
         _ => 'Image storage failed. Check available browser storage.',
       };
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      _showEditorNotice(message, failure: true);
     } on UnsupportedError {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Image import is available in the web app.'),
-          ),
+        _showEditorNotice(
+          'Image import is available in the web app.',
+          failure: true,
         );
       }
     }
@@ -3127,10 +3065,9 @@ class _BaseCampMapEditorPageState extends State<BaseCampMapEditorPage> {
         await BaseCampAssetStore().delete(object.assetId);
       } on BaseCampAssetStorageException {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Image storage could not be updated.'),
-            ),
+          _showEditorNotice(
+            'Image storage could not be updated.',
+            failure: true,
           );
         }
         return;

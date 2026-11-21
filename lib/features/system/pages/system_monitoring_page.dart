@@ -17,6 +17,7 @@ import '../models/information_notice.dart';
 import '../services/app_metadata.dart';
 import '../services/information_notice_service.dart';
 import '../widgets/dashboard_information_strip.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 class SystemMonitoringPage extends StatefulWidget {
   const SystemMonitoringPage({super.key});
@@ -81,22 +82,12 @@ class _SystemMonitoringPageState extends State<SystemMonitoringPage> {
   }
 
   Future<bool?> _confirm({required String title, required String body}) =>
-      showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(title),
-          content: Text(body),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('キャンセル'),
-            ).actionableFeedback(),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('削除'),
-            ).actionableFeedback(),
-          ],
-        ),
+      showBaseCampOperationConfirmation(
+        context,
+        title: title,
+        message: body,
+        cancelLabel: 'キャンセル',
+        confirmLabel: '削除',
       );
 
   Future<_ShadowSnapshot> _loadShadow() async {

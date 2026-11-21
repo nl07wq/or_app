@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_dashboard_page.dart';
+import 'package:or_app/features/themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 /// Sandbox-only alignment data. It is deliberately never read by the BASE
 /// CAMP terminal; users copy the validated JSON when a calibration is ready.
@@ -466,9 +467,11 @@ class _SoldierAlignmentSandboxSectionState
       ),
     );
     if (mounted) {
-      ScaffoldMessenger.of(
+      showBaseCampOperationNotice(
         context,
-      ).showSnackBar(const SnackBar(content: Text('ALIGNMENT DATA COPIED')));
+        title: 'SOLDIER ALIGNMENT',
+        message: 'ALIGNMENT DATA COPIED',
+      );
     }
   }
 
@@ -481,10 +484,11 @@ class _SoldierAlignmentSandboxSectionState
     final parsed = SoldierAlignmentData.tryParseDocument(decoded);
     if (parsed == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('INVALID ALIGNMENT DATA — NO CHANGES APPLIED'),
-          ),
+        showBaseCampOperationNotice(
+          context,
+          title: 'SOLDIER ALIGNMENT',
+          message: 'INVALID ALIGNMENT DATA — NO CHANGES APPLIED',
+          result: BaseCampOperationNoticeResult.failure,
         );
       }
       return;

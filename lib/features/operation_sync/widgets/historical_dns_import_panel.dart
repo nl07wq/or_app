@@ -8,6 +8,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../report_sync/services/report_sync_clipboard_gateway.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import '../models/operation_sync_history.dart';
 import '../services/historical_dns_workflow.dart';
 
@@ -169,27 +170,15 @@ class _HistoricalDnsImportPanelState extends State<HistoricalDnsImportPanel> {
               item.disposition == OperationSyncRecordDisposition.conflict,
         )
         .length;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('IMPORT LEGACY DNS?'),
-        content: Text(
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'IMPORT LEGACY DNS?',
+      message:
           'Daily Aggregateを$selectedNew件作成し、'
           '$selectedDifferent件を安全に置換します。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('IMPORT'),
-          ).actionableFeedback(),
-        ],
-      ),
+      confirmLabel: 'IMPORT',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;

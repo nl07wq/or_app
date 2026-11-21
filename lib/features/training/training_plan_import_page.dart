@@ -14,6 +14,7 @@ import 'training_entry_page.dart';
 import 'widgets/training_dot_matrix_title.dart';
 import 'widgets/training_led_back_button.dart';
 import 'widgets/training_kinetic_scaffold.dart';
+import '../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 class TrainingPlanImportPage extends StatefulWidget {
   const TrainingPlanImportPage({super.key, this.sourceRecordId, this.service});
@@ -52,8 +53,10 @@ class _TrainingPlanImportPageState extends State<TrainingPlanImportPage> {
   Future<void> _copy(TrainingPlanPreparation preparation) async {
     await Clipboard.setData(ClipboardData(text: preparation.prompt));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('TRAINING PLAN PROMPTをコピーしました')),
+    showBaseCampOperationNotice(
+      context,
+      title: 'TRAINING PLAN',
+      message: 'TRAINING PLAN PROMPTをコピーしました',
     );
   }
 

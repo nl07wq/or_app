@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 import 'package:flutter/services.dart';
 
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_card.dart';
@@ -118,9 +120,11 @@ class _PixelLabPageState extends State<PixelLabPage> {
   Future<void> _copyParameters(String json) async {
     await Clipboard.setData(ClipboardData(text: json));
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('CODEX PARAMETERS COPIED')));
+    showBaseCampOperationNotice(
+      context,
+      title: 'PIXEL LAB EXPORT',
+      message: 'CODEX PARAMETERS COPIED',
+    );
   }
 
   @override

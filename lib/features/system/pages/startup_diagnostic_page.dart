@@ -8,6 +8,7 @@ import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../../core/widgets/global_touch_ripple.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 /// Temporary on-device viewer for the bounded startup lifecycle trace.
 class StartupDiagnosticPage extends StatefulWidget {
@@ -27,9 +28,7 @@ class _StartupDiagnosticPageState extends State<StartupDiagnosticPage> {
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: _trace));
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('STARTUP TRACE COPIED')));
+    _showNotice('STARTUP TRACE COPIED');
   }
 
   void _clear() {
@@ -44,14 +43,21 @@ class _StartupDiagnosticPageState extends State<StartupDiagnosticPage> {
       reset ? 'BOOT_HEARTBEAT_RESET' : 'BOOT_HEARTBEAT_RESET_FAILED',
     );
     _refresh();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          reset ? 'BOOT HEARTBEAT RESET' : 'BOOT HEARTBEAT RESET FAILED',
-        ),
-      ),
+    _showNotice(
+      reset ? 'BOOT HEARTBEAT RESET' : 'BOOT HEARTBEAT RESET FAILED',
+      failure: !reset,
     );
   }
+
+  void _showNotice(String message, {bool failure = false}) =>
+      showBaseCampOperationNotice(
+        context,
+        title: 'STARTUP DIAGNOSTIC',
+        message: message,
+        result: failure
+            ? BaseCampOperationNoticeResult.failure
+            : BaseCampOperationNoticeResult.success,
+      );
 
   @override
   Widget build(BuildContext context) => Scaffold(

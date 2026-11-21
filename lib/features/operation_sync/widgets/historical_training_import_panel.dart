@@ -8,6 +8,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../report_sync/services/report_sync_clipboard_gateway.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import '../models/operation_sync_history.dart';
 import '../services/historical_training_workflow.dart';
 
@@ -164,27 +165,15 @@ class _HistoricalTrainingImportPanelState
         _selectedIndexes.isEmpty) {
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('IMPORT HISTORICAL TRAINING?'),
-        content: Text(
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'IMPORT HISTORICAL TRAINING?',
+      message:
           'Training v2の新規記録を${_selectedIndexes.length}件作成します。'
           '既存の記録は変更または削除されません。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('IMPORT'),
-          ).actionableFeedback(),
-        ],
-      ),
+      confirmLabel: 'IMPORT',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     setState(() {
       _busy = true;
       _applyError = null;

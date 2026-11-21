@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/widgets/base_camp_terminal_popup.dart';
 import '../models/activity_draft.dart';
 
 class ActivityDraftRecoveryItem {
@@ -76,24 +79,14 @@ class _ActivityDraftRecoveryDialogState
   }
 
   Future<void> _confirmDiscard(ActivityDraft draft) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${draft.localDate}の未確定Activityデータを破棄しますか？'),
-        content: const Text('この操作は元に戻せません'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ).actionableFeedback(),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('破棄'),
-          ).actionableFeedback(),
-        ],
-      ),
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'DISCARD ACTIVITY DRAFT',
+      message: '${draft.localDate}の未確定Activityデータを破棄しますか？\nこの操作は元に戻せません',
+      confirmLabel: '破棄',
+      cancelLabel: 'キャンセル',
     );
-    if (confirmed != true || !mounted || _busyDraftId != null) return;
+    if (!confirmed || !mounted || _busyDraftId != null) return;
 
     setState(() {
       _busyDraftId = draft.id;
@@ -112,74 +105,87 @@ class _ActivityDraftRecoveryDialogState
   }
 
   void _removeCompleted(ActivityDraft draft, String message) {
-    final messenger = ScaffoldMessenger.of(context);
     _items.removeWhere((item) => item.draft.id == draft.id);
     if (_items.isEmpty) {
       Navigator.pop(context);
     } else {
       setState(() => _busyDraftId = null);
     }
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    showBaseCampOperationNotice(
+      context,
+      title: 'ACTIVITY DRAFT',
+      message: message,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final single = _items.length == 1;
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 520, maxHeight: 460),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              single
+                  ? '対象日：${_items.single.draft.localDate}'
+                  : '未確定のActivity Draftが${_items.length}件あります',
+            ),
+            AppSpacing.gapSM,
+            const Text('自動確定・自動削除は行いません。'),
+            AppSpacing.gapMD,
+            for (final item in _items) ...[
+              _DraftRecoveryRow(
+                item: item,
+                single: single,
+                busy: _busyDraftId != null,
+                onResume: () => _resume(item.draft),
+                onFinalize: () => _finalize(item.draft),
+                onDiscard: () => _confirmDiscard(item.draft),
+              ),
+              if (item != _items.last) AppSpacing.gapMD,
+            ],
+            if (_errorMessage != null) ...[
+              AppSpacing.gapMD,
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    final dismiss = _busyDraftId == null ? () => Navigator.pop(context) : null;
     return Semantics(
       container: true,
       label: '前日の未確定Activityデータ',
-      child: AlertDialog(
-        title: Text(single ? '前日の未確定データがあります' : '未確定のActivity Draftがあります'),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 460),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  single
-                      ? '対象日：${_items.single.draft.localDate}'
-                      : '未確定のActivity Draftが${_items.length}件あります',
-                ),
-                AppSpacing.gapSM,
-                const Text('自動確定・自動削除は行いません。'),
-                AppSpacing.gapMD,
-                for (final item in _items) ...[
-                  _DraftRecoveryRow(
-                    item: item,
-                    single: single,
-                    busy: _busyDraftId != null,
-                    onResume: () => _resume(item.draft),
-                    onFinalize: () => _finalize(item.draft),
-                    onDiscard: () => _confirmDiscard(item.draft),
-                  ),
-                  if (item != _items.last) AppSpacing.gapMD,
-                ],
-                if (_errorMessage != null) ...[
-                  AppSpacing.gapMD,
-                  Text(
-                    _errorMessage!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
+      child: BaseCampPresentation.isActive(context)
+          ? BaseCampTerminalPopup(
+              title: single
+                  ? 'ACTIVITY DRAFT RECOVERY'
+                  : 'ACTIVITY DRAFTS RECOVERY',
+              stateLabel: _busyDraftId == null ? 'RECOVERY' : 'PROCESSING',
+              lcdChild: content,
+              busy: _busyDraftId != null,
+              actions: <Widget>[
+                BaseCampTerminalPopupButton(label: 'あとで', onPressed: dismiss),
+              ],
+            )
+          : AlertDialog(
+              title: Text(
+                single ? '前日の未確定データがあります' : '未確定のActivity Draftがあります',
+              ),
+              content: content,
+              actions: [
+                TextButton(
+                  onPressed: dismiss,
+                  child: const Text('あとで'),
+                ).actionableFeedback(),
               ],
             ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _busyDraftId == null
-                ? () => Navigator.pop(context)
-                : null,
-            child: const Text('あとで'),
-          ).actionableFeedback(),
-        ],
-      ),
     );
   }
 }

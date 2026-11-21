@@ -24,6 +24,7 @@ import '../models/nutrition_models.dart';
 import '../models/recipe_models_v2.dart';
 import '../food_catalog_page.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import '../services/food_input_capture_gateway.dart';
 import '../services/food_nutrition_recalculation.dart';
 import '../services/food_recipe_nutrition.dart';
@@ -1361,26 +1362,15 @@ class _FoodInputFormState extends State<FoodInputForm> {
     if (source == null) return;
     if (mode == _RecipeAdjustmentMode.recipeQuantity &&
         _pendingRecipeIngredientsCustomized) {
-      final discard = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('DISCARD INGREDIENT ADJUSTMENTS?'),
-          content: const Text(
+      final discard = await showBaseCampOperationConfirmation(
+        context,
+        title: 'DISCARD INGREDIENT ADJUSTMENTS?',
+        message:
             'Returning to RECIPE QUANTITY restores the scaled recipe ingredients.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('KEEP ADJUSTMENTS'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('DISCARD'),
-            ),
-          ],
-        ),
+        confirmLabel: 'DISCARD',
+        cancelLabel: 'KEEP ADJUSTMENTS',
       );
-      if (discard != true || !mounted) return;
+      if (!discard || !mounted) return;
     }
     final quantity = _pendingRecipeQuantity;
     if (mode == _RecipeAdjustmentMode.ingredientAdjust && quantity == null) {

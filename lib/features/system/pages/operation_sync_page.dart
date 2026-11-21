@@ -17,6 +17,7 @@ import '../../operation_sync/services/historical_training_workflow.dart';
 import '../../operation_sync/widgets/historical_dns_import_panel.dart';
 import '../../operation_sync/widgets/historical_training_import_panel.dart';
 import '../../repositories/app_repository_container.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import 'device_transfer_page.dart';
 
 class OperationSyncPage extends StatefulWidget {
@@ -132,30 +133,16 @@ class _OperationSyncPageState extends State<OperationSyncPage> {
   Future<void> _apply() async {
     final selection = _selection;
     if (selection == null || !selection.preview.canApply) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          selection.isRecovery ? 'RESUME TRANSFER?' : 'APPLY TRANSFER?',
-        ),
-        content: Text(
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: selection.isRecovery ? 'RESUME TRANSFER?' : 'APPLY TRANSFER?',
+      message:
           'この追加専用転送では${selection.preview.createCount}件の記録を作成し、'
           '${selection.preview.noChangeCount}件は変更しません。'
           'パッケージは整合性保護されていますが、暗号化されていません。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(selection.isRecovery ? 'RESUME' : 'APPLY'),
-          ).actionableFeedback(),
-        ],
-      ),
+      confirmLabel: selection.isRecovery ? 'RESUME' : 'APPLY',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     setState(() {
       _busy = true;
       _stageController.value = 'APPLY';

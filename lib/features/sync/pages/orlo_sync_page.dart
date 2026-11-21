@@ -11,6 +11,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_text_field.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../import_export/services/backup_file_gateway.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import '../models/orlo_sync_models.dart';
 import '../services/orlo_sync_gateway.dart';
 import '../services/orlo_sync_instruction_provider.dart';
@@ -155,24 +156,13 @@ class _OrloSyncPageState extends State<OrloSyncPage> {
   Future<void> _apply() async {
     final preview = _preview;
     if (preview == null || !preview.canImport) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('IMPORT'),
-        content: Text('${preview.envelope.dataType}の内容を保存しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('CONFIRM IMPORT'),
-          ).actionableFeedback(),
-        ],
-      ),
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'IMPORT',
+      message: '${preview.envelope.dataType}の内容を保存しますか？',
+      confirmLabel: 'CONFIRM IMPORT',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     setState(() {
       _busy = true;
       _stateMessage = null;

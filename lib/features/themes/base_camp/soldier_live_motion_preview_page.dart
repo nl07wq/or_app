@@ -8,6 +8,8 @@ import '../../../core/services/device_settings_controller.dart';
 import '../../../core/widgets/operation_button.dart';
 import 'base_camp_soldier_motion.dart';
 import 'base_camp_soldier_pixelation.dart';
+import 'widgets/base_camp_operation_panel.dart';
+import 'widgets/base_camp_terminal_popup.dart';
 
 enum SoldierLivePreviewMode { breathingOnly, rifleOnly, overlay }
 
@@ -265,9 +267,7 @@ class _SoldierLiveMotionPreviewPageState
       ClipboardData(text: const JsonEncoder.withIndent('  ').convert(_json())),
     );
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('ALIGNMENT JSON COPIED')));
+      _showNotice('ALIGNMENT JSON COPIED');
     }
   }
 
@@ -275,21 +275,23 @@ class _SoldierLiveMotionPreviewPageState
     final controller = TextEditingController();
     final text = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('IMPORT ALIGNMENT JSON'),
-        content: TextField(
+      builder: (dialogContext) => BaseCampTerminalPopup(
+        title: 'IMPORT ALIGNMENT JSON',
+        stateLabel: 'IMPORT',
+        lcdChild: TextField(
           key: const ValueKey('soldier-live-import-field'),
           controller: controller,
           maxLines: 12,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL'),
+        actions: <Widget>[
+          BaseCampTerminalPopupButton(
+            label: 'CANCEL',
+            onPressed: () => Navigator.pop(dialogContext),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('IMPORT'),
+          BaseCampTerminalPopupButton(
+            label: 'IMPORT',
+            primary: true,
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
           ),
         ],
       ),
@@ -306,9 +308,7 @@ class _SoldierLiveMotionPreviewPageState
       _schedulePixelProfilePreparation();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('INVALID ALIGNMENT JSON')));
+        _showNotice('INVALID ALIGNMENT JSON', failure: true);
       }
     }
   }
@@ -327,17 +327,24 @@ class _SoldierLiveMotionPreviewPageState
     try {
       await _alignmentController.save(_working);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SAVED AND APPLIED TO DASHBOARD')),
-      );
+      _showNotice('SAVED AND APPLIED TO DASHBOARD');
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('APPLY FAILED — EDITED VALUES RETAINED')),
-      );
+      _showNotice('APPLY FAILED — EDITED VALUES RETAINED', failure: true);
     } finally {
       if (mounted) setState(() => _applying = false);
     }
+  }
+
+  void _showNotice(String message, {bool failure = false}) {
+    showBaseCampOperationNotice(
+      context,
+      title: 'SOLDIER EDITOR',
+      message: message,
+      result: failure
+          ? BaseCampOperationNoticeResult.failure
+          : BaseCampOperationNoticeResult.success,
+    );
   }
 
   @override

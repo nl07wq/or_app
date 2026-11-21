@@ -7,6 +7,7 @@ import '../../../core/widgets/global_touch_ripple.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 class DashboardDiagnosticPage extends StatefulWidget {
   const DashboardDiagnosticPage({super.key});
@@ -33,9 +34,7 @@ class _DashboardDiagnosticPageState extends State<DashboardDiagnosticPage> {
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: _trace));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('DASHBOARD DIAGNOSTICS COPIED')),
-    );
+    _showNotice('DASHBOARD DIAGNOSTICS COPIED');
   }
 
   Future<void> _copyUriEvidence() async {
@@ -43,9 +42,7 @@ class _DashboardDiagnosticPageState extends State<DashboardDiagnosticPage> {
       ClipboardData(text: SystemDiagnostics.instance.copyUriEvidenceText()),
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('URI EXCEPTION EVIDENCE COPIED')),
-    );
+    _showNotice('URI EXCEPTION EVIDENCE COPIED');
   }
 
   Future<void> _copySlowStartupEvidence() async {
@@ -55,20 +52,27 @@ class _DashboardDiagnosticPageState extends State<DashboardDiagnosticPage> {
       ),
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('SLOW STARTUP EVIDENCE COPIED')),
-    );
+    _showNotice('SLOW STARTUP EVIDENCE COPIED');
   }
 
   Future<void> _export() async {
     final exported = await SystemDiagnostics.instance.export();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(exported ? 'DIAGNOSTICS EXPORTED' : 'EXPORT UNAVAILABLE'),
-      ),
+    _showNotice(
+      exported ? 'DIAGNOSTICS EXPORTED' : 'EXPORT UNAVAILABLE',
+      failure: !exported,
     );
   }
+
+  void _showNotice(String message, {bool failure = false}) =>
+      showBaseCampOperationNotice(
+        context,
+        title: 'DASHBOARD DIAGNOSTICS',
+        message: message,
+        result: failure
+            ? BaseCampOperationNoticeResult.failure
+            : BaseCampOperationNoticeResult.success,
+      );
 
   void _clear() {
     SystemDiagnostics.instance.clear();

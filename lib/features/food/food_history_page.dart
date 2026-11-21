@@ -33,6 +33,7 @@ import 'models/food_unified_read_model.dart';
 import 'models/nutrition_models.dart';
 import 'models/recipe_models_v2.dart';
 import 'widgets/food_thumbnail.dart';
+import 'widgets/food_saved_floating_hud.dart';
 import 'widgets/food_vfd_back_button.dart';
 import 'widgets/food_feature_chrome.dart';
 import 'widgets/nutrition_analysis_visuals.dart';
@@ -164,9 +165,12 @@ class _FoodHistoryPageState extends State<FoodHistoryPage> {
       return false;
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        FoodSavedFloatingHud.showFor(
           context,
-        ).showSnackBar(const SnackBar(content: Text('MEAL DELETE FAILED')));
+          label: 'MEAL DELETE',
+          failed: true,
+          detail: 'MEAL DELETE FAILED',
+        );
       }
       return false;
     }

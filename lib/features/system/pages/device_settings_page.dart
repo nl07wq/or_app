@@ -9,6 +9,7 @@ import 'package:or_app/core/widgets/operation_card.dart';
 import 'package:or_app/core/widgets/operation_button.dart';
 import 'package:or_app/core/widgets/section_header.dart';
 import 'package:or_app/features/notifications/widgets/notification_settings_card.dart';
+import 'package:or_app/features/themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 class DeviceSettingsPage extends StatelessWidget {
   const DeviceSettingsPage({super.key, this.controller});
@@ -373,8 +374,10 @@ class _AudioDiagnosticCard extends StatelessWidget {
                 ClipboardData(text: TouchRippleAudioDiagnostics.report),
               );
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('AUDIO DIAGNOSTICS COPIED')),
+                showBaseCampOperationNotice(
+                  context,
+                  title: 'AUDIO DIAGNOSTICS',
+                  message: 'AUDIO DIAGNOSTICS COPIED',
                 );
               }
             },

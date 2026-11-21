@@ -22,6 +22,7 @@ import 'package:or_app/features/report_sync/services/report_sync_canonical_servi
 import 'package:or_app/features/report_sync/services/report_sync_clipboard_gateway.dart';
 import 'package:or_app/features/report_sync/services/report_sync_codec.dart';
 import 'package:or_app/features/report_sync/services/report_sync_exchange_gateway.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 
 void main() {
   test('STATUS SOURCE visual states follow semantic preparation data', () {
@@ -429,6 +430,63 @@ void main() {
     expect(gateway.applyCalls, 0);
     expect(formalRecordChangeNotifier.value.revision, formalRevision);
   });
+
+  testWidgets(
+    'BASE CAMP daily debrief import uses the FINALIZE terminal structure',
+    (tester) async {
+      final gateway = _FakeExchangeGateway(
+        responseExchangeType: ReportSyncExchangeType.dailyDebrief,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BaseCampScreenEntry(
+            screen: BaseCampScreen.operationSync,
+            child: ReportSyncExchangePage(
+              exchangeType: ReportSyncExchangeType.dailyDebrief,
+              gateway: gateway,
+              fileGateway: _FakeFileGateway(),
+              clipboardWriter: (_) async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _validateOnly(tester);
+      await tester.scrollUntilVisible(
+        find.text('IMPORT DAILY DEBRIEF'),
+        250,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('IMPORT DAILY DEBRIEF'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('base-camp-operation-panel')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('base-camp-terminal-popup-title')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('base-camp-terminal-lcd-grid')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('base-camp-terminal-popup-title')),
+            )
+            .data,
+        'IMPORT DAILY DEBRIEF',
+      );
+      expect(find.text('CONFIRM'), findsOneWidget);
+      expect(find.text('CONFIRM IMPORT'), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(gateway.applyCalls, 0);
+      await tester.pump(const Duration(seconds: 31));
+    },
+  );
 
   testWidgets('food exchange UI is import-only and supports meal selection', (
     tester,

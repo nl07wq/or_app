@@ -38,6 +38,9 @@ import 'widgets/food_quantity_unit_field.dart';
 import 'widgets/food_feature_chrome.dart';
 import 'widgets/food_saved_floating_hud.dart';
 import '../themes/base_camp/base_camp_retro_terminal.dart';
+import '../themes/base_camp/base_camp_presentation.dart';
+import '../themes/base_camp/widgets/base_camp_operation_panel.dart';
+import '../themes/base_camp/widgets/base_camp_terminal_popup.dart';
 
 class FoodCatalogPage extends StatefulWidget {
   const FoodCatalogPage({
@@ -1294,9 +1297,8 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
     );
     final apply = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('RECALCULATE NUTRITION'),
-        content: Column(
+      builder: (dialogContext) {
+        final content = Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1329,20 +1331,44 @@ class _FoodCatalogEditorPageState extends State<FoodCatalogEditorPage> {
               after: preview.recalculated.carbohydrate,
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            key: const ValueKey('nutrition-recalculation-cancel'),
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(role: ActionableFeedbackRole.exit),
-          FilledButton(
-            key: const ValueKey('nutrition-recalculation-apply'),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('APPLY'),
-          ).actionableFeedback(),
-        ],
-      ),
+        );
+        if (BaseCampPresentation.isActive(context)) {
+          return BaseCampTerminalPopup(
+            title: 'RECALCULATE NUTRITION',
+            stateLabel: 'CONFIRM',
+            lcdChild: content,
+            actions: <Widget>[
+              BaseCampTerminalPopupButton(
+                key: const ValueKey('nutrition-recalculation-cancel'),
+                label: 'CANCEL',
+                onPressed: () => Navigator.pop(dialogContext, false),
+              ),
+              BaseCampTerminalPopupButton(
+                key: const ValueKey('nutrition-recalculation-apply'),
+                label: 'APPLY',
+                primary: true,
+                onPressed: () => Navigator.pop(dialogContext, true),
+              ),
+            ],
+          );
+        }
+        return AlertDialog(
+          title: const Text('RECALCULATE NUTRITION'),
+          content: content,
+          actions: [
+            TextButton(
+              key: const ValueKey('nutrition-recalculation-cancel'),
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('CANCEL'),
+            ).actionableFeedback(role: ActionableFeedbackRole.exit),
+            FilledButton(
+              key: const ValueKey('nutrition-recalculation-apply'),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('APPLY'),
+            ).actionableFeedback(),
+          ],
+        );
+      },
     );
     if (apply != true || !mounted) return;
     setState(() => _setNutrition(preview.recalculated));
@@ -2127,31 +2153,14 @@ class FoodCatalogDetailPage extends StatelessWidget {
   }
 
   Future<void> _delete(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('この食品を削除しますか？'),
-        content: const Text(
-          'Food Databaseから削除されます。\n'
-          '過去に保存済みの食事記録は変更されません。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ).actionableFeedback(role: ActionableFeedbackRole.exit),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            child: const Text('削除'),
-          ).actionableFeedback(),
-        ],
-      ),
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'DELETE FOOD',
+      message: 'Food Databaseから削除されます。\n過去に保存済みの食事記録は変更されません。',
+      confirmLabel: '削除',
+      cancelLabel: 'キャンセル',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await repository.delete(entry.foodId);
     if (context.mounted) Navigator.pop(context, true);
   }

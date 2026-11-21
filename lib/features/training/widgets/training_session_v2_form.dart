@@ -10,6 +10,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/operation_flip_tile.dart';
 import '../../../core/widgets/section_header.dart';
 import '../models/training_v2_form_controller.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 class TrainingSessionV2Form extends StatelessWidget {
   final TrainingV2FormController controller;
@@ -349,9 +350,12 @@ class _TrainingTimeActionsState extends State<_TrainingTimeActions> {
   }
 
   void _showError(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    showBaseCampOperationNotice(
+      context,
+      title: 'TRAINING TIME',
+      message: message,
+      result: BaseCampOperationNoticeResult.failure,
+    );
   }
 }
 

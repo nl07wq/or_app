@@ -18,6 +18,7 @@ import 'services/backup_import_service.dart';
 import 'services/backup_package_codec.dart';
 import 'services/backup_v14_transform.dart';
 import '../system/widgets/operation_sequence_overlay.dart';
+import '../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 class BackupRestorePage extends StatefulWidget {
   const BackupRestorePage({super.key});
@@ -216,32 +217,17 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
   Future<void> _import() async {
     final plan = _plan;
     if (plan == null || plan.hasBlockingConflicts) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          plan.mode == BackupImportMode.replaceAll
-              ? 'REPLACE ALL DATA?'
-              : 'IMPORT BACKUP?',
-        ),
-        content: Text(
-          plan.mode == BackupImportMode.replaceAll
-              ? 'This will replace all local records. Create a backup before continuing.'
-              : 'Only records that do not already exist will be added.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('IMPORT DATA'),
-          ).actionableFeedback(),
-        ],
-      ),
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: plan.mode == BackupImportMode.replaceAll
+          ? 'REPLACE ALL DATA?'
+          : 'IMPORT BACKUP?',
+      message: plan.mode == BackupImportMode.replaceAll
+          ? 'This will replace all local records. Create a backup before continuing.'
+          : 'Only records that do not already exist will be added.',
+      confirmLabel: 'IMPORT DATA',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     setState(() {
       _busy = true;
       _message = null;

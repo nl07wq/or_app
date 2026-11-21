@@ -12,6 +12,9 @@ import '../../operation_date/services/daily_finalize_undo_service.dart';
 import '../../operation_date/services/japanese_holiday_reference_service.dart';
 import '../services/app_data_initialization_service.dart';
 import '../services/storage_status_gateway.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/widgets/base_camp_terminal_popup.dart';
 
 class SystemDataHealthSnapshot {
   const SystemDataHealthSnapshot({
@@ -80,9 +83,14 @@ class _SystemPageState extends State<SystemPage> {
         : status.isAvailable
         ? '更新できませんでした。既存のキャッシュを維持します。'
         : '更新できませんでした。祝日判定は利用できません。';
-    ScaffoldMessenger.of(
+    showBaseCampOperationNotice(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+      title: 'HOLIDAY DATA UPDATE',
+      message: message,
+      result: status.updateSucceeded
+          ? BaseCampOperationNoticeResult.success
+          : BaseCampOperationNoticeResult.failure,
+    );
   }
 
   Future<SystemDataHealthSnapshot> _loadDataHealth() async {
@@ -284,9 +292,8 @@ class _InitializationConfirmationDialogState
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('INITIALIZE APP DATA'),
-    content: Column(
+  Widget build(BuildContext context) {
+    final content = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -307,8 +314,8 @@ class _InitializationConfirmationDialogState
           decoration: const InputDecoration(labelText: '確認文字列'),
         ).inputFeedback(),
       ],
-    ),
-    actions: [
+    );
+    final actions = [
       TextButton(
         onPressed: () => Navigator.pop(context, false),
         child: const Text('キャンセル'),
@@ -324,8 +331,21 @@ class _InitializationConfirmationDialogState
         ).actionableFeedback(),
         child: const Text('初期化する'),
       ),
-    ],
-  );
+    ];
+    if (BaseCampPresentation.isActive(context)) {
+      return BaseCampTerminalPopup(
+        title: 'INITIALIZE APP DATA',
+        stateLabel: 'CONFIRM',
+        lcdChild: content,
+        actions: actions,
+      );
+    }
+    return AlertDialog(
+      title: const Text('INITIALIZE APP DATA'),
+      content: content,
+      actions: actions,
+    );
+  }
 }
 
 class _StorageSection extends StatelessWidget {

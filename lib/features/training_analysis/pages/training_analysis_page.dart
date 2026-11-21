@@ -22,6 +22,7 @@ import '../services/training_analysis_service.dart';
 import '../services/training_analysis_metrics_adapter.dart';
 import '../services/training_analysis_presentation.dart';
 import '../services/training_frequency_recommendation_service.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 class TrainingAnalysisPage extends StatefulWidget {
   const TrainingAnalysisPage({super.key, this.targetRecordId});
@@ -282,8 +283,10 @@ class _TrainingAnalysisCreatePageState
       await Clipboard.setData(ClipboardData(text: preparation.prompt));
       if (!mounted) return;
       setState(() => _preparation = preparation);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('TRAINING ANALYSIS PROMPTをコピーしました')),
+      showBaseCampOperationNotice(
+        context,
+        title: 'TRAINING ANALYSIS',
+        message: 'TRAINING ANALYSIS PROMPTをコピーしました',
       );
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -346,14 +349,15 @@ class _TrainingAnalysisCreatePageState
     try {
       final result = await _service.apply(preview);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.result.name == 'noChange'
-                ? 'NO CHANGES'
-                : 'TRAINING ANALYSIS REPORTを保存しました',
-          ),
-        ),
+      showBaseCampOperationNotice(
+        context,
+        title: 'TRAINING ANALYSIS',
+        message: result.result.name == 'noChange'
+            ? 'NO CHANGES'
+            : 'TRAINING ANALYSIS REPORTを保存しました',
+        result: result.result.name == 'noChange'
+            ? BaseCampOperationNoticeResult.information
+            : BaseCampOperationNoticeResult.success,
       );
       if (result.result.name != 'noChange') Navigator.pop(context);
     } catch (error) {

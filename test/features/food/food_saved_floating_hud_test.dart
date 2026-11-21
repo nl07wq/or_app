@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:or_app/features/food/widgets/food_saved_floating_hud.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 
 void main() {
   Future<void> pumpHud(WidgetTester tester, {double width = 390}) async {
@@ -189,6 +190,49 @@ void main() {
       expect(find.text('MEAL SAVED'), findsOneWidget);
     },
   );
+
+  testWidgets('BASE CAMP meal save uses the shared compact terminal family', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BaseCampScreenEntry(
+          screen: BaseCampScreen.food,
+          child: Scaffold(
+            body: Builder(
+              builder: (context) => FilledButton(
+                onPressed: () => FoodSavedFloatingHud.show(context),
+                child: const Text('SAVE'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('SAVE'));
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('base-camp-terminal-notice')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-terminal-popup-title')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-terminal-popup-state')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('base-camp-terminal-lcd-grid')),
+      findsOneWidget,
+    );
+    expect(find.text('MEAL'), findsOneWidget);
+    expect(find.text('SAVED'), findsOneWidget);
+    expect(find.byType(BackdropFilter), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
     testWidgets('fits the FOOD success HUD at ${width.toInt()} px', (

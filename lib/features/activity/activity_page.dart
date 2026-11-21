@@ -14,6 +14,7 @@ import '../repositories/repository_exception.dart';
 import '../operation_date/services/operation_date_service.dart';
 import '../themes/base_camp/base_camp_facility_entry_page.dart';
 import '../themes/base_camp/base_camp_presentation.dart';
+import '../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import 'activity_entry_page.dart';
 import 'activity_history_page.dart';
 import 'models/activity_draft.dart';
@@ -177,9 +178,12 @@ class _ActivityPageState extends State<ActivityPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    showBaseCampOperationNotice(
+      context,
+      title: 'ACTIVITY DRAFT',
+      message: message,
+      result: BaseCampOperationNoticeResult.information,
+    );
   }
 
   @override

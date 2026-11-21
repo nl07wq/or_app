@@ -9,6 +9,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/operation_button.dart';
 import '../../../core/widgets/operation_card.dart';
 import '../models/training_v2_form_controller.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 class TrainingSetV2Editor extends StatelessWidget {
   final TrainingV2ExerciseFormController controller;
@@ -58,29 +59,14 @@ class TrainingSetV2Editor extends StatelessWidget {
     BuildContext context,
     TrainingV2SetFormController set,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('このセットを削除しますか？'),
-        content: const Text(
-          'このセットの実施入力を削除します。\n元のトレーニングプランは保持されます。\n\nこの操作は取り消せません。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('キャンセル'),
-          ).actionableFeedback(),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(dialogContext).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('削除'),
-          ).actionableFeedback(),
-        ],
-      ),
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'DELETE TRAINING SET',
+      message: 'このセットの実施入力を削除します。\n元のトレーニングプランは保持されます。\n\nこの操作は取り消せません。',
+      confirmLabel: '削除',
+      cancelLabel: 'キャンセル',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     controller.removeSet(set);
     onChanged();
   }

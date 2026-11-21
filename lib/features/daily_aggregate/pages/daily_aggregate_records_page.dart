@@ -8,6 +8,7 @@ import '../../../core/widgets/operation_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../themes/base_camp/base_camp_retro_terminal.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import '../models/daily_aggregate_v1.dart';
 import '../repository/daily_aggregate_repository.dart';
 
@@ -148,29 +149,17 @@ class _DailyAggregateDetailPageState extends State<DailyAggregateDetailPage> {
   }
 
   Future<void> _delete(DailyAggregateV1 aggregate) async {
-    final approved = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('DELETE DAILY AGGREGATE'),
-        content: Text(
+    final approved = await showBaseCampOperationConfirmation(
+      context,
+      title: 'DELETE DAILY AGGREGATE',
+      message:
           'Operation Date: ${aggregate.operationDate}\n\n'
           'Daily Aggregateのみを削除します。STATUS / FOOD / ACTIVITY / '
           'TRAINING等のSource Recordは削除しません。\n\n'
           '${aggregate.sourceType == DailyAggregateSourceType.records ? 'Source Recordが残るため、再度FINALIZEまたは再生成した場合はDaily Aggregateが再作成される可能性があります。' : 'Historical DNSのSourceやImport履歴は削除しません。'}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('CANCEL'),
-          ).actionableFeedback(),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('DELETE'),
-          ).actionableFeedback(),
-        ],
-      ),
+      confirmLabel: 'DELETE',
     );
-    if (approved != true || !mounted) return;
+    if (!approved || !mounted) return;
     setState(() {
       _deleting = true;
       _deleteError = null;

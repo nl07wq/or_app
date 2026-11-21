@@ -15,6 +15,9 @@ import '../services/japanese_nutrition_ocr_parser.dart';
 import '../services/japanese_package_ocr_parser.dart';
 import 'food_manual_nutrition_crop.dart';
 import 'food_feature_chrome.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
+import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/widgets/base_camp_terminal_popup.dart';
 
 sealed class FoodOcrResult {
   const FoodOcrResult(this.rawText);
@@ -224,16 +227,22 @@ Future<void> showNutritionOcrDiagnostics(
   showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (dialogContext) => const AlertDialog(
-      content: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(width: AppSpacing.md),
-          Text('RUNNING OCR DIAGNOSTICS'),
-        ],
-      ),
-    ),
+    builder: (dialogContext) => BaseCampPresentation.isActive(dialogContext)
+        ? const BaseCampOperationPanel(
+            title: 'OCR DIAGNOSTICS',
+            state: BaseCampOperationPanelState.processing,
+            message: 'RUNNING OCR DIAGNOSTICS',
+          )
+        : const AlertDialog(
+            content: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: AppSpacing.md),
+                Text('RUNNING OCR DIAGNOSTICS'),
+              ],
+            ),
+          ),
   );
   Map<String, dynamic> diagnostics;
   try {
@@ -249,13 +258,12 @@ Future<void> showNutritionOcrDiagnostics(
   final formatted = formatFoodOcrDiagnosticReport(diagnostics);
   await showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('OCR DIAGNOSTICS'),
-      content: SizedBox(
+    builder: (dialogContext) {
+      final content = SizedBox(
         width: 760,
         child: SingleChildScrollView(child: SelectableText(formatted)),
-      ),
-      actions: [
+      );
+      final actions = <Widget>[
         if (_diagnosticPreview(diagnostics, 'standard') case final preview?)
           TextButton(
             key: const ValueKey('view-standard-ocr-input'),
@@ -298,8 +306,10 @@ Future<void> showNutritionOcrDiagnostics(
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: formatted));
             if (dialogContext.mounted) {
-              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                const SnackBar(content: Text('OCR diagnostics copied')),
+              showBaseCampOperationNotice(
+                dialogContext,
+                title: 'OCR DIAGNOSTICS',
+                message: 'OCR diagnostics copied',
               );
             }
           },
@@ -309,8 +319,20 @@ Future<void> showNutritionOcrDiagnostics(
           onPressed: () => Navigator.pop(dialogContext),
           child: const Text('CLOSE'),
         ).actionableFeedback(),
-      ],
-    ),
+      ];
+      return BaseCampPresentation.isActive(dialogContext)
+          ? BaseCampTerminalPopup(
+              title: 'OCR DIAGNOSTICS',
+              stateLabel: 'COMPLETE',
+              lcdChild: content,
+              actions: actions,
+            )
+          : AlertDialog(
+              title: const Text('OCR DIAGNOSTICS'),
+              content: content,
+              actions: actions,
+            );
+    },
   );
 }
 

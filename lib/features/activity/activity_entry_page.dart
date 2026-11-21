@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../themes/base_camp/base_camp_presentation.dart';
 import '../themes/base_camp/base_camp_retro_terminal.dart';
+import '../themes/base_camp/widgets/base_camp_operation_panel.dart';
 
 import 'package:or_app/core/widgets/global_touch_ripple.dart';
 
@@ -566,23 +567,14 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
   Future<void> _confirmDeleteDigestiveEvent(
     ActivityDraftDigestiveEvent event,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('この排便イベントを削除しますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ).actionableFeedback(),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('削除'),
-          ).actionableFeedback(),
-        ],
-      ),
+    final confirmed = await showBaseCampOperationConfirmation(
+      context,
+      title: 'DELETE DIGESTIVE EVENT',
+      message: 'この排便イベントを削除しますか？',
+      confirmLabel: '削除',
+      cancelLabel: 'キャンセル',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     setState(() {
       final remaining = _digestiveEvents
           .where((candidate) => candidate.id != event.id)
@@ -653,9 +645,12 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    showBaseCampOperationNotice(
+      context,
+      title: 'ACTIVITY',
+      message: message,
+      result: BaseCampOperationNoticeResult.information,
+    );
   }
 
   void _showActivitySaveFailure(String detail) {

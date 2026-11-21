@@ -25,6 +25,7 @@ import '../../operation_date/models/daily_finalize_result.dart';
 import '../../operation_date/models/operation_local_date.dart';
 import '../../operation_date/services/daily_finalize_coordinator_factory.dart';
 import '../../themes/base_camp/base_camp_retro_terminal.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
 import '../services/daily_estimated_total_burn_service.dart';
 
 typedef PrepareDailyDebrief =
@@ -488,10 +489,11 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
           ActionableFeedbackRegion.resolveDeferred(
             ActionableFeedbackResult.unavailable,
           );
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('CREATE DAILY DEBRIEF failed: ${error.code.name}'),
-            ),
+          showBaseCampOperationNotice(
+            context,
+            title: 'CREATE DAILY DEBRIEF',
+            message: 'CREATE DAILY DEBRIEF failed: ${error.code.name}',
+            result: BaseCampOperationNoticeResult.failure,
           );
           return;
         }
@@ -526,19 +528,23 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
         ActionableFeedbackRegion.resolveDeferred(
           ActionableFeedbackResult.unavailable,
         );
-        ScaffoldMessenger.of(
+        showBaseCampOperationNotice(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+          title: 'CREATE DAILY DEBRIEF',
+          message: error.toString(),
+          result: BaseCampOperationNoticeResult.failure,
+        );
         return;
       } on DailyFinalizeException catch (error) {
         if (!mounted) return;
         ActionableFeedbackRegion.resolveDeferred(
           ActionableFeedbackResult.unavailable,
         );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('CREATE DAILY DEBRIEF failed: ${error.code.name}'),
-          ),
+        showBaseCampOperationNotice(
+          context,
+          title: 'CREATE DAILY DEBRIEF',
+          message: 'CREATE DAILY DEBRIEF failed: ${error.code.name}',
+          result: BaseCampOperationNoticeResult.failure,
         );
         return;
       }

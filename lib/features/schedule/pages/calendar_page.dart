@@ -29,6 +29,8 @@ import '../../weather/weather_link.dart';
 import '../../weather/weather_service.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
 import '../../themes/base_camp/base_camp_retro_terminal.dart';
+import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
+import '../../themes/base_camp/widgets/base_camp_terminal_popup.dart';
 import '../clock_dial_geometry.dart';
 import '../models/schedule_record.dart';
 import '../models/schedule_plan_revision.dart';
@@ -635,35 +637,71 @@ class _CalendarPageState extends State<CalendarPage> {
     });
   }
 
-  Future<ScheduleRecurrenceScope?> _chooseScope({required bool deleting}) =>
-      showDialog<ScheduleRecurrenceScope>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(deleting ? '予定を削除' : '予定を編集'),
-          content: const Text('変更する範囲を選択してください。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('キャンセル'),
-            ).actionableFeedback(role: ActionableFeedbackRole.exit),
-            TextButton(
+  Future<ScheduleRecurrenceScope?> _chooseScope({
+    required bool deleting,
+  }) => showDialog<ScheduleRecurrenceScope>(
+    context: context,
+    builder: (dialogContext) {
+      if (BaseCampPresentation.isActive(context)) {
+        return BaseCampTerminalPopup(
+          title: deleting ? 'DELETE SCHEDULE' : 'EDIT SCHEDULE',
+          stateLabel: 'SELECT',
+          message: '変更する範囲を選択してください。',
+          actions: <Widget>[
+            BaseCampTerminalPopupButton(
+              label: 'キャンセル',
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
+            BaseCampTerminalPopupButton(
+              label: 'この予定のみ',
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                ScheduleRecurrenceScope.occurrence,
+              ),
+            ),
+            BaseCampTerminalPopupButton(
+              label: 'これ以降の予定',
               onPressed: () =>
-                  Navigator.pop(context, ScheduleRecurrenceScope.occurrence),
-              child: const Text('この予定のみ'),
-            ).actionableFeedback(role: ActionableFeedbackRole.silent),
-            TextButton(
+                  Navigator.pop(dialogContext, ScheduleRecurrenceScope.future),
+            ),
+            BaseCampTerminalPopupButton(
+              label: 'すべての予定',
+              primary: true,
               onPressed: () =>
-                  Navigator.pop(context, ScheduleRecurrenceScope.future),
-              child: const Text('これ以降の予定'),
-            ).actionableFeedback(role: ActionableFeedbackRole.silent),
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(context, ScheduleRecurrenceScope.all),
-              child: const Text('すべての予定'),
-            ).actionableFeedback(role: ActionableFeedbackRole.silent),
+                  Navigator.pop(dialogContext, ScheduleRecurrenceScope.all),
+            ),
           ],
-        ),
+        );
+      }
+      return AlertDialog(
+        title: Text(deleting ? '予定を削除' : '予定を編集'),
+        content: const Text('変更する範囲を選択してください。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('キャンセル'),
+          ).actionableFeedback(role: ActionableFeedbackRole.exit),
+          TextButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              ScheduleRecurrenceScope.occurrence,
+            ),
+            child: const Text('この予定のみ'),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, ScheduleRecurrenceScope.future),
+            child: const Text('これ以降の予定'),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, ScheduleRecurrenceScope.all),
+            child: const Text('すべての予定'),
+          ).actionableFeedback(role: ActionableFeedbackRole.silent),
+        ],
       );
+    },
+  );
 
   Future<void> _openEditor([ScheduleRecord? record]) async {
     final recurringOccurrence =
@@ -698,9 +736,12 @@ class _CalendarPageState extends State<CalendarPage> {
       notifySchedulePlanChanged();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
+        showBaseCampOperationNotice(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+          title: 'SCHEDULE',
+          message: error.toString(),
+          result: BaseCampOperationNoticeResult.failure,
+        );
       }
     }
   }
@@ -1110,24 +1151,13 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<bool> _confirmDelete(ScheduleRecord record) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('予定を削除しますか？'),
-            content: Text('「${record.title}」を削除しますか？'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('キャンセル'),
-              ).actionableFeedback(),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('削除'),
-              ).actionableFeedback(),
-            ],
-          ),
-        ) ??
-        false;
+    return showBaseCampOperationConfirmation(
+      context,
+      title: 'DELETE SCHEDULE',
+      message: '「${record.title}」を削除しますか？',
+      confirmLabel: '削除',
+      cancelLabel: 'キャンセル',
+    );
   }
 
   Future<bool> _deleteRecord(ScheduleRecord record) async {
