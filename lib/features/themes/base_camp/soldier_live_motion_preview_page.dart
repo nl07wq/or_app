@@ -321,6 +321,26 @@ class _SoldierLiveMotionPreviewPageState
     _schedulePixelProfilePreparation();
   }
 
+  void _setFrameDuration(int frame, double value) {
+    final durations = List<int>.of(_working.frameDurationsMs);
+    durations[frame] = value.round();
+    setState(() {
+      _working = _working.copyWith(
+        frameDurationsMs: List<int>.unmodifiable(durations),
+      );
+      _event.duration = Duration(milliseconds: _working.eventDurationMs);
+    });
+  }
+
+  void _resetFrameTiming() {
+    setState(() {
+      _working = _working.copyWith(
+        frameDurationsMs: baseCampRifleRegripFrameDurations,
+      );
+      _event.duration = Duration(milliseconds: _working.eventDurationMs);
+    });
+  }
+
   Future<void> _apply() async {
     if (_applying) return;
     setState(() => _applying = true);
@@ -373,19 +393,14 @@ class _SoldierLiveMotionPreviewPageState
               elapsed,
               frameDurations: _working.frameDurationsMs,
             )
-          : phase == BaseCampRifleRegripPhase.postIdle
-          ? 5
           : 0;
       final showRifle = active
           ? _mode != SoldierLivePreviewMode.breathingOnly &&
-                (phase == BaseCampRifleRegripPhase.rifleRegrip ||
-                    phase == BaseCampRifleRegripPhase.postIdle)
+                phase == BaseCampRifleRegripPhase.rifleRegrip
           : _mode == SoldierLivePreviewMode.rifleOnly;
       final showBreathing =
           _mode != SoldierLivePreviewMode.rifleOnly &&
-          (!active ||
-              _mode == SoldierLivePreviewMode.overlay ||
-              phase == BaseCampRifleRegripPhase.preIdle);
+          (!active || _mode == SoldierLivePreviewMode.overlay);
       return ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -577,6 +592,8 @@ class _SoldierLiveMotionPreviewPageState
             icon: Icons.publish,
             onPressed: _applying ? null : _apply,
           ),
+          const SizedBox(height: 12),
+          _frameTimingControls(),
         ],
       );
     },
@@ -627,6 +644,52 @@ class _SoldierLiveMotionPreviewPageState
         ),
         onSelectionChanged: (selection) =>
             unawaited(_selectPixelLevel(motion, selection.single)),
+      ),
+    ],
+  );
+
+  Widget _frameTimingControls() => Column(
+    key: const ValueKey('soldier-live-regrip-frame-timing'),
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: <Widget>[
+      const Text('REGRIP FRAME TIMING'),
+      const SizedBox(height: 4),
+      for (var frame = 0; frame < _working.frameDurationsMs.length; frame++)
+        Row(
+          key: ValueKey('soldier-live-frame-timing-f$frame'),
+          children: <Widget>[
+            SizedBox(width: 32, child: Text('F$frame')),
+            Expanded(
+              child: Slider(
+                key: ValueKey('soldier-live-frame-duration-f$frame'),
+                value: _working.frameDurationsMs[frame].toDouble(),
+                min: 50,
+                max: 2000,
+                divisions: 39,
+                label: '${_working.frameDurationsMs[frame]}ms',
+                onChanged: (value) => _setFrameDuration(frame, value),
+              ),
+            ),
+            SizedBox(
+              width: 72,
+              child: Text(
+                '${_working.frameDurationsMs[frame]}ms',
+                textAlign: TextAlign.end,
+              ),
+            ),
+          ],
+        ),
+      Text(
+        'TOTAL MOTION DURATION: ${_working.eventDurationMs}ms',
+        key: const ValueKey('soldier-live-total-motion-duration'),
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: 4),
+      OperationButton(
+        key: const ValueKey('soldier-live-reset-frame-timing'),
+        text: 'RESET TIMING',
+        icon: Icons.timer_off_outlined,
+        onPressed: _resetFrameTiming,
       ),
     ],
   );

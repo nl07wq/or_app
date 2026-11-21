@@ -238,7 +238,6 @@ void main() {
       findsOneWidget,
     );
     await _pumpUntilDiagnostic(tester, 'RIFLE_REGRIP_PLAYBACK_START');
-    await tester.pump(const Duration(milliseconds: 1001));
     expect(
       find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
       findsOneWidget,
@@ -254,7 +253,7 @@ void main() {
 
     // A second tap during the event must not restart or queue another event.
     await tester.tap(panel);
-    await tester.pump(const Duration(milliseconds: 2849));
+    await tester.pump(const Duration(milliseconds: 1850));
     expect(
       find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
       findsNothing,
@@ -286,20 +285,6 @@ void main() {
       final panel = find.byKey(const ValueKey('base-camp-soldier-panel'));
       await tester.tap(panel);
       await _pumpUntilDiagnostic(tester, 'RIFLE_REGRIP_PLAYBACK_START');
-      expect(
-        find.descendant(
-          of: panel,
-          matching: find.byKey(
-            ValueKey<String>(
-              'soldier-pixelated-${SoldierPixelationLevel.coarse.name}-'
-              '$baseCampBreathingSoldierLowerAsset',
-            ),
-          ),
-        ),
-        findsOneWidget,
-      );
-
-      await tester.pump(const Duration(milliseconds: 1001));
       expect(
         find.descendant(
           of: panel,
@@ -351,7 +336,6 @@ void main() {
     await _pumpUntilDiagnostic(tester, 'RIFLE_REGRIP_PLAYBACK_START');
     trace = SystemDiagnostics.instance.copyText();
     expect(trace, contains('RIFLE_REGRIP_FRAMES_READY'));
-    await tester.pump(const Duration(milliseconds: 1001));
     expect(
       find.byKey(const ValueKey('base-camp-rifle-regrip-frame-0')),
       findsOneWidget,
@@ -1418,33 +1402,53 @@ void main() {
   );
 
   test('rifle regrip timeline uses every approved frame once in order', () {
-    expect(baseCampRifleRegripPreIdleMs, 1000);
+    expect(baseCampRifleRegripPreIdleMs, 0);
     expect(baseCampRifleRegripAnimationMs, 1850);
-    expect(baseCampRifleRegripPostIdleMs, 1000);
-    expect(baseCampRifleRegripEventMs, 3850);
+    expect(baseCampRifleRegripPostIdleMs, 0);
+    expect(baseCampRifleRegripEventMs, 1850);
     expect(baseCampRifleRegripFrameDurations, [400, 350, 200, 350, 150, 400]);
 
-    expect(baseCampRifleRegripPhase(0), BaseCampRifleRegripPhase.preIdle);
-    expect(baseCampRifleRegripPhase(999), BaseCampRifleRegripPhase.preIdle);
+    expect(baseCampRifleRegripPhase(0), BaseCampRifleRegripPhase.rifleRegrip);
+    expect(baseCampRifleRegripFrameIndex(0), 0);
+    expect(baseCampRifleRegripFrameIndex(399), 0);
+    expect(baseCampRifleRegripFrameIndex(400), 1);
+    expect(baseCampRifleRegripFrameIndex(750), 2);
+    expect(baseCampRifleRegripFrameIndex(950), 3);
+    expect(baseCampRifleRegripFrameIndex(1300), 4);
+    expect(baseCampRifleRegripFrameIndex(1450), 5);
     expect(
-      baseCampRifleRegripPhase(1000),
+      baseCampRifleRegripPhase(1849),
       BaseCampRifleRegripPhase.rifleRegrip,
     );
-    expect(baseCampRifleRegripFrameIndex(1000), 0);
-    expect(baseCampRifleRegripFrameIndex(1400), 1);
-    expect(baseCampRifleRegripFrameIndex(1750), 2);
-    expect(baseCampRifleRegripFrameIndex(1950), 3);
-    expect(baseCampRifleRegripFrameIndex(2300), 4);
-    expect(baseCampRifleRegripFrameIndex(2450), 5);
-    expect(baseCampRifleRegripPhase(2850), BaseCampRifleRegripPhase.postIdle);
-    expect(baseCampRifleRegripPhase(3849), BaseCampRifleRegripPhase.postIdle);
-    expect(baseCampRifleRegripPhase(3850), BaseCampRifleRegripPhase.breathing);
+    expect(baseCampRifleRegripPhase(1850), BaseCampRifleRegripPhase.breathing);
   });
 
   test('rifle regrip random interval is always between 60 and 120 seconds', () {
     expect(baseCampRifleRegripIntervalMs((_) => 0), 60000);
     expect(baseCampRifleRegripIntervalMs((_) => 1), 60001);
     expect(baseCampRifleRegripIntervalMs((_) => 60000), 120000);
+    expect(baseCampRifleRegripIntervalAfterEventMs((_) => 0), 62000);
+    expect(baseCampRifleRegripIntervalAfterEventMs((_) => 60000), 122000);
+  });
+
+  test('custom rifle timing changes only the requested frame boundaries', () {
+    const durations = <int>[50, 100, 150, 200, 250, 300];
+    expect(baseCampRifleRegripEventDurationMs(durations), 1050);
+    expect(baseCampRifleRegripFrameIndex(0, frameDurations: durations), 0);
+    expect(baseCampRifleRegripFrameIndex(49, frameDurations: durations), 0);
+    expect(baseCampRifleRegripFrameIndex(50, frameDurations: durations), 1);
+    expect(baseCampRifleRegripFrameIndex(150, frameDurations: durations), 2);
+    expect(baseCampRifleRegripFrameIndex(300, frameDurations: durations), 3);
+    expect(baseCampRifleRegripFrameIndex(500, frameDurations: durations), 4);
+    expect(baseCampRifleRegripFrameIndex(750, frameDurations: durations), 5);
+    expect(
+      baseCampRifleRegripPhase(1049, frameDurations: durations),
+      BaseCampRifleRegripPhase.rifleRegrip,
+    );
+    expect(
+      baseCampRifleRegripPhase(1050, frameDurations: durations),
+      BaseCampRifleRegripPhase.breathing,
+    );
   });
 
   test(
