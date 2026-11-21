@@ -259,68 +259,93 @@ Future<void> showNutritionOcrDiagnostics(
   await showDialog<void>(
     context: context,
     builder: (dialogContext) {
+      final baseCamp = BaseCampPresentation.isActive(dialogContext);
       final content = SizedBox(
         width: 760,
         child: SingleChildScrollView(child: SelectableText(formatted)),
       );
+      Future<void> showInputPreview(
+        String title,
+        String preview,
+      ) => showDialog<void>(
+        context: dialogContext,
+        builder: (previewContext) => baseCamp
+            ? BaseCampTerminalPopup(
+                title: title,
+                stateLabel: 'PREVIEW',
+                lcdChild: InteractiveViewer(child: _diagnosticImage(preview)),
+                actions: <Widget>[
+                  BaseCampTerminalPopupButton(
+                    label: 'CLOSE',
+                    primary: true,
+                    onPressed: () => Navigator.pop(previewContext),
+                  ),
+                ],
+              )
+            : AlertDialog(
+                title: Text(title),
+                content: InteractiveViewer(child: _diagnosticImage(preview)),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.pop(previewContext),
+                    child: const Text('CLOSE'),
+                  ).actionableFeedback(),
+                ],
+              ),
+      );
       final actions = <Widget>[
         if (_diagnosticPreview(diagnostics, 'standard') case final preview?)
-          TextButton(
-            key: const ValueKey('view-standard-ocr-input'),
-            onPressed: () => showDialog<void>(
-              context: dialogContext,
-              builder: (previewContext) => AlertDialog(
-                title: const Text('STANDARD OCR INPUT'),
-                content: InteractiveViewer(child: _diagnosticImage(preview)),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(previewContext),
-                    child: const Text('CLOSE'),
-                  ).actionableFeedback(),
-                ],
-              ),
-            ),
-            child: const Text('VIEW STANDARD INPUT'),
-          ).actionableFeedback(),
+          if (baseCamp)
+            BaseCampTerminalPopupButton(
+              key: const ValueKey('view-standard-ocr-input'),
+              label: 'VIEW STANDARD INPUT',
+              onPressed: () => showInputPreview('STANDARD OCR INPUT', preview),
+            )
+          else
+            TextButton(
+              key: const ValueKey('view-standard-ocr-input'),
+              onPressed: () => showInputPreview('STANDARD OCR INPUT', preview),
+              child: const Text('VIEW STANDARD INPUT'),
+            ).actionableFeedback(),
         if (_diagnosticPreview(diagnostics, 'nutritionLabelReader')
             case final preview?)
+          if (baseCamp)
+            BaseCampTerminalPopupButton(
+              key: const ValueKey('view-nutrition-ocr-input'),
+              label: 'VIEW NUTRITION INPUT',
+              onPressed: () => showInputPreview('NUTRITION OCR INPUT', preview),
+            )
+          else
+            TextButton(
+              key: const ValueKey('view-nutrition-ocr-input'),
+              onPressed: () => showInputPreview('NUTRITION OCR INPUT', preview),
+              child: const Text('VIEW NUTRITION INPUT'),
+            ).actionableFeedback(),
+        if (baseCamp)
+          BaseCampTerminalPopupButton(
+            key: const ValueKey('copy-ocr-diagnostics'),
+            label: 'COPY OCR DIAGNOSTICS',
+            onPressed: () => _copyOcrDiagnostics(dialogContext, formatted),
+          )
+        else
           TextButton(
-            key: const ValueKey('view-nutrition-ocr-input'),
-            onPressed: () => showDialog<void>(
-              context: dialogContext,
-              builder: (previewContext) => AlertDialog(
-                title: const Text('NUTRITION OCR INPUT'),
-                content: InteractiveViewer(child: _diagnosticImage(preview)),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(previewContext),
-                    child: const Text('CLOSE'),
-                  ).actionableFeedback(),
-                ],
-              ),
-            ),
-            child: const Text('VIEW NUTRITION INPUT'),
+            key: const ValueKey('copy-ocr-diagnostics'),
+            onPressed: () => _copyOcrDiagnostics(dialogContext, formatted),
+            child: const Text('COPY OCR DIAGNOSTICS'),
           ).actionableFeedback(),
-        TextButton(
-          key: const ValueKey('copy-ocr-diagnostics'),
-          onPressed: () async {
-            await Clipboard.setData(ClipboardData(text: formatted));
-            if (dialogContext.mounted) {
-              showBaseCampOperationNotice(
-                dialogContext,
-                title: 'OCR DIAGNOSTICS',
-                message: 'OCR diagnostics copied',
-              );
-            }
-          },
-          child: const Text('COPY OCR DIAGNOSTICS'),
-        ).actionableFeedback(),
-        FilledButton(
-          onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('CLOSE'),
-        ).actionableFeedback(),
+        if (baseCamp)
+          BaseCampTerminalPopupButton(
+            label: 'CLOSE',
+            primary: true,
+            onPressed: () => Navigator.pop(dialogContext),
+          )
+        else
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('CLOSE'),
+          ).actionableFeedback(),
       ];
-      return BaseCampPresentation.isActive(dialogContext)
+      return baseCamp
           ? BaseCampTerminalPopup(
               title: 'OCR DIAGNOSTICS',
               stateLabel: 'COMPLETE',
@@ -333,6 +358,16 @@ Future<void> showNutritionOcrDiagnostics(
               actions: actions,
             );
     },
+  );
+}
+
+Future<void> _copyOcrDiagnostics(BuildContext context, String formatted) async {
+  await Clipboard.setData(ClipboardData(text: formatted));
+  if (!context.mounted) return;
+  showBaseCampOperationNotice(
+    context,
+    title: 'OCR DIAGNOSTICS',
+    message: 'OCR diagnostics copied',
   );
 }
 

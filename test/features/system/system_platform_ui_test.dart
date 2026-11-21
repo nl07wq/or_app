@@ -24,6 +24,7 @@ import 'package:or_app/features/system/pages/system_page.dart';
 import 'package:or_app/features/system/services/app_data_initialization_service.dart';
 import 'package:or_app/features/system/services/app_metadata.dart';
 import 'package:or_app/features/system/services/storage_status_gateway.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -588,6 +589,55 @@ void main() {
     expect(find.text('アプリデータを初期化しました'), findsNothing);
   });
 
+  testWidgets(
+    'BASE CAMP INITIALIZE success uses terminal confirmation and notice',
+    (tester) async {
+      final database = FakeIndexedDbDatabase();
+      database.seed(IndexedDbStoreNames.statusRecords, 'status-1', {
+        'id': 'status-1',
+        'value': 'recorded',
+      });
+      await _pumpBaseCampSystem(
+        tester,
+        service: AppDataInitializationService(database),
+      );
+
+      await _confirmBaseCampInitialization(tester);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('base-camp-terminal-notice')),
+        findsOneWidget,
+      );
+      expect(find.text('COMPLETE'), findsOneWidget);
+      expect(find.text('アプリデータを初期化しました'), findsOneWidget);
+      expect(
+        await database.findAll(IndexedDbStoreNames.statusRecords),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets('BASE CAMP INITIALIZE failure uses terminal failure notice', (
+    tester,
+  ) async {
+    final service = _ControlledInitializationService();
+    await _pumpBaseCampSystem(tester, service: service);
+
+    await _confirmBaseCampInitialization(tester);
+    await tester.pump();
+    expect(service.callCount, 1);
+    service.completeFailure();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('base-camp-terminal-notice')),
+      findsOneWidget,
+    );
+    expect(find.text('FAILED'), findsOneWidget);
+    expect(find.text('アプリデータを初期化できませんでした'), findsOneWidget);
+  });
+
   testWidgets('OPERATION SYNC exposes the formal transfer surface', (
     tester,
   ) async {
@@ -694,6 +744,59 @@ Future<void> _settleDashboard(WidgetTester tester) async {
   // menu/navigation work without waiting for the pulse itself.
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 500));
+}
+
+Future<void> _pumpBaseCampSystem(
+  WidgetTester tester, {
+  required AppDataInitializationService service,
+}) async {
+  final registryDatabase = FakeIndexedDbDatabase();
+  await AppDataInitializationService(registryDatabase).initialize();
+  AppRepositoryRegistry.install(
+    AppRepositoryContainer.indexedDb(registryDatabase),
+  );
+  tester.view.physicalSize = const Size(390, 1600);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  await tester.pumpWidget(
+    MaterialApp(
+      builder: (context, child) =>
+          BaseCampScreenEntry(screen: BaseCampScreen.system, child: child!),
+      home: SystemPage(
+        initializationService: service,
+        dataHealthLoader: () async => const SystemDataHealthSnapshot(
+          integrity: 'READABLE',
+          recoveryStatus: 'NO RECOVERY REQUIRED',
+          healthStatus: 'HEALTHY',
+        ),
+        storageGateway: const _FakeStorageGateway(),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _confirmBaseCampInitialization(WidgetTester tester) async {
+  final initialize = find.byKey(const ValueKey('initialize-app-data'));
+  await tester.scrollUntilVisible(
+    initialize,
+    300,
+    scrollable: find.byType(Scrollable).last,
+  );
+  await tester.tap(initialize);
+  await tester.pumpAndSettle();
+  expect(
+    find.byKey(const ValueKey('base-camp-terminal-popup')),
+    findsOneWidget,
+  );
+  await tester.enterText(
+    find.byKey(const ValueKey('initialize-confirmation-input')),
+    'INITIALIZE',
+  );
+  await tester.pump();
+  await tester.tap(find.byKey(const ValueKey('confirm-initialize-app-data')));
+  await tester.pump();
 }
 
 class _FakeStorageGateway implements StorageStatusGateway {

@@ -134,6 +134,7 @@ class _SystemPageState extends State<SystemPage> {
   Future<void> _requestInitialization() async {
     final confirmed = await _showInitializationDialog();
     if (confirmed != true || !mounted) return;
+    final baseCamp = BaseCampPresentation.isActive(context);
     setState(() {
       _initializing = true;
       _initializationResult = null;
@@ -148,17 +149,32 @@ class _SystemPageState extends State<SystemPage> {
       appInitializationController.markReady();
       if (!mounted) return;
       setState(() {
-        _initializationResult = 'アプリデータを初期化しました';
+        _initializationResult = baseCamp ? null : 'アプリデータを初期化しました';
         _dataHealth = _loadDataHealth();
         _undoInspection = DailyFinalizeUndoService(
           AppRepositoryRegistry.container.database,
         ).inspect();
       });
+      if (baseCamp) {
+        showBaseCampOperationNotice(
+          context,
+          title: 'INITIALIZE APP DATA',
+          message: 'アプリデータを初期化しました',
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _initializationResult = 'アプリデータを初期化できませんでした';
+        _initializationResult = baseCamp ? null : 'アプリデータを初期化できませんでした';
       });
+      if (baseCamp) {
+        showBaseCampOperationNotice(
+          context,
+          title: 'INITIALIZE APP DATA',
+          message: 'アプリデータを初期化できませんでした',
+          result: BaseCampOperationNoticeResult.failure,
+        );
+      }
     } finally {
       if (mounted) setState(() => _initializing = false);
     }
@@ -315,35 +331,51 @@ class _InitializationConfirmationDialogState
         ).inputFeedback(),
       ],
     );
-    final actions = [
-      TextButton(
-        onPressed: () => Navigator.pop(context, false),
-        child: const Text('キャンセル'),
-      ).actionableFeedback(),
-      ValueListenableBuilder<TextEditingValue>(
-        valueListenable: _controller,
-        builder: (context, value, child) => FilledButton(
-          key: const ValueKey('confirm-initialize-app-data'),
-          onPressed: value.text == 'INITIALIZE' && value.composing.isCollapsed
-              ? () => Navigator.pop(context, true)
-              : null,
-          child: child,
-        ).actionableFeedback(),
-        child: const Text('初期化する'),
-      ),
-    ];
     if (BaseCampPresentation.isActive(context)) {
-      return BaseCampTerminalPopup(
-        title: 'INITIALIZE APP DATA',
-        stateLabel: 'CONFIRM',
-        lcdChild: content,
-        actions: actions,
+      return ValueListenableBuilder<TextEditingValue>(
+        valueListenable: _controller,
+        builder: (context, value, _) => BaseCampTerminalPopup(
+          title: 'INITIALIZE APP DATA',
+          stateLabel: 'CONFIRM',
+          lcdChild: content,
+          actions: <Widget>[
+            BaseCampTerminalPopupButton(
+              label: 'キャンセル',
+              onPressed: () => Navigator.pop(context, false),
+            ),
+            BaseCampTerminalPopupButton(
+              key: const ValueKey('confirm-initialize-app-data'),
+              label: '初期化する',
+              primary: true,
+              onPressed:
+                  value.text == 'INITIALIZE' && value.composing.isCollapsed
+                  ? () => Navigator.pop(context, true)
+                  : null,
+            ),
+          ],
+        ),
       );
     }
     return AlertDialog(
       title: const Text('INITIALIZE APP DATA'),
       content: content,
-      actions: actions,
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('キャンセル'),
+        ).actionableFeedback(),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _controller,
+          builder: (context, value, child) => FilledButton(
+            key: const ValueKey('confirm-initialize-app-data'),
+            onPressed: value.text == 'INITIALIZE' && value.composing.isCollapsed
+                ? () => Navigator.pop(context, true)
+                : null,
+            child: child,
+          ).actionableFeedback(),
+          child: const Text('初期化する'),
+        ),
+      ],
     );
   }
 }

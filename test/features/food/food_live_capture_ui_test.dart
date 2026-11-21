@@ -6,6 +6,8 @@ import 'package:or_app/features/food/services/food_input_capture_gateway.dart';
 import 'package:or_app/features/food/services/food_live_capture_presenter.dart';
 import 'package:or_app/features/food/widgets/food_input_form.dart';
 import 'package:or_app/features/food/widgets/food_ocr_scanner.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
+import 'package:or_app/features/themes/base_camp/widgets/base_camp_terminal_popup.dart';
 
 void main() {
   test('live presenter distinguishes no detection, partial, and complete', () {
@@ -852,6 +854,70 @@ void main() {
       await tester.pumpAndSettle();
       await diagnostics;
     }
+  });
+
+  testWidgets('BASE CAMP OCR diagnostics uses terminal result controls', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final gateway = _DiagnosticGateway();
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) =>
+            BaseCampScreenEntry(screen: BaseCampScreen.food, child: child!),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FoodInputForm(
+              captureGateway: gateway,
+              onSave: (_) async => true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final diagnostics = showNutritionOcrDiagnostics(
+      tester.element(find.byType(FoodInputForm)),
+      gateway,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('OCR PIPELINE DIAGNOSTICS'), findsOneWidget);
+    expect(find.byType(BaseCampTerminalPopup), findsOneWidget);
+    expect(find.byType(BaseCampTerminalPopupButton), findsNWidgets(4));
+    expect(
+      find.widgetWithText(TextButton, 'COPY OCR DIAGNOSTICS'),
+      findsNothing,
+    );
+
+    final standardPreview = find.byKey(
+      const ValueKey('view-standard-ocr-input'),
+    );
+    await tester.ensureVisible(standardPreview);
+    await tester.tap(standardPreview);
+    await tester.pumpAndSettle();
+    expect(find.text('STANDARD OCR INPUT'), findsOneWidget);
+    expect(find.byType(BaseCampTerminalPopup), findsNWidgets(2));
+    await tester.tap(
+      find.byKey(const ValueKey('base-camp-terminal-popup-action-CLOSE')).last,
+    );
+    await tester.pumpAndSettle();
+
+    final copy = find.byKey(const ValueKey('copy-ocr-diagnostics'));
+    await tester.ensureVisible(copy);
+    expect(
+      tester.widget<BaseCampTerminalPopupButton>(copy).onPressed,
+      isNotNull,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('base-camp-terminal-popup-action-CLOSE')).first,
+    );
+    await tester.pumpAndSettle();
+    await diagnostics;
   });
 
   testWidgets('Food Entry keeps aligned master fields before daily amount', (
