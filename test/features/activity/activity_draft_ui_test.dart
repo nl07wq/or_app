@@ -6,12 +6,15 @@ import 'package:or_app/core/models/digestive_event.dart';
 import 'package:or_app/core/navigation/app_routes.dart';
 import 'package:or_app/core/repositories/daily_log_confirmation_repository.dart';
 import 'package:or_app/core/services/app_clock.dart';
+import 'package:or_app/core/services/device_settings_controller.dart';
 import 'package:or_app/core/state/app_initialization_state.dart';
 import 'package:or_app/features/activity/activity_entry_page.dart';
 import 'package:or_app/features/activity/activity_page.dart';
 import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/activity/widgets/digestive_event_card.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_retro_terminal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -485,6 +488,96 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
+  for (final negative in <bool>[false, true]) {
+    final mode = negative ? 'INV' : 'LIGHT';
+    testWidgets(
+      'BASE CAMP ACTIVITY uses bounded LCDs and fixed key type in $mode',
+      (tester) async {
+        DeviceSettingsController.instance.resetForTesting(
+          DeviceSettings(baseCampLcdNegative: negative),
+        );
+        await _pumpBaseCampEntry(tester);
+        _expectNoFrameworkExceptions(tester);
+
+        expect(find.byType(BaseCampLcdSurface), findsNWidgets(4));
+        expect(
+          find.byKey(const ValueKey('base-camp-terminal-lcd-grid')),
+          findsNWidgets(4),
+        );
+        final quick = find.byKey(const ValueKey('activity-quick-steps-100'));
+        expect(
+          find.descendant(of: quick, matching: find.byType(FittedBox)),
+          findsNothing,
+        );
+        final quickLabel = find.descendant(
+          of: quick,
+          matching: find.text('+100'),
+        );
+        expect(tester.widget<Text>(quickLabel).style?.fontSize, 8);
+
+        await tester.tap(quick);
+        await tester.pump();
+        expect(
+          tester
+              .widget<TextField>(find.byType(TextField).first)
+              .controller
+              ?.text,
+          '100',
+        );
+        _expectNoFrameworkExceptions(tester);
+      },
+    );
+  }
+
+  for (final width in <double>[320, 375, 390, 430]) {
+    testWidgets('BASE CAMP ACTIVITY remains overflow-free at ${width}dp', (
+      tester,
+    ) async {
+      DeviceSettingsController.instance.resetForTesting(const DeviceSettings());
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _pumpBaseCampEntry(tester);
+      _expectNoFrameworkExceptions(tester);
+    });
+  }
+
+  testWidgets(
+    'BASE CAMP steps and digestive values persist through draft save',
+    (tester) async {
+      DeviceSettingsController.instance.resetForTesting(const DeviceSettings());
+      await _pumpBaseCampEntry(tester);
+      _expectNoFrameworkExceptions(tester);
+
+      await tester.tap(find.byKey(const ValueKey('activity-quick-steps-100')));
+      await tester.pump();
+      final card = tester.widget<DigestiveEventCard>(
+        find.byType(DigestiveEventCard).first,
+      );
+      for (final key in <ValueKey<String>>[
+        ValueKey<String>('digestive-${card.event.id}-amount-2'),
+        ValueKey<String>('digestive-${card.event.id}-shape-1'),
+        ValueKey<String>('digestive-${card.event.id}-relief-2'),
+      ]) {
+        final control = find.byKey(key);
+        await _tapBaseCampControl(tester, control);
+      }
+
+      final save = find.text('SAVE DRAFT');
+      await _tapBaseCampControl(tester, save);
+      await tester.pump(const Duration(milliseconds: 400));
+      _expectNoFrameworkExceptions(tester);
+
+      final saved = await AppRepositoryRegistry.container.activityDrafts
+          .findByDate(today);
+      expect(saved?.measuredStepsInput, '100');
+      expect(saved?.digestiveEvents.single.amount, 2);
+      expect(saved?.digestiveEvents.single.shape, 1);
+      expect(saved?.digestiveEvents.single.relief, 2);
+    },
+  );
+
   testWidgets('320 pixel layout has no overflow', (tester) async {
     tester.view.physicalSize = const Size(320, 900);
     tester.view.devicePixelRatio = 1;
@@ -505,6 +598,37 @@ Future<void> _pumpEntry(WidgetTester tester) async {
   // as a test failure.
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
+}
+
+Future<void> _pumpBaseCampEntry(WidgetTester tester) async {
+  await tester.pumpWidget(
+    const MaterialApp(
+      home: BaseCampScreenEntry(
+        screen: BaseCampScreen.activity,
+        child: ActivityEntryPage(),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
+void _expectNoFrameworkExceptions(WidgetTester tester) =>
+    expect(tester.takeException(), isNull);
+
+Future<void> _tapBaseCampControl(WidgetTester tester, Finder control) async {
+  await tester.ensureVisible(control);
+  await tester.pump();
+  if (tester.getCenter(control).dy < kToolbarHeight + 12) {
+    await tester.drag(
+      find.byType(SingleChildScrollView).first,
+      const Offset(0, 80),
+    );
+    await tester.pump();
+  }
+  await tester.tap(control);
+  await tester.pump();
+  _expectNoFrameworkExceptions(tester);
 }
 
 Future<void> _pumpEntryFromActivity(WidgetTester tester) async {

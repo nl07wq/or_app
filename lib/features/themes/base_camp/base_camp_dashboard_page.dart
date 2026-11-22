@@ -317,6 +317,7 @@ class _BaseCampDashboardPageState extends State<BaseCampDashboardPage> {
                           // instead of silently shrinking the map.
                           return SingleChildScrollView(
                             key: const ValueKey('base-camp-dashboard-scroll'),
+                            physics: const NeverScrollableScrollPhysics(),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,

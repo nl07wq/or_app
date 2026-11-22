@@ -6,6 +6,7 @@ import '../../../core/models/digestive_event.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/operation_card.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 import '../models/activity_draft.dart';
 
 class DigestiveEventCard extends StatelessWidget {
@@ -45,12 +46,24 @@ class DigestiveEventCard extends StatelessWidget {
                 Semantics(
                   label: '排便イベント${event.sequence}を削除',
                   button: true,
-                  child: IconButton(
-                    key: ValueKey('delete-digestive-${event.id}'),
-                    tooltip: '排便イベント${event.sequence}を削除',
-                    onPressed: enabled ? onDelete : null,
-                    icon: const Icon(Icons.delete_outline),
-                  ).actionableFeedback(),
+                  child: BaseCampTerminalPaletteScope.maybeOf(context) == null
+                      ? IconButton(
+                          key: ValueKey('delete-digestive-${event.id}'),
+                          tooltip: '排便イベント${event.sequence}を削除',
+                          onPressed: enabled ? onDelete : null,
+                          icon: const Icon(Icons.delete_outline),
+                        ).actionableFeedback()
+                      : Tooltip(
+                          message: '排便イベント${event.sequence}を削除',
+                          child: BaseCampTerminalMechanicalKey(
+                            key: ValueKey('delete-digestive-${event.id}'),
+                            width: 40,
+                            height: 40,
+                            padding: EdgeInsets.zero,
+                            onPressed: enabled ? onDelete : null,
+                            child: const Icon(Icons.delete_outline),
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -237,6 +250,29 @@ class _EventChoiceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+      return Semantics(
+        label: label,
+        button: true,
+        selected: selected,
+        enabled: enabled,
+        child: BaseCampTerminalMechanicalKey(
+          selected: selected,
+          height: 40,
+          onPressed: enabled ? onSelected : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (icon != null) ...<Widget>[
+                Icon(icon, size: 16),
+                const SizedBox(width: 4),
+              ],
+              Text(label, maxLines: 1),
+            ],
+          ),
+        ),
+      );
+    }
     return Semantics(
       label: label,
       button: true,
@@ -283,6 +319,32 @@ class _ReliefChoiceButton extends StatelessWidget {
               ? scheme.onPrimary
               : scheme.onPrimaryContainer
         : scheme.onSurface;
+    if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+      return Semantics(
+        label: label,
+        button: true,
+        selected: selected,
+        enabled: enabled,
+        child: BaseCampTerminalMechanicalKey(
+          selected: selected,
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          onPressed: enabled ? onSelected : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(icon, size: 16),
+              const SizedBox(width: 3),
+              Flexible(child: Text(label, maxLines: 1)),
+              if (selected) ...<Widget>[
+                const SizedBox(width: 2),
+                const Icon(Icons.check, size: 12),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
     return Semantics(
       label: label,
       button: true,

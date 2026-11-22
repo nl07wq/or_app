@@ -781,11 +781,14 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
                   : DashboardGlassCard.decoration(
                       Theme.of(context).colorScheme,
                     ),
-              child: ListTile(
-                title: const Text('Date'),
-                trailing: Text(_formatDate(_date)),
-                onTap: _isFormal ? null : _pickDate,
-              ).inputFeedback(),
+              child: Material(
+                type: MaterialType.transparency,
+                child: ListTile(
+                  title: const Text('Date'),
+                  trailing: Text(_formatDate(_date)),
+                  onTap: _isFormal ? null : _pickDate,
+                ).inputFeedback(),
+              ),
             ),
             AppSpacing.gapMD,
             _MeasuredStepsField(
@@ -847,10 +850,8 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  OperationButton(
+                  _ActivitySaveButton(
                     text: 'SAVE ACTIVITY',
-                    frostedGradient: true,
-                    deferFeedback: true,
                     onPressed: _isBusy ? null : _saveExisting,
                   ),
                   AppSpacing.gapSM,
@@ -861,11 +862,9 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
               Semantics(
                 label: '入力途中の内容を一時保存',
                 button: true,
-                child: OperationButton(
+                child: _ActivitySaveButton(
                   icon: Icons.save_outlined,
                   text: 'SAVE DRAFT',
-                  frostedGradient: true,
-                  deferFeedback: true,
                   onPressed: _isBusy ? null : _saveDraft,
                 ),
               ),
@@ -875,10 +874,8 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
               Semantics(
                 label: '${_formatDate(_date)}のActivity記録を確定',
                 button: true,
-                child: OperationButton(
+                child: _ActivitySaveButton(
                   text: 'SAVE ACTIVITY',
-                  frostedGradient: true,
-                  deferFeedback: true,
                   onPressed: _isBusy ? null : _finalizeDraft,
                 ),
               ),
@@ -921,12 +918,26 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         Semantics(
           label: '排便記録を追加',
           button: true,
-          child: OutlinedButton.icon(
-            key: const ValueKey('add-digestive-event'),
-            onPressed: _isBusy ? null : _addDigestiveEvent,
-            icon: const Icon(Icons.add),
-            label: const Text('ADD DIGESTIVE'),
-          ).actionableFeedback(),
+          child: BaseCampTerminalPaletteScope.maybeOf(context) == null
+              ? OutlinedButton.icon(
+                  key: const ValueKey('add-digestive-event'),
+                  onPressed: _isBusy ? null : _addDigestiveEvent,
+                  icon: const Icon(Icons.add),
+                  label: const Text('ADD DIGESTIVE'),
+                ).actionableFeedback()
+              : BaseCampTerminalMechanicalKey(
+                  key: const ValueKey('add-digestive-event'),
+                  height: 48,
+                  onPressed: _isBusy ? null : _addDigestiveEvent,
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(Icons.add),
+                      SizedBox(width: 6),
+                      Text('ADD DIGESTIVE'),
+                    ],
+                  ),
+                ),
         ),
       ],
     );
@@ -1049,27 +1060,38 @@ class _MeasuredStepsField extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.center,
     children: [
       Expanded(
-        child: OperationTextField(
-          controller: controller,
-          focusNode: focusNode,
-          label: label,
-          keyboardType: TextInputType.number,
-          onChanged: onChanged,
-          glass: true,
+        child: BaseCampTerminalDisplay(
+          child: OperationTextField(
+            controller: controller,
+            focusNode: focusNode,
+            label: label,
+            keyboardType: TextInputType.number,
+            onChanged: onChanged,
+            glass: true,
+          ),
         ),
       ),
       const SizedBox(width: AppSpacing.xs),
       SizedBox(
         height: 56,
-        child: FoodNumericStepper(
-          fillParent: true,
-          incrementKey: incrementKey,
-          incrementTooltip: incrementTooltip,
-          onIncrement: enabled ? onIncrement : null,
-          decrementKey: decrementKey,
-          decrementTooltip: decrementTooltip,
-          onDecrement: enabled ? onDecrement : null,
-        ),
+        child: BaseCampTerminalPaletteScope.maybeOf(context) == null
+            ? FoodNumericStepper(
+                fillParent: true,
+                incrementKey: incrementKey,
+                incrementTooltip: incrementTooltip,
+                onIncrement: enabled ? onIncrement : null,
+                decrementKey: decrementKey,
+                decrementTooltip: decrementTooltip,
+                onDecrement: enabled ? onDecrement : null,
+              )
+            : _ActivityStepKeys(
+                incrementKey: incrementKey,
+                incrementTooltip: incrementTooltip,
+                onIncrement: enabled ? onIncrement : null,
+                decrementKey: decrementKey,
+                decrementTooltip: decrementTooltip,
+                onDecrement: enabled ? onDecrement : null,
+              ),
       ),
     ],
   );
@@ -1092,12 +1114,11 @@ class _QuickStepRow extends StatelessWidget {
       for (var index = 0; index < values.length; index++) ...[
         if (index > 0) const SizedBox(width: 6),
         Expanded(
-          child: OutlinedButton(
-            key: ValueKey('activity-quick-steps-${values[index]}'),
-            onPressed: enabled ? () => onPressed(values[index]) : null,
-            style: BaseCampPresentation.isActive(context)
-                ? null
-                : OutlinedButton.styleFrom(
+          child: BaseCampTerminalPaletteScope.maybeOf(context) == null
+              ? OutlinedButton(
+                  key: ValueKey('activity-quick-steps-${values[index]}'),
+                  onPressed: enabled ? () => onPressed(values[index]) : null,
+                  style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 40),
                     padding: const EdgeInsets.symmetric(horizontal: 2),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1110,8 +1131,21 @@ class _QuickStepRow extends StatelessWidget {
                       ).colorScheme.primary.withValues(alpha: .18),
                     ),
                   ),
-            child: FittedBox(child: Text('+${values[index]}')),
-          ).actionableFeedback(),
+                  child: FittedBox(child: Text('+${values[index]}')),
+                ).actionableFeedback()
+              : BaseCampTerminalMechanicalKey(
+                  key: ValueKey('activity-quick-steps-${values[index]}'),
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  onPressed: enabled ? () => onPressed(values[index]) : null,
+                  child: Text(
+                    '+${values[index]}',
+                    maxLines: 1,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelMedium?.copyWith(fontSize: 8),
+                  ),
+                ),
         ),
       ],
     ],
@@ -1131,9 +1165,11 @@ class _ReadOnlyStepDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InputDecorator(
-      decoration: _activityGlassInputDecoration(context, label),
-      child: Text('$prefix${_formatSteps(value)} steps'),
+    return BaseCampTerminalDisplay(
+      child: InputDecorator(
+        decoration: _activityGlassInputDecoration(context, label),
+        child: Text('$prefix${_formatSteps(value)} steps'),
+      ),
     );
   }
 }
@@ -1145,10 +1181,102 @@ class _OfficialStepsDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InputDecorator(
-      decoration: _activityGlassInputDecoration(context, 'Official steps'),
-      child: Text(
-        officialSteps == null ? '--' : '${_formatSteps(officialSteps!)} steps',
+    return BaseCampTerminalDisplay(
+      child: InputDecorator(
+        decoration: _activityGlassInputDecoration(context, 'Official steps'),
+        child: Text(
+          officialSteps == null
+              ? '--'
+              : '${_formatSteps(officialSteps!)} steps',
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivityStepKeys extends StatelessWidget {
+  const _ActivityStepKeys({
+    required this.incrementKey,
+    required this.incrementTooltip,
+    required this.onIncrement,
+    required this.decrementKey,
+    required this.decrementTooltip,
+    required this.onDecrement,
+  });
+
+  final Key incrementKey;
+  final String incrementTooltip;
+  final VoidCallback? onIncrement;
+  final Key decrementKey;
+  final String decrementTooltip;
+  final VoidCallback? onDecrement;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: FoodNumericStepper.width,
+    child: Column(
+      children: <Widget>[
+        Expanded(
+          child: Tooltip(
+            message: incrementTooltip,
+            child: BaseCampTerminalMechanicalKey(
+              key: incrementKey,
+              onPressed: onIncrement,
+              padding: EdgeInsets.zero,
+              child: const Icon(Icons.keyboard_arrow_up, size: 18),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Tooltip(
+            message: decrementTooltip,
+            child: BaseCampTerminalMechanicalKey(
+              key: decrementKey,
+              onPressed: onDecrement,
+              padding: EdgeInsets.zero,
+              child: const Icon(Icons.keyboard_arrow_down, size: 18),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ActivitySaveButton extends StatelessWidget {
+  const _ActivitySaveButton({
+    required this.text,
+    required this.onPressed,
+    this.icon,
+  });
+
+  final String text;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) == null) {
+      return OperationButton(
+        text: text,
+        icon: icon,
+        frostedGradient: true,
+        deferFeedback: true,
+        onPressed: onPressed,
+      );
+    }
+    return BaseCampTerminalMechanicalKey(
+      height: 52,
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (icon != null) ...<Widget>[
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+          ],
+          Text(text, maxLines: 1),
+        ],
       ),
     );
   }

@@ -447,10 +447,56 @@ void main() {
           find.byKey(const ValueKey('base-camp-dashboard-scroll')),
           findsOneWidget,
         );
+        expect(
+          tester
+              .widget<SingleChildScrollView>(
+                find.byKey(const ValueKey('base-camp-dashboard-scroll')),
+              )
+              .physics,
+          isA<NeverScrollableScrollPhysics>(),
+        );
         expect(tester.takeException(), isNull);
       }
     },
   );
+
+  testWidgets('dashboard viewport ignores vertical drag and bounce', (
+    tester,
+  ) async {
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    for (final size in const <Size>[
+      Size(320, 844),
+      Size(375, 667),
+      Size(390, 750),
+      Size(390, 844),
+      Size(430, 844),
+      Size(844, 390),
+    ]) {
+      await tester.binding.setSurfaceSize(size);
+      await tester.pumpWidget(const MaterialApp(home: BaseCampDashboardPage()));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final scroll = find.byKey(const ValueKey('base-camp-dashboard-scroll'));
+      final scrollable = find.descendant(
+        of: scroll,
+        matching: find.byType(Scrollable),
+      );
+      final position = tester.state<ScrollableState>(scrollable.first).position;
+      final before = position.pixels;
+      final maxExtent = position.maxScrollExtent;
+      await tester.drag(scroll, const Offset(0, -240));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(position.pixels, before, reason: 'viewport $size');
+      expect(position.pixels, 0, reason: 'viewport $size');
+      expect(position.outOfRange, isFalse, reason: 'viewport $size');
+      // Keep the measured clipping evidence visible in focused-test output.
+      // A positive extent is an accepted V1.1 trial limitation, not movement.
+      // ignore: avoid_print
+      print('DASHBOARD_SCROLL_METRIC size=$size maxExtent=$maxExtent');
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   for (final width in <double>[320, 375, 390, 430]) {
     testWidgets('terminal fasteners keep safe vertical clearance at $width', (

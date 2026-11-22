@@ -7,6 +7,7 @@ import '../../../core/models/bowel_shape.dart';
 
 import '../../../core/widgets/dashboard_glass_card.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 
 class BowelCard extends StatefulWidget {
   final TextEditingController amountController;
@@ -86,21 +87,11 @@ class _BowelCardState extends State<BowelCard> {
               ),
 
               if (!amountExpanded)
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      amountExpanded = true;
-                    });
-                  },
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(amount.icon, size: 18),
-                      const SizedBox(width: 6),
-                      Text(amount.label),
-                    ],
-                  ),
-                ).actionableFeedback(),
+                _BowelDisclosureButton(
+                  icon: amount.icon,
+                  label: amount.label,
+                  onPressed: () => setState(() => amountExpanded = true),
+                ),
             ],
           ),
 
@@ -111,6 +102,21 @@ class _BowelCardState extends State<BowelCard> {
               spacing: 8,
               runSpacing: 8,
               children: BowelAmount.values.map((item) {
+                if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+                  return BaseCampTerminalMechanicalKey(
+                    selected: amount == item,
+                    height: 40,
+                    onPressed: () => _selectAmount(item),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(item.icon, size: 18),
+                        const SizedBox(width: 4),
+                        Text(item.label, maxLines: 1),
+                      ],
+                    ),
+                  );
+                }
                 return ChoiceChip(
                   avatar: Icon(item.icon, size: 18),
                   label: Text(item.label),
@@ -137,21 +143,11 @@ class _BowelCardState extends State<BowelCard> {
                 ),
 
                 if (!shapeExpanded)
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        shapeExpanded = true;
-                      });
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(shape.icon, size: 18),
-                        const SizedBox(width: 6),
-                        Text(shape.label),
-                      ],
-                    ),
-                  ).actionableFeedback(),
+                  _BowelDisclosureButton(
+                    icon: shape.icon,
+                    label: shape.label,
+                    onPressed: () => setState(() => shapeExpanded = true),
+                  ),
               ],
             ),
 
@@ -162,6 +158,21 @@ class _BowelCardState extends State<BowelCard> {
                 spacing: 8,
                 runSpacing: 8,
                 children: BowelShape.values.map((item) {
+                  if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+                    return BaseCampTerminalMechanicalKey(
+                      selected: shape == item,
+                      height: 40,
+                      onPressed: () => _selectShape(item),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(item.icon, size: 18),
+                          const SizedBox(width: 4),
+                          Text(item.label, maxLines: 1),
+                        ],
+                      ),
+                    );
+                  }
                   return ChoiceChip(
                     avatar: Icon(item.icon, size: 18),
                     label: Text(item.label),
@@ -175,5 +186,37 @@ class _BowelCardState extends State<BowelCard> {
         ],
       ),
     );
+  }
+}
+
+class _BowelDisclosureButton extends StatelessWidget {
+  const _BowelDisclosureButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Icon(icon, size: 18),
+        const SizedBox(width: 6),
+        Text(label),
+      ],
+    );
+    if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+      return BaseCampTerminalMechanicalKey(
+        height: 40,
+        onPressed: onPressed,
+        child: child,
+      );
+    }
+    return TextButton(onPressed: onPressed, child: child).actionableFeedback();
   }
 }

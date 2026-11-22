@@ -255,6 +255,146 @@ class BaseCampLcdField extends StatelessWidget {
   }
 }
 
+/// Opaque physical key used by BASE CAMP feature controls.
+///
+/// Pointer highlight state is deliberately separate from [selected]. The
+/// former is momentary and always clears on release/cancel; the latter is the
+/// caller's persisted UI selection. The complete face, including its lower
+/// edge, is painted with opaque colours so no parent glass surface can bleed
+/// through it.
+class BaseCampTerminalMechanicalKey extends StatefulWidget {
+  const BaseCampTerminalMechanicalKey({
+    super.key,
+    required this.child,
+    required this.onPressed,
+    this.selected = false,
+    this.width,
+    this.height,
+    this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+  });
+
+  final Widget child;
+  final VoidCallback? onPressed;
+  final bool selected;
+  final double? width;
+  final double? height;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  State<BaseCampTerminalMechanicalKey> createState() =>
+      _BaseCampTerminalMechanicalKeyState();
+}
+
+class _BaseCampTerminalMechanicalKeyState
+    extends State<BaseCampTerminalMechanicalKey> {
+  bool _held = false;
+
+  void _setHeld(bool value) {
+    if (_held == value || !mounted) return;
+    setState(() => _held = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    final enabled = widget.onPressed != null;
+    final depressed = enabled && (_held || widget.selected);
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final face = !enabled
+        ? palette.auxiliaryText
+        : widget.selected
+        ? palette.primaryText
+        : palette.field;
+    final foreground = widget.selected
+        ? palette.background
+        : enabled
+        ? palette.primaryText
+        : palette.background;
+    final topFace = Color.alphaBlend(
+      Colors.white.withValues(alpha: depressed ? .02 : .10),
+      face,
+    );
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      selected: widget.selected,
+      child: SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: DecoratedBox(
+          key: const ValueKey('base-camp-physical-key-frame'),
+          decoration: BoxDecoration(
+            color: BaseCampTerminalPalette.housingShadow,
+            border: Border.all(color: BaseCampTerminalPalette.housingEdge),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(2, 2, 2, 4),
+            child: AnimatedContainer(
+              key: const ValueKey('base-camp-physical-key-face'),
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 100),
+              curve: Curves.easeOut,
+              transform: Matrix4.translationValues(0, depressed ? 2 : 0, 0),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[topFace, face],
+                ),
+                border: Border.all(
+                  color: widget.selected
+                      ? palette.background
+                      : palette.auxiliaryText,
+                ),
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: depressed
+                    ? <BoxShadow>[
+                        BoxShadow(
+                          color: BaseCampTerminalPalette.housingShadow
+                              .withValues(alpha: .55),
+                          blurRadius: 1,
+                          spreadRadius: 1,
+                          blurStyle: BlurStyle.inner,
+                        ),
+                      ]
+                    : const <BoxShadow>[
+                        BoxShadow(
+                          color: BaseCampTerminalPalette.housingShadow,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: widget.onPressed,
+                  onHighlightChanged: enabled ? _setHeld : null,
+                  child: Padding(
+                    padding: widget.padding,
+                    child: IconTheme.merge(
+                      data: IconThemeData(color: foreground, size: 18),
+                      child: DefaultTextStyle.merge(
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: foreground,
+                          fontSize: 10,
+                        ),
+                        child: Center(child: widget.child),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Opaque content surface for legacy feature widgets that previously painted
 /// their own translucent/glass material. It changes presentation only; the
 /// wrapped widget retains its layout, semantics and input behavior.
