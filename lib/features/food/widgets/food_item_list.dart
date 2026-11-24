@@ -172,6 +172,7 @@ class FoodItemList extends StatelessWidget {
                           ),
                         ),
                         IconButton(
+                          key: ValueKey('meal-item-delete-$index'),
                           visualDensity: VisualDensity.compact,
                           icon: Icon(
                             Icons.delete_outline,

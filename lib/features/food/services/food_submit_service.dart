@@ -6,6 +6,7 @@ import '../../repositories/app_repository_container.dart';
 
 import '../models/daily_meal_v2_models.dart';
 import '../models/food_summary_state.dart';
+import 'food_v2_canonical_service.dart';
 
 class FoodSubmitService {
   const FoodSubmitService._();
@@ -70,7 +71,10 @@ class FoodSubmitService {
     final repository = AppRepositoryRegistry.container.dailyMealsV2;
     await repository.update(meal);
     final readBack = await repository.readById(meal.mealId);
-    if (readBack == null || readBack.mealId != meal.mealId) {
+    if (readBack == null ||
+        readBack.mealId != meal.mealId ||
+        FoodV2CanonicalService.digest(readBack.toJson()) !=
+            FoodV2CanonicalService.digest(meal.toJson())) {
       throw StateError('Daily Meal v2 update verification failed.');
     }
     await refreshFoodSummary(localDate: meal.localDate);

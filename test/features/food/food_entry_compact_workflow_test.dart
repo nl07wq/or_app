@@ -640,14 +640,14 @@ void main() {
 
       await tester.enterText(quantity, '0.5');
       await tester.pump();
-      expect(find.textContaining('50kcal'), findsOneWidget);
+      expect(find.textContaining('50kcal'), findsNWidgets(2));
       await tester.enterText(usedAmount, '0.');
       await tester.pump();
       expect(tester.takeException(), isNull);
       expect(find.text('— kcal  P —  F —  C —'), findsOneWidget);
       await tester.enterText(usedAmount, '100');
       await tester.pump();
-      expect(find.textContaining('50kcal'), findsOneWidget);
+      expect(find.textContaining('50kcal'), findsNWidgets(2));
       expect(scrollable.position.maxScrollExtent.isFinite, isTrue);
       expect(
         scrollable.position.maxScrollExtent,
@@ -703,7 +703,7 @@ void main() {
             .text,
         '130',
       );
-      expect(find.textContaining('195kcal'), findsOneWidget);
+      expect(find.textContaining('195kcal'), findsNWidgets(2));
 
       await tester.tap(find.byKey(const ValueKey('meal-item-edit-cancel')));
       await tester.pumpAndSettle();
@@ -736,7 +736,7 @@ void main() {
       await tester.enterText(usedAmount, '175');
       await tester.pump();
       expect(find.textContaining('USED 175g × QUANTITY 1'), findsOneWidget);
-      expect(find.textContaining('175kcal'), findsOneWidget);
+      expect(find.textContaining('175kcal'), findsNWidgets(2));
 
       await tester.tap(find.byKey(const ValueKey('meal-item-edit-save')));
       await tester.pumpAndSettle();
@@ -834,7 +834,7 @@ void main() {
 
       await tester.enterText(riceAmount, '80');
       await tester.pump();
-      expect(find.textContaining('80kcal'), findsOneWidget);
+      expect(find.textContaining('80kcal'), findsNWidgets(2));
       await tester.tap(find.byKey(const ValueKey('meal-item-edit-cancel')));
       await tester.pumpAndSettle();
       await tester.ensureVisible(firstRecipeItem);

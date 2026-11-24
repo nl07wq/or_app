@@ -423,6 +423,12 @@ class _FoodInputFormState extends State<FoodInputForm> {
   List<FoodItem> get previewItems {
     final result = List<FoodItem>.from(items);
 
+    final editingIndex = _mealItemEditingIndex;
+    if (editingIndex != null && editingIndex < result.length) {
+      final draft = _mealItemDraft();
+      if (draft != null) result[editingIndex] = draft;
+    }
+
     final current = _currentFoodItem();
 
     if (current != null) {
@@ -805,7 +811,11 @@ class _FoodInputFormState extends State<FoodInputForm> {
               quantity: quantity,
             )
           : usedAmount,
-      baseAmount: item.baseAmount,
+      baseAmount:
+          _quantitySemantics[index] ==
+              FoodMealQuantitySemantics.multiplicativeV21
+          ? item.baseAmount
+          : quantity,
       baseUnit: _sourceUnit(index) == FoodQuantityUnit.milliliter
           ? FoodBaseUnit.ml
           : FoodBaseUnit.g,
@@ -815,7 +825,24 @@ class _FoodInputFormState extends State<FoodInputForm> {
     );
   }
 
-  void _saveMealItemEdit() {
+  FoodItem? _mealItemDraft() {
+    final index = _mealItemEditingIndex;
+    if (index == null) return null;
+    final recipeSource =
+        _recipeInstanceSnapshots[index] ?? _recipeSources[index];
+    if (recipeSource == null) return _editedMealItem();
+    try {
+      final instance = _recipeInstanceFromDrafts(
+        recipeSource,
+        _mealItemRecipeIngredients,
+      );
+      return _databaseRecipeItem(instance, items[index].multiplier);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  bool _commitMealItemEdit() {
     final index = _mealItemEditingIndex;
     final recipeSource = index == null
         ? null
@@ -839,15 +866,16 @@ class _FoodInputFormState extends State<FoodInputForm> {
           _mealItemUsedAmountController.clear();
           _mealItemQuantityController.clear();
         });
+        return true;
       } on FormatException catch (error) {
         setState(() => _mealItemEditError = error.message);
+        return false;
       }
-      return;
     }
     final edited = _editedMealItem();
     if (index == null || edited == null) {
       setState(() => _mealItemEditError = 'ENTER A VALID POSITIVE VALUE.');
-      return;
+      return false;
     }
     setState(() {
       items[index] = edited;
@@ -865,7 +893,10 @@ class _FoodInputFormState extends State<FoodInputForm> {
       _mealItemUsedAmountController.clear();
       _mealItemQuantityController.clear();
     });
+    return true;
   }
+
+  void _saveMealItemEdit() => _commitMealItemEdit();
 
   void _cancelMealItemEdit() {
     _clearMealItemRecipeDraft();
@@ -1737,6 +1768,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
 
   Future<void> saveMeal() async {
     if (_isSaving) return;
+    if (_mealItemEditingIndex != null && !_commitMealItemEdit()) return;
     final waterMl = double.tryParse(waterVolumeController.text.trim());
 
     if (isWaterEntry && (waterMl == null || waterMl <= 0)) {
@@ -3069,8 +3101,7 @@ class _FoodInputFormState extends State<FoodInputForm> {
                         if (_currentFoodItem() != null) baseUnit,
                       ],
                       onDelete: (index) {
-                        if (index < items.length &&
-                            _mealItemEditingIndex == null) {
+                        if (index < items.length) {
                           removeFood(index);
                         }
                       },
