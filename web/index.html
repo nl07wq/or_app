@@ -122,6 +122,26 @@
     flutter-view, flt-glass-pane, flt-scene-host {
       background: #101010;
     }
+
+    /*
+      Flutter Web mirrors the active EditableText style onto a transparent
+      DOM input/textarea. BASE CAMP intentionally uses compact 10-14dp type,
+      so iOS WebKit sees a focused HTML control below its 16px auto-zoom
+      threshold even though the visible text is painted by Flutter's canvas.
+
+      Keep the compatibility rule on Flutter's private editing hosts only:
+      the backing control remains transparent and Flutter continues to own its
+      geometry, typography, selection and transforms. The !important is
+      required because the engine writes the framework font through the
+      element's inline `font` shorthand whenever the active field changes.
+      File pickers and any ordinary application HTML controls are unaffected.
+    */
+    flutter-view flt-text-editing-host input.flt-text-editing,
+    flutter-view flt-text-editing-host textarea.flt-text-editing,
+    flutter-view flt-semantics-host input[data-semantics-role="text-field"],
+    flutter-view flt-semantics-host textarea[data-semantics-role="text-field"] {
+      font-size: 16px !important;
+    }
   </style>
 </head>
 <body>
