@@ -729,10 +729,13 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
 
   Widget _buildEntryBody(EdgeInsets viewPadding) {
     final officialSteps = _officialSteps;
-    return SingleChildScrollView(
+    final baseCamp = BaseCampPresentation.isActive(context);
+    final scrollView = SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.cardPadding.left,
-        viewPadding.top + kToolbarHeight + AppSpacing.cardPadding.top,
+        baseCamp
+            ? AppSpacing.cardPadding.top
+            : viewPadding.top + kToolbarHeight + AppSpacing.cardPadding.top,
         AppSpacing.cardPadding.right,
         viewPadding.bottom + AppSpacing.cardPadding.bottom,
       ),
@@ -888,13 +891,21 @@ class _ActivityEntryPageState extends State<ActivityEntryPage> {
         ),
       ),
     );
+    if (!baseCamp) return scrollView;
+    return Padding(
+      padding: EdgeInsets.only(top: viewPadding.top + kToolbarHeight),
+      child: scrollView,
+    );
   }
 
   Widget _buildDigestiveEvents() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader(icon: Icons.monitor_heart, title: 'DIGESTIVE'),
+        const _ActivitySectionHeader(
+          icon: Icons.monitor_heart,
+          title: 'DIGESTIVE',
+        ),
         if (_digestiveEvents.isEmpty) ...[
           AppSpacing.gapMD,
           Semantics(
@@ -1056,45 +1067,68 @@ class _MeasuredStepsField extends StatelessWidget {
   final String decrementTooltip;
 
   @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.center,
-    children: [
-      Expanded(
-        child: BaseCampTerminalDisplay(
-          child: OperationTextField(
-            controller: controller,
-            focusNode: focusNode,
-            label: label,
-            keyboardType: TextInputType.number,
-            onChanged: onChanged,
-            glass: true,
-          ),
+  Widget build(BuildContext context) {
+    final baseCamp = BaseCampTerminalPaletteScope.maybeOf(context) != null;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: baseCamp
+              ? _ActivityNumericLcd(
+                  id: label == 'Measured steps' ? 'measured' : 'carry-over',
+                  label: label,
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    keyboardType: TextInputType.number,
+                    onChanged: onChanged,
+                    maxLines: 1,
+                    style: _activityLcdValueStyle(context),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ).inputFeedback(),
+                )
+              : OperationTextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  label: label,
+                  keyboardType: TextInputType.number,
+                  onChanged: onChanged,
+                  glass: true,
+                ),
         ),
-      ),
-      const SizedBox(width: AppSpacing.xs),
-      SizedBox(
-        height: 56,
-        child: BaseCampTerminalPaletteScope.maybeOf(context) == null
-            ? FoodNumericStepper(
-                fillParent: true,
-                incrementKey: incrementKey,
-                incrementTooltip: incrementTooltip,
-                onIncrement: enabled ? onIncrement : null,
-                decrementKey: decrementKey,
-                decrementTooltip: decrementTooltip,
-                onDecrement: enabled ? onDecrement : null,
-              )
-            : _ActivityStepKeys(
-                incrementKey: incrementKey,
-                incrementTooltip: incrementTooltip,
-                onIncrement: enabled ? onIncrement : null,
-                decrementKey: decrementKey,
-                decrementTooltip: decrementTooltip,
-                onDecrement: enabled ? onDecrement : null,
-              ),
-      ),
-    ],
-  );
+        const SizedBox(width: AppSpacing.xs),
+        SizedBox(
+          height: baseCamp ? _ActivityNumericLcd.height : 56,
+          child: !baseCamp
+              ? FoodNumericStepper(
+                  fillParent: true,
+                  incrementKey: incrementKey,
+                  incrementTooltip: incrementTooltip,
+                  onIncrement: enabled ? onIncrement : null,
+                  decrementKey: decrementKey,
+                  decrementTooltip: decrementTooltip,
+                  onDecrement: enabled ? onDecrement : null,
+                )
+              : _ActivityStepKeys(
+                  incrementKey: incrementKey,
+                  incrementTooltip: incrementTooltip,
+                  onIncrement: enabled ? onIncrement : null,
+                  decrementKey: decrementKey,
+                  decrementTooltip: decrementTooltip,
+                  onDecrement: enabled ? onDecrement : null,
+                ),
+        ),
+      ],
+    );
+  }
 }
 
 class _QuickStepRow extends StatelessWidget {
@@ -1165,6 +1199,17 @@ class _ReadOnlyStepDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+      return _ActivityNumericLcd(
+        id: 'carry-over-deduction',
+        label: label,
+        child: Text(
+          '$prefix${_formatSteps(value)} steps',
+          maxLines: 1,
+          style: _activityLcdValueStyle(context),
+        ),
+      );
+    }
     return BaseCampTerminalDisplay(
       child: InputDecorator(
         decoration: _activityGlassInputDecoration(context, label),
@@ -1181,6 +1226,19 @@ class _OfficialStepsDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+      return _ActivityNumericLcd(
+        id: 'official',
+        label: 'Official steps',
+        child: Text(
+          officialSteps == null
+              ? '--'
+              : '${_formatSteps(officialSteps!)} steps',
+          maxLines: 1,
+          style: _activityLcdValueStyle(context),
+        ),
+      );
+    }
     return BaseCampTerminalDisplay(
       child: InputDecorator(
         decoration: _activityGlassInputDecoration(context, 'Official steps'),
@@ -1192,6 +1250,152 @@ class _OfficialStepsDisplay extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ActivitySectionHeader extends StatelessWidget {
+  const _ActivitySectionHeader({required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final header = SectionHeader(icon: icon, title: title);
+    if (BaseCampTerminalPaletteScope.maybeOf(context) == null) return header;
+    return BaseCampTerminalSectionHeader(indicator: false, child: header);
+  }
+}
+
+class _ActivityNumericLcd extends StatelessWidget {
+  const _ActivityNumericLcd({
+    required this.id,
+    required this.label,
+    required this.child,
+  });
+
+  static const double height = 72;
+  static const Color _surface = Color(0xffb9c8a0);
+  static const Color _dark = Color(0xff263c29);
+  static const Color _secondary = Color(0xff526c4b);
+  static const Color _recessedFrame = Color(0xff4d6148);
+  static const Color _outerBorder = Color(0xff263a29);
+
+  final String id;
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final negative = BaseCampTerminalPaletteScope.of(context).negative;
+    final surface = negative ? _dark : _surface;
+    final foreground = negative ? _surface : _dark;
+    final secondary = negative ? const Color(0xff9aab86) : _secondary;
+    return SizedBox(
+      key: ValueKey<String>('activity-lcd-$id'),
+      height: height,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _recessedFrame,
+          border: Border.all(color: _outerBorder, width: 2),
+          borderRadius: BorderRadius.circular(5),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Color(0x990b0f09),
+              blurRadius: 2,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                ColoredBox(
+                  key: ValueKey<String>('activity-lcd-surface-$id'),
+                  color: surface,
+                ),
+                IgnorePointer(
+                  child: CustomPaint(
+                    key: ValueKey<String>('activity-lcd-grid-$id'),
+                    painter: _ActivityLcdGridPainter(color: foreground),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  child: DefaultTextStyle.merge(
+                    style: TextStyle(color: foreground),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          label,
+                          maxLines: 2,
+                          softWrap: true,
+                          overflow: TextOverflow.visible,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: secondary,
+                                fontSize: 9,
+                                height: 1.15,
+                              ),
+                        ),
+                        const SizedBox(height: 3),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: child,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+TextStyle? _activityLcdValueStyle(BuildContext context) {
+  final negative = BaseCampTerminalPaletteScope.of(context).negative;
+  return Theme.of(context).textTheme.titleMedium?.copyWith(
+    color: negative ? const Color(0xffb9c8a0) : const Color(0xff263c29),
+    fontSize: 15,
+    height: 1,
+  );
+}
+
+class _ActivityLcdGridPainter extends CustomPainter {
+  const _ActivityLcdGridPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: .08)
+      ..strokeWidth = 1;
+    for (var x = 0.5; x < size.width; x += 4) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (var y = 0.5; y < size.height; y += 4) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ActivityLcdGridPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 class _ActivityStepKeys extends StatelessWidget {

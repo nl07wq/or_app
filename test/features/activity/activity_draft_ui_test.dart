@@ -14,7 +14,6 @@ import 'package:or_app/features/activity/models/activity_draft.dart';
 import 'package:or_app/features/activity/widgets/digestive_event_card.dart';
 import 'package:or_app/features/repositories/app_repository_container.dart';
 import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
-import 'package:or_app/features/themes/base_camp/base_camp_retro_terminal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
@@ -499,11 +498,38 @@ void main() {
         await _pumpBaseCampEntry(tester);
         _expectNoFrameworkExceptions(tester);
 
-        expect(find.byType(BaseCampLcdSurface), findsNWidgets(4));
-        expect(
-          find.byKey(const ValueKey('base-camp-terminal-lcd-grid')),
-          findsNWidgets(4),
+        for (final id in const <String>[
+          'measured',
+          'carry-over',
+          'carry-over-deduction',
+          'official',
+        ]) {
+          expect(
+            find.byKey(ValueKey<String>('activity-lcd-$id')),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(ValueKey<String>('activity-lcd-grid-$id')),
+            findsOneWidget,
+          );
+          final surface = tester.widget<ColoredBox>(
+            find.byKey(ValueKey<String>('activity-lcd-surface-$id')),
+          );
+          expect(
+            surface.color,
+            negative ? const Color(0xff263c29) : const Color(0xffb9c8a0),
+          );
+        }
+        final deductionLcd = tester.getRect(
+          find.byKey(
+            const ValueKey<String>('activity-lcd-carry-over-deduction'),
+          ),
         );
+        final deductionLabel = tester.getRect(
+          find.text('Previous day Carry Over deduction'),
+        );
+        expect(deductionLcd.contains(deductionLabel.topLeft), isTrue);
+        expect(deductionLcd.contains(deductionLabel.bottomRight), isTrue);
         final quick = find.byKey(const ValueKey('activity-quick-steps-100'));
         expect(
           find.descendant(of: quick, matching: find.byType(FittedBox)),
@@ -540,6 +566,23 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       await _pumpBaseCampEntry(tester);
       _expectNoFrameworkExceptions(tester);
+      for (final id in const <String>[
+        'measured',
+        'carry-over',
+        'carry-over-deduction',
+        'official',
+      ]) {
+        expect(
+          tester.getSize(find.byKey(ValueKey('activity-lcd-$id'))).height,
+          72,
+        );
+      }
+
+      final digestive = find.text('DIGESTIVE');
+      await tester.ensureVisible(digestive);
+      await tester.pump();
+      expect(tester.getTopLeft(digestive).dy, greaterThanOrEqualTo(56));
+      _expectNoFrameworkExceptions(tester);
     });
   }
 
@@ -550,6 +593,12 @@ void main() {
       await _pumpBaseCampEntry(tester);
       _expectNoFrameworkExceptions(tester);
 
+      final measuredField = find.byType(TextField).first;
+      await tester.tap(measuredField);
+      await tester.showKeyboard(measuredField);
+      await tester.enterText(measuredField, '0');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('activity-quick-steps-100')));
       await tester.pump();
       final card = tester.widget<DigestiveEventCard>(
@@ -575,6 +624,19 @@ void main() {
       expect(saved?.digestiveEvents.single.amount, 2);
       expect(saved?.digestiveEvents.single.shape, 1);
       expect(saved?.digestiveEvents.single.relief, 2);
+
+      await _pumpBaseCampEntry(tester);
+      expect(
+        tester.widget<TextField>(find.byType(TextField).first).controller?.text,
+        '100',
+      );
+      final restoredCard = tester.widget<DigestiveEventCard>(
+        find.byType(DigestiveEventCard).first,
+      );
+      expect(restoredCard.event.amount, 2);
+      expect(restoredCard.event.shape, 1);
+      expect(restoredCard.event.relief, 2);
+      _expectNoFrameworkExceptions(tester);
     },
   );
 

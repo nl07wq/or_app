@@ -97,34 +97,33 @@ class _BowelCardState extends State<BowelCard> {
 
           if (amountExpanded) ...[
             const SizedBox(height: 12),
-
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: BowelAmount.values.map((item) {
-                if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
-                  return BaseCampTerminalMechanicalKey(
-                    selected: amount == item,
-                    height: 40,
-                    onPressed: () => _selectAmount(item),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(item.icon, size: 18),
-                        const SizedBox(width: 4),
-                        Text(item.label, maxLines: 1),
-                      ],
+            if (BaseCampTerminalPaletteScope.maybeOf(context) != null)
+              _BaseCampBowelChoiceRow(
+                children: <Widget>[
+                  for (final item in BowelAmount.values)
+                    _BaseCampBowelChoiceKey(
+                      selected: amount == item,
+                      icon: item.icon,
+                      label: item.label,
+                      onPressed: () => _selectAmount(item),
                     ),
-                  );
-                }
-                return ChoiceChip(
-                  avatar: Icon(item.icon, size: 18),
-                  label: Text(item.label),
-                  selected: amount == item,
-                  onSelected: (_) => _selectAmount(item),
-                ).inputFeedback();
-              }).toList(),
-            ),
+                ],
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: BowelAmount.values
+                    .map(
+                      (item) => ChoiceChip(
+                        avatar: Icon(item.icon, size: 18),
+                        label: Text(item.label),
+                        selected: amount == item,
+                        onSelected: (_) => _selectAmount(item),
+                      ).inputFeedback(),
+                    )
+                    .toList(),
+              ),
           ],
 
           // =========================
@@ -153,40 +152,97 @@ class _BowelCardState extends State<BowelCard> {
 
             if (shapeExpanded) ...[
               const SizedBox(height: 12),
-
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: BowelShape.values.map((item) {
-                  if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
-                    return BaseCampTerminalMechanicalKey(
-                      selected: shape == item,
-                      height: 40,
-                      onPressed: () => _selectShape(item),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Icon(item.icon, size: 18),
-                          const SizedBox(width: 4),
-                          Text(item.label, maxLines: 1),
-                        ],
+              if (BaseCampTerminalPaletteScope.maybeOf(context) != null)
+                _BaseCampBowelChoiceRow(
+                  children: <Widget>[
+                    for (final item in BowelShape.values)
+                      _BaseCampBowelChoiceKey(
+                        selected: shape == item,
+                        icon: item.icon,
+                        label: item.label,
+                        onPressed: () => _selectShape(item),
                       ),
-                    );
-                  }
-                  return ChoiceChip(
-                    avatar: Icon(item.icon, size: 18),
-                    label: Text(item.label),
-                    selected: shape == item,
-                    onSelected: (_) => _selectShape(item),
-                  ).inputFeedback();
-                }).toList(),
-              ),
+                  ],
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: BowelShape.values
+                      .map(
+                        (item) => ChoiceChip(
+                          avatar: Icon(item.icon, size: 18),
+                          label: Text(item.label),
+                          selected: shape == item,
+                          onSelected: (_) => _selectShape(item),
+                        ).inputFeedback(),
+                      )
+                      .toList(),
+                ),
             ],
           ],
         ],
       ),
     );
   }
+}
+
+class _BaseCampBowelChoiceRow extends StatelessWidget {
+  const _BaseCampBowelChoiceRow({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 44,
+    child: Row(
+      children: <Widget>[
+        for (var index = 0; index < children.length; index++) ...<Widget>[
+          Expanded(child: children[index]),
+          if (index != children.length - 1) const SizedBox(width: 4),
+        ],
+      ],
+    ),
+  );
+}
+
+class _BaseCampBowelChoiceKey extends StatelessWidget {
+  const _BaseCampBowelChoiceKey({
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => BaseCampTerminalMechanicalKey(
+    selected: selected,
+    height: 44,
+    padding: const EdgeInsets.symmetric(horizontal: 3),
+    onPressed: onPressed,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Icon(icon, size: 14),
+        const SizedBox(width: 3),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontSize: 10),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _BowelDisclosureButton extends StatelessWidget {

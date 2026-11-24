@@ -179,6 +179,7 @@ class _ChoiceSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final baseCamp = BaseCampTerminalPaletteScope.maybeOf(context) != null;
     return Semantics(
       label: semanticsLabel,
       container: true,
@@ -187,7 +188,20 @@ class _ChoiceSection extends StatelessWidget {
         children: [
           Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
           AppSpacing.gapSM,
-          Wrap(spacing: 8, runSpacing: 8, children: children),
+          if (baseCamp)
+            SizedBox(
+              height: 44,
+              child: Row(
+                children: <Widget>[
+                  for (var index = 0; index < children.length; index++) ...[
+                    Expanded(child: children[index]),
+                    if (index != children.length - 1) const SizedBox(width: 4),
+                  ],
+                ],
+              ),
+            )
+          else
+            Wrap(spacing: 8, runSpacing: 8, children: children),
         ],
       ),
     );
@@ -208,28 +222,31 @@ class _ReliefChoiceSection extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    label: semanticsLabel,
-    container: true,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        AppSpacing.gapSM,
-        SizedBox(
-          height: 46,
-          child: Row(
-            children: [
-              for (var index = 0; index < children.length; index++) ...[
-                Expanded(child: children[index]),
-                if (index != children.length - 1) const SizedBox(width: 4),
+  Widget build(BuildContext context) {
+    final baseCamp = BaseCampTerminalPaletteScope.maybeOf(context) != null;
+    return Semantics(
+      label: semanticsLabel,
+      container: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          AppSpacing.gapSM,
+          SizedBox(
+            height: baseCamp ? 44 : 46,
+            child: Row(
+              children: [
+                for (var index = 0; index < children.length; index++) ...[
+                  Expanded(child: children[index]),
+                  if (index != children.length - 1) const SizedBox(width: 4),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class _EventChoiceChip extends StatelessWidget {
@@ -258,16 +275,26 @@ class _EventChoiceChip extends StatelessWidget {
         enabled: enabled,
         child: BaseCampTerminalMechanicalKey(
           selected: selected,
-          height: 40,
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 3),
           onPressed: enabled ? onSelected : null,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               if (icon != null) ...<Widget>[
-                Icon(icon, size: 16),
-                const SizedBox(width: 4),
+                Icon(icon, size: 14),
+                const SizedBox(width: 3),
               ],
-              Text(label, maxLines: 1),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(fontSize: 10),
+                ),
+              ),
             ],
           ),
         ),
@@ -327,19 +354,24 @@ class _ReliefChoiceButton extends StatelessWidget {
         enabled: enabled,
         child: BaseCampTerminalMechanicalKey(
           selected: selected,
-          height: 46,
-          padding: const EdgeInsets.symmetric(horizontal: 2),
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 3),
           onPressed: enabled ? onSelected : null,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(icon, size: 16),
+              Icon(icon, size: 14),
               const SizedBox(width: 3),
-              Flexible(child: Text(label, maxLines: 1)),
-              if (selected) ...<Widget>[
-                const SizedBox(width: 2),
-                const Icon(Icons.check, size: 12),
-              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(fontSize: 10),
+                ),
+              ),
             ],
           ),
         ),

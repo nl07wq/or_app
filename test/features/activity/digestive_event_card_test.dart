@@ -71,6 +71,34 @@ void main() {
       expect(rects.every((rect) => rect.height == 46), isTrue);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('BASE CAMP choice groups stay horizontal at $width', (
+      tester,
+    ) async {
+      await pumpCard(tester, width: width, relief: 1, baseCamp: true);
+      final amount = <Finder>[
+        for (var value = 0; value < 4; value++)
+          find.byKey(ValueKey('digestive-digestive-relief-amount-$value')),
+      ];
+      final shape = <Finder>[
+        for (var value = 1; value <= 3; value++)
+          find.byKey(ValueKey('digestive-digestive-relief-shape-$value')),
+      ];
+      final reliefButtons = <Finder>[
+        for (var value = 0; value < 3; value++)
+          find.byKey(ValueKey('digestive-digestive-relief-relief-$value')),
+      ];
+
+      for (final group in <List<Finder>>[amount, shape, reliefButtons]) {
+        final rects = group.map(tester.getRect).toList();
+        expect(rects.map((rect) => rect.top).toSet(), hasLength(1));
+        expect(rects.every((rect) => rect.height == 44), isTrue);
+        for (var index = 1; index < rects.length; index++) {
+          expect(rects[index - 1].right, lessThan(rects[index].left));
+        }
+      }
+      expect(tester.takeException(), isNull);
+    });
   }
 
   testWidgets('Relief keeps values zero, one, and two selectable', (

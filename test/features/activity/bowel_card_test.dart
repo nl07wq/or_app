@@ -11,6 +11,8 @@ import 'package:or_app/features/activity/activity_entry_page.dart';
 import 'package:or_app/features/activity/repository/activity_repository.dart';
 import 'package:or_app/features/activity/widgets/bowel_card.dart';
 import 'package:or_app/features/morning/morning_fact_page.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_retro_terminal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -79,6 +81,48 @@ void main() {
     expect(amountController.text, '0');
     expect(shapeController.text, isEmpty);
     expect(find.text('Shape'), findsNothing);
+  });
+
+  testWidgets('BASE CAMP legacy amount and shape options stay horizontal', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final amountController = TextEditingController();
+    final shapeController = TextEditingController();
+    addTearDown(amountController.dispose);
+    addTearDown(shapeController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BaseCampScreenEntry(
+          screen: BaseCampScreen.activity,
+          child: BaseCampRetroTerminalScreen(
+            child: Scaffold(
+              body: BowelCard(
+                amountController: amountController,
+                shapeController: shapeController,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final keys = find.byType(BaseCampTerminalMechanicalKey);
+    expect(keys, findsNWidgets(7));
+    final amountRects = <Rect>[
+      for (var index = 0; index < 4; index++) tester.getRect(keys.at(index)),
+    ];
+    final shapeRects = <Rect>[
+      for (var index = 4; index < 7; index++) tester.getRect(keys.at(index)),
+    ];
+    expect(amountRects.map((rect) => rect.top).toSet(), hasLength(1));
+    expect(shapeRects.map((rect) => rect.top).toSet(), hasLength(1));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Activity saves ChoiceChip values into ActivityData', (
