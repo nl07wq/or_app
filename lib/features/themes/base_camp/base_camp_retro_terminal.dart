@@ -200,6 +200,155 @@ class BaseCampTerminalDisplay extends StatelessWidget {
   }
 }
 
+/// Bright instrument LCD used by COMMAND CENTER readouts.
+///
+/// Unlike the legacy terminal display this follows the approved instrument
+/// palette exactly. The grid is owned by, and clipped to, the aperture so it
+/// can never bleed into the surrounding chassis or physical controls.
+class BaseCampInstrumentLcd extends StatelessWidget {
+  const BaseCampInstrumentLcd({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(10),
+    this.bright = true,
+    this.preserveGeometry = false,
+    this.applyForeground = true,
+  });
+
+  static const Color lightSurface = Color(0xffb9c8a0);
+  static const Color lightInk = Color(0xff263c29);
+  static const Color lightSecondaryInk = Color(0xff526c4b);
+  static const Color lightRecess = Color(0xff4d6148);
+  static const Color lightOuterBorder = Color(0xff263a29);
+
+  static Color foregroundFor(BuildContext context, {bool bright = true}) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    if (palette.negative) return BaseCampTerminalPalette.housingForeground;
+    return bright ? lightInk : const Color(0xfff0f4df);
+  }
+
+  static Color secondaryFor(BuildContext context, {bool bright = true}) {
+    final palette = BaseCampTerminalPaletteScope.of(context);
+    if (palette.negative) return palette.primaryText;
+    return bright ? lightSecondaryInk : const Color(0xffd6dfc3);
+  }
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final bool bright;
+  final bool preserveGeometry;
+  final bool applyForeground;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.maybeOf(context);
+    if (palette == null) return child;
+    final surface = palette.negative
+        ? (bright ? palette.field : BaseCampTerminalPalette.housing)
+        : (bright ? lightSurface : const Color(0xff526c4b));
+    final ink = foregroundFor(context, bright: bright);
+    final secondaryInk = secondaryFor(context, bright: bright);
+    final recess = palette.negative ? palette.auxiliaryText : lightRecess;
+    final outer = palette.negative
+        ? BaseCampTerminalPalette.housingShadow
+        : lightOuterBorder;
+    final content = Padding(
+      padding: padding,
+      child: applyForeground
+          ? IconTheme.merge(
+              data: IconThemeData(color: ink),
+              child: DefaultTextStyle.merge(
+                style: TextStyle(color: ink),
+                child: child,
+              ),
+            )
+          : child,
+    );
+    if (preserveGeometry) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: surface,
+            border: Border.all(color: outer),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: CustomPaint(
+            foregroundPainter: BaseCampInstrumentGridPainter(
+              color: secondaryInk,
+            ),
+            child: content,
+          ),
+        ),
+      );
+    }
+    final aperture = ClipRRect(
+      borderRadius: BorderRadius.circular(3),
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: <Widget>[
+          Positioned.fill(child: ColoredBox(color: surface)),
+          content,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                key: const ValueKey('base-camp-instrument-lcd-grid'),
+                painter: BaseCampInstrumentGridPainter(color: secondaryInk),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: outer,
+        border: Border.all(color: outer, width: 1.5),
+        borderRadius: BorderRadius.circular(7),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: BaseCampTerminalPalette.housingShadow,
+            blurRadius: 2,
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(3),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: recess,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Padding(padding: const EdgeInsets.all(2), child: aperture),
+        ),
+      ),
+    );
+  }
+}
+
+class BaseCampInstrumentGridPainter extends CustomPainter {
+  const BaseCampInstrumentGridPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: .08)
+      ..strokeWidth = .7;
+    for (double x = 4; x < size.width; x += 4) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 4; y < size.height; y += 4) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant BaseCampInstrumentGridPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
 /// Shared section-header styling for terminal-specific modules.
 class BaseCampTerminalSectionHeader extends StatelessWidget {
   const BaseCampTerminalSectionHeader({

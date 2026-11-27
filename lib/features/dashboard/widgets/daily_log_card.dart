@@ -27,6 +27,7 @@ import '../../report_sync/models/daily_debrief_record.dart';
 import '../../report_sync/models/daily_debrief_state.dart';
 import '../../repositories/app_repository_container.dart';
 import '../../themes/base_camp/base_camp_presentation.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 import 'backup_prompt_dialog.dart';
 import 'base_camp_finalize_day_dialog.dart';
 import '../../themes/base_camp/widgets/base_camp_operation_panel.dart';
@@ -544,7 +545,7 @@ class _DailyLogEntry {
 class _DailyLogEntryGrid extends StatelessWidget {
   const _DailyLogEntryGrid({required this.entries});
 
-  static const double _minimumTwoColumnCellWidth = 144;
+  static const double _minimumTwoColumnCellWidth = 100;
 
   final List<_DailyLogEntry> entries;
 
@@ -626,47 +627,55 @@ class _DailyLogEntryStatus extends StatelessWidget {
       key: ValueKey('daily-log-entry-${label.toLowerCase()}'),
       label: '$label $semanticsState',
       container: true,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: ExcludeSemantics(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 48),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.labelLarge?.copyWith(color: color),
+      child: BaseCampInstrumentLcd(
+        padding: EdgeInsets.zero,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: ExcludeSemantics(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 2,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelLarge?.copyWith(color: color),
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                      key: ValueKey('daily-log-state-${label.toLowerCase()}'),
-                      width: 22,
-                      child: Icon(icon, color: color, size: 22),
-                    ),
-                    SizedBox(
-                      key: ValueKey('daily-log-chevron-${label.toLowerCase()}'),
-                      width: 22,
-                      child: Icon(
-                        Icons.chevron_right,
-                        color: colorScheme.onSurfaceVariant,
-                        size: 22,
+                      SizedBox(
+                        key: ValueKey('daily-log-state-${label.toLowerCase()}'),
+                        width: 22,
+                        child: Icon(icon, color: color, size: 22),
                       ),
-                    ),
-                  ],
+                      SizedBox(
+                        key: ValueKey(
+                          'daily-log-chevron-${label.toLowerCase()}',
+                        ),
+                        width: 22,
+                        child: Icon(
+                          Icons.chevron_right,
+                          color: colorScheme.onSurfaceVariant,
+                          size: 22,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ).actionableFeedback(),
+          ).actionableFeedback(),
+        ),
       ),
     );
   }
@@ -712,39 +721,44 @@ class _DailyCloseReadiness extends StatelessWidget {
     ];
     const action = 'FINALIZE';
     final colorScheme = Theme.of(context).colorScheme;
-    final color = colorScheme.error;
+    final color = BaseCampTerminalPaletteScope.maybeOf(context) == null
+        ? colorScheme.error
+        : const Color(0xff6b1515);
     return Semantics(
       key: const ValueKey('daily-log-finalize-readiness'),
       label: '$action BLOCKED ${blockers.map((item) => item.label).join(', ')}',
       container: true,
       child: ExcludeSemantics(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.error_outline, color: color),
-            AppSpacing.gapSM,
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        '$action BLOCKED',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.titleSmall?.copyWith(color: color),
+        child: BaseCampInstrumentLcd(
+          padding: const EdgeInsets.all(9),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.error_outline, color: color),
+              AppSpacing.gapSM,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '$action BLOCKED',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.titleSmall?.copyWith(color: color),
+                        ),
                       ),
                     ),
-                  ),
-                  AppSpacing.gapXS,
-                  _DailyCloseBlockerGrid(blockers: blockers),
-                ],
+                    AppSpacing.gapXS,
+                    _DailyCloseBlockerGrid(blockers: blockers),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -829,6 +843,20 @@ class _DailyCloseActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+      return ActionableFeedbackRegion(
+        enabled: true,
+        result: onPressed == null
+            ? ActionableFeedbackResult.unavailable
+            : ActionableFeedbackResult.accepted,
+        child: BaseCampTerminalMechanicalKey(
+          width: double.infinity,
+          height: 52,
+          onPressed: onPressed,
+          child: Text(text, maxLines: 2),
+        ),
+      );
+    }
     return SizedBox(
       width: double.infinity,
       height: 52,

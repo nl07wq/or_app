@@ -665,14 +665,17 @@ class _CurrentOperationCard extends StatelessWidget {
                   key: const ValueKey('current-operation-date-bounds'),
                   width: _datePresentationWidth,
                   height: _datePresentationHeight,
-                  child: OperationDatePresentationSwitcher(
-                    operationDateFuture: operationDateFuture,
-                    transitionToken: 0,
-                    finalizeTransition: null,
-                    contentMode: OperationDatePresentationContentMode.dateOnly,
-                    dateTileWidth: _dateTileWidth,
-                    dateTileGap: _dateTileGap,
-                    dateVerticalPadding: EdgeInsets.zero,
+                  child: _BaseCampInstrumentFrame(
+                    child: OperationDatePresentationSwitcher(
+                      operationDateFuture: operationDateFuture,
+                      transitionToken: 0,
+                      finalizeTransition: null,
+                      contentMode:
+                          OperationDatePresentationContentMode.dateOnly,
+                      dateTileWidth: _dateTileWidth,
+                      dateTileGap: _dateTileGap,
+                      dateVerticalPadding: EdgeInsets.zero,
+                    ),
                   ),
                 ),
               ],
@@ -705,36 +708,38 @@ class _CurrentOperationCard extends StatelessWidget {
               ),
             ),
             AppSpacing.gapXS,
-            SemanticHelpPopover(
-              id: 'cycle-${cycleState.name}',
-              title: cycleStateShortLabelFor(cycleState),
-              description: cycleStateHelp(cycleState),
-              visibleAnchorKey: _visibleAnchorKey,
-              child: Semantics(
-                button: true,
-                label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
-                child: FittedBox(
-                  key: const ValueKey('current-operation-cycle-value'),
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      KeyedSubtree(
-                        key: _visibleAnchorKey,
-                        child: Icon(
-                          cycleStateIconFor(cycleState),
-                          key: const ValueKey('current-operation-cycle-icon'),
+            _BaseCampCycleLcd(
+              child: SemanticHelpPopover(
+                id: 'cycle-${cycleState.name}',
+                title: cycleStateShortLabelFor(cycleState),
+                description: cycleStateHelp(cycleState),
+                visibleAnchorKey: _visibleAnchorKey,
+                child: Semantics(
+                  button: true,
+                  label: 'CYCLE STATE ${cycleStateShortLabelFor(cycleState)}',
+                  child: FittedBox(
+                    key: const ValueKey('current-operation-cycle-value'),
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        KeyedSubtree(
+                          key: _visibleAnchorKey,
+                          child: Icon(
+                            cycleStateIconFor(cycleState),
+                            key: const ValueKey('current-operation-cycle-icon'),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        cycleStateShortLabelFor(cycleState),
-                        key: const ValueKey('current-operation-cycle-label'),
-                        maxLines: 1,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ],
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          cycleStateShortLabelFor(cycleState),
+                          key: const ValueKey('current-operation-cycle-label'),
+                          maxLines: 1,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -881,39 +886,97 @@ class _WorkspaceHeaderState extends State<_WorkspaceHeader> {
                   ),
                 ),
               ),
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                ),
-                onPressed: () {
-                  if ((index == CommandCenterSection.periodicReport.index ||
-                          index == CommandCenterSection.briefDebrief.index) &&
-                      widget.currentPage != index) {
-                    GlobalTouchRipple.previewFeedback(
-                      TouchFeedbackSound.pageFlip,
-                    );
-                  }
-                  widget.onSelectPage(index);
-                },
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    labels[index],
-                    maxLines: 1,
-                    style: TextStyle(
-                      color: index == widget.currentPage
-                          ? Theme.of(context).colorScheme.primary
-                          : null,
-                      fontWeight: index == widget.currentPage
-                          ? FontWeight.bold
-                          : null,
+              child: BaseCampInstrumentLcd(
+                bright: index == widget.currentPage,
+                padding: EdgeInsets.zero,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    foregroundColor:
+                        BaseCampTerminalPaletteScope.maybeOf(context) == null
+                        ? null
+                        : BaseCampInstrumentLcd.foregroundFor(
+                            context,
+                            bright: index == widget.currentPage,
+                          ),
+                  ),
+                  onPressed: () {
+                    if ((index == CommandCenterSection.periodicReport.index ||
+                            index == CommandCenterSection.briefDebrief.index) &&
+                        widget.currentPage != index) {
+                      GlobalTouchRipple.previewFeedback(
+                        TouchFeedbackSound.pageFlip,
+                      );
+                    }
+                    widget.onSelectPage(index);
+                  },
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      labels[index],
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontWeight: index == widget.currentPage
+                            ? FontWeight.bold
+                            : null,
+                      ),
                     ),
                   ),
-                ),
-              ).actionableFeedback(role: ActionableFeedbackRole.silent),
+                ).actionableFeedback(role: ActionableFeedbackRole.silent),
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BaseCampInstrumentFrame extends StatelessWidget {
+  const _BaseCampInstrumentFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) == null) return child;
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        border: Border.all(color: BaseCampTerminalPalette.housingEdge),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _BaseCampCycleLcd extends StatelessWidget {
+  const _BaseCampCycleLcd({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.maybeOf(context);
+    if (palette == null) return child;
+    final surface = palette.negative
+        ? palette.field
+        : BaseCampInstrumentLcd.lightSurface;
+    final grid = BaseCampInstrumentLcd.secondaryFor(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: surface,
+        border: Border.all(
+          color: palette.negative
+              ? palette.primaryText
+              : BaseCampInstrumentLcd.lightOuterBorder,
+        ),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: CustomPaint(
+        foregroundPainter: BaseCampInstrumentGridPainter(color: grid),
+        child: child,
       ),
     );
   }

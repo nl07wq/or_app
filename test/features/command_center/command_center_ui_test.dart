@@ -39,6 +39,9 @@ import 'package:or_app/features/report_sync/pages/report_sync_exchange_page.dart
 import 'package:or_app/features/report_sync/models/morning_brief_record.dart';
 import 'package:or_app/features/report_sync/models/morning_brief_state.dart';
 import 'package:or_app/features/training/models/training_summary_state.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_presentation.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_retro_terminal.dart';
+import 'package:or_app/features/themes/base_camp/base_camp_retro_theme.dart';
 
 import '../../repositories/indexed_db/fake_indexed_db_database.dart';
 import '../operation_date/operation_date_test_fixture.dart';
@@ -1238,6 +1241,160 @@ void main() {
       1,
     );
     _expectBalancedBriefDebriefTabs(tester);
+  });
+
+  for (final width in <double>[320, 375, 390, 430]) {
+    for (final negative in <bool>[false, true]) {
+      testWidgets(
+        'BASE CAMP instrument surfaces fit width=$width INV=$negative',
+        (tester) async {
+          DeviceSettingsController.instance.update(
+            DeviceSettingsController.instance.value.copyWith(
+              baseCampLcdNegative: negative,
+            ),
+          );
+          await _pump(tester, width: width, baseCamp: true);
+
+          expect(
+            find.descendant(
+              of: find.byKey(const ValueKey('command-center-tab-scroll')),
+              matching: find.byType(BaseCampInstrumentLcd),
+            ),
+            findsNWidgets(4),
+          );
+          expect(
+            find.byKey(const ValueKey('current-operation-cycle-value')),
+            findsOneWidget,
+          );
+          await _scrollDailyCommand(tester, -500);
+          expect(
+            find.byKey(const ValueKey('daily-log-grid-two-column')),
+            findsOneWidget,
+          );
+
+          await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+          final tabBar = tester.widget<TabBar>(
+            find.byKey(const ValueKey('brief-debrief-tab-bar')),
+          );
+          expect(tabBar.indicatorSize, TabBarIndicatorSize.tab);
+          expect(find.byType(BaseCampTerminalMechanicalKey), findsWidgets);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
+  testWidgets('BASE CAMP instrument workspace fits short landscape', (
+    tester,
+  ) async {
+    await _pump(tester, width: 844, height: 390, baseCamp: true);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('command-center-tab-scroll')),
+        matching: find.byType(BaseCampInstrumentLcd),
+      ),
+      findsNWidgets(4),
+    );
+    await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+    expect(
+      tester
+          .widget<TabBar>(find.byKey(const ValueKey('brief-debrief-tab-bar')))
+          .indicatorSize,
+      TabBarIndicatorSize.tab,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('BASE CAMP COMMAND CENTER route renderer evidence', (
+    tester,
+  ) async {
+    DeviceSettingsController.instance.update(
+      DeviceSettingsController.instance.value.copyWith(
+        ambientProcessingEnabled: false,
+        baseCampLcdNegative: false,
+      ),
+    );
+    for (final date in const [
+      '2026-08-01',
+      '2026-07-31',
+      '2026-07-30',
+      '2026-07-29',
+      '2026-07-28',
+    ]) {
+      await AppRepositoryRegistry.container.morningBriefs.create(
+        _morningBriefV2(date, intent: 'COMMANDER INTENT $date'),
+      );
+    }
+    for (final date in const [
+      '2026-08-01',
+      '2026-07-31',
+      '2026-07-30',
+      '2026-07-29',
+      '2026-07-28',
+    ]) {
+      final debrief = _dailyDebriefRecord(
+        localDate: date,
+        bodyEvaluation: 'BODY REVIEW $date',
+        rationale: 'COMMANDER RATIONALE $date',
+        timestamp: DateTime.parse('${date}T23:00:00Z'),
+      );
+      database.seed(
+        IndexedDbStoreNames.dailyDebriefRecords,
+        debrief.localDate,
+        debrief.toRecord(),
+      );
+    }
+    final captureKey = GlobalKey();
+    await _pump(
+      tester,
+      width: 390,
+      height: 844,
+      baseCamp: true,
+      captureKey: captureKey,
+    );
+    await expectLater(
+      find.byKey(captureKey),
+      matchesGoldenFile('goldens/command_center_daily_command_v1.png'),
+    );
+
+    await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
+    await tester.tap(find.text('DAILY BRIEF').first);
+    await _settleDashboard(tester);
+    await expectLater(
+      find.byKey(captureKey),
+      matchesGoldenFile('goldens/command_center_brief_v1.png'),
+    );
+    await tester.drag(_morningBriefScrollable(), const Offset(0, -1900));
+    await _settleDashboard(tester);
+    await tester.ensureVisible(find.text('VIEW ALL BACK NUMBERS').first);
+    await _settleDashboard(tester);
+    await tester.tap(find.text('VIEW ALL BACK NUMBERS').first);
+    await _settleDashboard(tester);
+    await expectLater(
+      find.byType(BaseCampRetroTerminalPanel).last,
+      matchesGoldenFile('goldens/command_center_brief_archive_v1.png'),
+    );
+    Navigator.of(
+      tester.element(find.byType(BaseCampRetroTerminalPanel).last),
+    ).pop();
+    await _settleDashboard(tester);
+    await _openDailyDebrief(tester);
+    await _settleDashboard(tester);
+    await expectLater(
+      find.byKey(captureKey),
+      matchesGoldenFile('goldens/command_center_debrief_v1.png'),
+    );
+    final debriefScroll = find.byKey(const ValueKey('daily-debrief-content'));
+    await tester.drag(debriefScroll, const Offset(0, -1900));
+    await _settleDashboard(tester);
+    await tester.ensureVisible(find.text('VIEW ALL BACK NUMBERS').first);
+    await _settleDashboard(tester);
+    await tester.tap(find.text('VIEW ALL BACK NUMBERS').first);
+    await _settleDashboard(tester);
+    await expectLater(
+      find.byType(BaseCampRetroTerminalPanel).last,
+      matchesGoldenFile('goldens/command_center_debrief_archive_v1.png'),
+    );
   });
 
   testWidgets('separates BRIEF DEBRIEF content from report sync pages', (
@@ -2860,24 +3017,37 @@ Future<void> _settleDashboard(WidgetTester tester) async {
 Future<void> _pump(
   WidgetTester tester, {
   required double width,
+  double height = 900,
+  bool baseCamp = false,
+  GlobalKey? captureKey,
   ThemeData? theme,
   WidgetBuilder? reviewPageBuilder,
   TouchRippleAudio? feedbackAudio,
 }) async {
-  tester.view.physicalSize = Size(width, 900);
+  tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
-      theme: theme,
+      theme: baseCamp
+          ? BaseCampRetroTheme.apply(theme ?? ThemeData.light())
+          : theme,
       builder: feedbackAudio == null
           ? null
           : (context, child) => GlobalTouchRipple(
               audio: feedbackAudio,
               child: child ?? const SizedBox.shrink(),
             ),
-      home: const CommandCenterPage(),
+      home: RepaintBoundary(
+        key: captureKey,
+        child: baseCamp
+            ? const BaseCampScreenEntry(
+                screen: BaseCampScreen.commandCenter,
+                child: CommandCenterPage(showBaseCampEntry: false),
+              )
+            : const CommandCenterPage(),
+      ),
       onGenerateRoute: (settings) {
         if (settings.name == AppRoutes.finalizedDashboard) {
           return MaterialPageRoute<void>(

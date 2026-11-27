@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/dashboard_glass_card.dart';
+import '../../themes/base_camp/base_camp_retro_terminal.dart';
 import '../models/daily_assessment.dart';
 import 'daily_assessment_label_mapper.dart';
 import 'semantic_help_popover.dart';
@@ -162,22 +163,27 @@ class _AssessmentItem extends StatelessWidget {
           ),
           AppSpacing.gapXS,
         ],
-        if (item.metric == DailyAssessmentMetric.weightTrend)
-          _WeightFactValue(reference: currentWeightReference),
-        if (readiness == null)
-          if (item.metric != DailyAssessmentMetric.weightTrend)
-            Text(
-              item.metric == DailyAssessmentMetric.work &&
-                      workDisplayValue != null
-                  ? workDisplayValue!
-                  : _valueLabel(item, currentWeightReference),
-            )
-          else ...[
-            AppSpacing.gapXS,
-            Text(_valueLabel(item, currentWeightReference)),
-          ]
-        else
-          _TrainingReadinessDetails(facts: readiness),
+        _AssessmentReadout(
+          child: item.metric == DailyAssessmentMetric.weightTrend
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _WeightFactValue(reference: currentWeightReference),
+                    if (readiness == null) ...[
+                      AppSpacing.gapXS,
+                      Text(_valueLabel(item, currentWeightReference)),
+                    ],
+                  ],
+                )
+              : readiness != null
+              ? _TrainingReadinessDetails(facts: readiness)
+              : Text(
+                  item.metric == DailyAssessmentMetric.work &&
+                          workDisplayValue != null
+                      ? workDisplayValue!
+                      : _valueLabel(item, currentWeightReference),
+                ),
+        ),
         AppSpacing.gapXS,
         Text(dailyAssessmentSpecificLabel(item)),
       ],
@@ -263,9 +269,12 @@ class _BodyFatFact extends StatelessWidget {
         children: [
           Text('BODY FAT', style: Theme.of(context).textTheme.labelLarge),
           AppSpacing.gapXS,
-          const Text('NOT AVAILABLE'),
-          AppSpacing.gapXS,
-          const Text('—'),
+          const _AssessmentReadout(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [Text('NOT AVAILABLE'), Text('—')],
+            ),
+          ),
           AppSpacing.gapXS,
           const Text('NOT AVAILABLE'),
         ],
@@ -298,21 +307,31 @@ class _BodyFatFact extends StatelessWidget {
       children: [
         Text('BODY FAT', style: Theme.of(context).textTheme.labelLarge),
         AppSpacing.gapXS,
-        if (reference.source != DailyBodyFatReferenceSource.notAvailable) ...[
-          Text(
-            isWeekAverage ? 'WEEK AVERAGE' : 'TODAY FACT',
-            style: Theme.of(context).textTheme.labelSmall,
+        _AssessmentReadout(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (reference.source !=
+                  DailyBodyFatReferenceSource.notAvailable) ...[
+                Text(
+                  isWeekAverage ? 'WEEK AVERAGE' : 'TODAY FACT',
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+                AppSpacing.gapXS,
+              ],
+              Text(
+                validCurrent
+                    ? '${current.toStringAsFixed(1)} %'
+                    : 'NOT AVAILABLE',
+              ),
+              AppSpacing.gapXS,
+              Text(
+                trendValue == null
+                    ? 'NOT AVAILABLE'
+                    : '${trendValue > 0 ? '+' : ''}${trendValue.toStringAsFixed(1)} pt${isWeekAverage && weeklyTrend != null ? '/week' : ''}',
+              ),
+            ],
           ),
-          AppSpacing.gapXS,
-        ],
-        Text(
-          validCurrent ? '${current.toStringAsFixed(1)} %' : 'NOT AVAILABLE',
-        ),
-        AppSpacing.gapXS,
-        Text(
-          trendValue == null
-              ? 'NOT AVAILABLE'
-              : '${trendValue > 0 ? '+' : ''}${trendValue.toStringAsFixed(1)} pt${isWeekAverage && weeklyTrend != null ? '/week' : ''}',
         ),
         AppSpacing.gapXS,
         Text(comment),
@@ -396,12 +415,28 @@ class _StringListCard extends StatelessWidget {
       children: [
         Text(title, style: Theme.of(context).textTheme.titleSmall),
         AppSpacing.gapSM,
-        if (values.isEmpty)
-          const Text('NOT AVAILABLE')
-        else
-          for (final value in values) Text(value),
+        _AssessmentReadout(
+          child: values.isEmpty
+              ? const Text('NOT AVAILABLE')
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [for (final value in values) Text(value)],
+                ),
+        ),
       ],
     ),
+  );
+}
+
+class _AssessmentReadout extends StatelessWidget {
+  const _AssessmentReadout({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => BaseCampInstrumentLcd(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+    child: child,
   );
 }
 

@@ -273,13 +273,13 @@ class _MorningBriefViewState extends State<_MorningBriefView> {
                   ),
                   AppSpacing.gapSM,
                   if (current == null)
-                    const DashboardGlassCard(
+                    const _ReportStateSurface(
                       child: Text('DAILY BRIEFはまだありません。'),
                     )
                   else
                     _MorningBriefCard(record: current),
                   AppSpacing.gapMD,
-                  OperationButton(
+                  _BriefOperationKey(
                     key: const ValueKey('open-morning-brief-report-sync'),
                     text: 'CREATE DAILY BRIEF',
                     icon: Icons.sync,
@@ -364,15 +364,8 @@ class _ArchiveButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: double.infinity,
-    height: 52,
-    child: ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 20),
-      label: FittedBox(fit: BoxFit.scaleDown, child: Text(text)),
-    ).actionableFeedback(),
-  );
+  Widget build(BuildContext context) =>
+      _BriefOperationKey(text: text, icon: icon, onPressed: onPressed);
 }
 
 class _DailyDebriefView extends StatefulWidget {
@@ -596,11 +589,11 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
         ),
         AppSpacing.gapSM,
         if (snapshot.hasError)
-          DashboardGlassCard(child: Text('LOAD FAILED: ${snapshot.error}'))
+          _ReportStateSurface(child: Text('LOAD FAILED: ${snapshot.error}'))
         else if (!snapshot.hasData)
           const Center(child: CircularProgressIndicator())
         else if (snapshot.data!.current == null)
-          const DashboardGlassCard(child: Text('DAILY DEBRIEFはまだありません。'))
+          const _ReportStateSurface(child: Text('DAILY DEBRIEFはまだありません。'))
         else
           _DailyDebriefDetail(
             key: const ValueKey('current-daily-debrief'),
@@ -623,11 +616,11 @@ class _DailyDebriefViewState extends State<_DailyDebriefView> {
         ),
         AppSpacing.gapSM,
         if (snapshot.hasError)
-          DashboardGlassCard(child: Text('LOAD FAILED: ${snapshot.error}'))
+          _ReportStateSurface(child: Text('LOAD FAILED: ${snapshot.error}'))
         else if (!snapshot.hasData)
           const Center(child: CircularProgressIndicator())
         else if (snapshot.data!.backNumbers.isEmpty)
-          const DashboardGlassCard(child: Text('NO DAILY DEBRIEF BACK NUMBER'))
+          const _ReportStateSurface(child: Text('NO DAILY DEBRIEF BACK NUMBER'))
         else ...[
           _DailyDebriefHistory(
             records: snapshot.data!.backNumbers
@@ -820,7 +813,14 @@ class _DailyDebriefHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: BaseCampTerminalPaletteScope.maybeOf(context) != null
+            ? BaseCampInstrumentLcd.foregroundFor(
+                context,
+              ).withValues(alpha: .06)
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
+        border: BaseCampTerminalPaletteScope.maybeOf(context) != null
+            ? Border.all(color: BaseCampInstrumentLcd.secondaryFor(context))
+            : null,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -1091,20 +1091,39 @@ class _DebriefPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return Container(
+    final baseCamp = BaseCampTerminalPaletteScope.maybeOf(context) != null;
+    final panel = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: switch (tone) {
-          _DebriefPanelTone.primary => colors.primaryContainer,
-          _DebriefPanelTone.secondary => colors.secondaryContainer.withValues(
-            alpha: 0.55,
-          ),
-          _DebriefPanelTone.neutral => colors.surfaceContainerLow,
-          _DebriefPanelTone.subtle => colors.surfaceContainerHighest,
-        },
+        color: baseCamp
+            ? BaseCampInstrumentLcd.foregroundFor(
+                context,
+              ).withValues(alpha: tone == _DebriefPanelTone.primary ? .11 : .06)
+            : switch (tone) {
+                _DebriefPanelTone.primary => colors.primaryContainer,
+                _DebriefPanelTone.secondary =>
+                  colors.secondaryContainer.withValues(alpha: 0.55),
+                _DebriefPanelTone.neutral => colors.surfaceContainerLow,
+                _DebriefPanelTone.subtle => colors.surfaceContainerHighest,
+              },
+        border: baseCamp
+            ? Border.all(color: BaseCampInstrumentLcd.secondaryFor(context))
+            : null,
         borderRadius: BorderRadius.circular(14),
       ),
       child: child,
+    );
+    if (!baseCamp) return panel;
+    return Theme(
+      data: Theme.of(context).copyWith(
+        colorScheme: colors.copyWith(
+          primaryContainer: colors.surface,
+          onPrimaryContainer: BaseCampInstrumentLcd.foregroundFor(context),
+          secondaryContainer: colors.surface,
+          onSecondaryContainer: BaseCampInstrumentLcd.foregroundFor(context),
+        ),
+      ),
+      child: panel,
     );
   }
 }
@@ -1246,7 +1265,7 @@ class _BriefReportSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
-      return BaseCampTerminalDisplay(
+      return BaseCampInstrumentLcd(
         key: const ValueKey('command-center-brief-bounded-lcd-display'),
         padding: const EdgeInsets.all(16),
         child: child,
@@ -1266,7 +1285,12 @@ class _BriefHeader extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: BaseCampTerminalPaletteScope.maybeOf(context) != null
+          ? BaseCampInstrumentLcd.foregroundFor(context).withValues(alpha: .06)
+          : Theme.of(context).colorScheme.surfaceContainerHighest,
+      border: BaseCampTerminalPaletteScope.maybeOf(context) != null
+          ? Border.all(color: BaseCampInstrumentLcd.secondaryFor(context))
+          : null,
       borderRadius: BorderRadius.circular(16),
     ),
     child: LayoutBuilder(
@@ -1923,7 +1947,7 @@ class _MorningBriefHistory extends StatelessWidget {
   final List<MorningBriefRecord> records;
 
   @override
-  Widget build(BuildContext context) => DashboardGlassCard(
+  Widget build(BuildContext context) => _BackNumberSurface(
     child: records.isEmpty
         ? const Row(
             children: [
@@ -1965,7 +1989,7 @@ class _DailyDebriefHistory extends StatelessWidget {
   records;
 
   @override
-  Widget build(BuildContext context) => DashboardGlassCard(
+  Widget build(BuildContext context) => _BackNumberSurface(
     child: Column(
       children: [
         for (var index = 0; index < records.length; index++) ...[
@@ -2025,15 +2049,18 @@ class _BackNumberRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ActionableFeedbackRegion(
     role: ActionableFeedbackRole.silent,
-    child: ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: _BackNumberLeading(indicatorColor: indicatorColor),
-      title: Text(date),
-      subtitle: preview == null
-          ? null
-          : Text(preview!, maxLines: 2, overflow: TextOverflow.ellipsis),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
+    child: Material(
+      color: Colors.transparent,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: _BackNumberLeading(indicatorColor: indicatorColor),
+        title: Text(date),
+        subtitle: preview == null
+            ? null
+            : Text(preview!, maxLines: 2, overflow: TextOverflow.ellipsis),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
     ),
   );
 }
@@ -2114,12 +2141,34 @@ class _BriefDebriefPageFlipTabBarState
   }
 
   @override
-  Widget build(BuildContext context) => ActionableFeedbackRegion(
-    role: ActionableFeedbackRole.silent,
-    child: TabBar(
+  Widget build(BuildContext context) {
+    final palette = BaseCampTerminalPaletteScope.maybeOf(context);
+    final baseCamp = palette != null;
+    final tabBar = TabBar(
       key: const ValueKey('brief-debrief-tab-bar'),
       isScrollable: false,
-      indicatorSize: TabBarIndicatorSize.label,
+      indicatorSize: baseCamp
+          ? TabBarIndicatorSize.tab
+          : TabBarIndicatorSize.label,
+      indicator: baseCamp
+          ? BoxDecoration(
+              color: palette.negative
+                  ? palette.field
+                  : BaseCampInstrumentLcd.lightSurface,
+              border: Border.all(
+                color: palette.negative
+                    ? palette.primaryText
+                    : BaseCampInstrumentLcd.lightOuterBorder,
+              ),
+            )
+          : null,
+      labelColor: baseCamp
+          ? BaseCampInstrumentLcd.foregroundFor(context)
+          : null,
+      unselectedLabelColor: baseCamp
+          ? BaseCampInstrumentLcd.foregroundFor(context, bright: false)
+          : null,
+      dividerColor: baseCamp ? Colors.transparent : null,
       onTap: (index) {
         if (_controller!.indexIsChanging) {
           GlobalTouchRipple.previewFeedback(TouchFeedbackSound.pageFlip);
@@ -2129,8 +2178,20 @@ class _BriefDebriefPageFlipTabBarState
         Tab(text: 'DAILY BRIEF'),
         Tab(text: 'DAILY DEBRIEF'),
       ],
-    ),
-  );
+    );
+    return ActionableFeedbackRegion(
+      role: ActionableFeedbackRole.silent,
+      child: baseCamp
+          ? BaseCampInstrumentLcd(
+              bright: false,
+              preserveGeometry: true,
+              applyForeground: false,
+              padding: EdgeInsets.zero,
+              child: tabBar,
+            )
+          : tabBar,
+    );
+  }
 }
 
 class _MorningBriefDetailPage extends StatelessWidget {
@@ -2170,26 +2231,35 @@ class _MorningBriefArchivePage extends StatelessWidget {
       body: ListView.separated(
         padding: AppSpacing.cardPadding,
         itemCount: records.length,
-        separatorBuilder: (_, _) => const Divider(),
-        itemBuilder: (context, index) => ActionableFeedbackRegion(
-          role: ActionableFeedbackRole.silent,
-          child: ListTile(
-            key: ValueKey(
-              'all-morning-brief-back-number-${records[index].localDate}',
-            ),
-            leading: _BackNumberLeading(
-              indicatorColor: _morningBriefBackNumberColor(
-                records[index].operationStatus,
+        separatorBuilder: (_, _) => AppSpacing.gapXS,
+        itemBuilder: (context, index) => _BackNumberSurface(
+          standardCard: false,
+          child: ActionableFeedbackRegion(
+            role: ActionableFeedbackRole.silent,
+            child: Material(
+              color: Colors.transparent,
+              child: ListTile(
+                key: ValueKey(
+                  'all-morning-brief-back-number-${records[index].localDate}',
+                ),
+                leading: _BackNumberLeading(
+                  indicatorColor: _morningBriefBackNumberColor(
+                    records[index].operationStatus,
+                  ),
+                ),
+                title: Text(
+                  records[index].localDate,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  records[index].commanderIntent,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _openMorningBriefDetail(context, records[index]),
               ),
             ),
-            title: Text(records[index].localDate),
-            subtitle: Text(
-              records[index].commanderIntent,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _openMorningBriefDetail(context, records[index]),
           ),
         ),
       ),
@@ -2214,12 +2284,15 @@ class _DailyDebriefArchivePage extends StatelessWidget {
       body: ListView.separated(
         padding: AppSpacing.cardPadding,
         itemCount: records.length,
-        separatorBuilder: (_, _) => const Divider(),
-        itemBuilder: (context, index) => _DailyDebriefBackNumberRow(
-          key: ValueKey(
-            'all-daily-debrief-back-number-${records[index].record.localDate}',
+        separatorBuilder: (_, _) => AppSpacing.gapXS,
+        itemBuilder: (context, index) => _BackNumberSurface(
+          standardCard: false,
+          child: _DailyDebriefBackNumberRow(
+            key: ValueKey(
+              'all-daily-debrief-back-number-${records[index].record.localDate}',
+            ),
+            historical: records[index],
           ),
-          historical: records[index],
         ),
       ),
     ),
@@ -2246,27 +2319,100 @@ class _DailyDebriefCreateButton extends StatelessWidget {
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final isCompact = constraints.maxWidth < 320;
-      final button = OperationButton(
-        text: 'CREATE DAILY DEBRIEF',
-        icon: isCompact ? null : Icons.add_circle_outline,
-        onPressed: onPressed,
-        deferFeedback: onPressed != null,
-        reportUnavailableTap: onPressed == null,
-      );
-      if (!isCompact) return button;
-      return Theme(
-        data: Theme.of(context).copyWith(
-          elevatedButtonTheme: const ElevatedButtonThemeData(
-            style: ButtonStyle(
-              padding: WidgetStatePropertyAll(EdgeInsets.zero),
-            ),
-          ),
-        ),
-        child: button,
-      );
-    },
+  Widget build(BuildContext context) => _BriefOperationKey(
+    text: 'CREATE DAILY DEBRIEF',
+    icon: Icons.add_circle_outline,
+    onPressed: onPressed,
+    deferFeedback: onPressed != null,
+    reportUnavailableTap: onPressed == null,
   );
+}
+
+class _BackNumberSurface extends StatelessWidget {
+  const _BackNumberSurface({required this.child, this.standardCard = true});
+
+  final Widget child;
+  final bool standardCard;
+
+  @override
+  Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+      return BaseCampInstrumentLcd(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: child,
+      );
+    }
+    return standardCard ? DashboardGlassCard(child: child) : child;
+  }
+}
+
+class _ReportStateSurface extends StatelessWidget {
+  const _ReportStateSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
+      return BaseCampInstrumentLcd(
+        padding: const EdgeInsets.all(14),
+        child: child,
+      );
+    }
+    return DashboardGlassCard(child: child);
+  }
+}
+
+class _BriefOperationKey extends StatelessWidget {
+  const _BriefOperationKey({
+    super.key,
+    required this.text,
+    required this.icon,
+    required this.onPressed,
+    this.deferFeedback = false,
+    this.reportUnavailableTap = false,
+  });
+
+  final String text;
+  final IconData? icon;
+  final VoidCallback? onPressed;
+  final bool deferFeedback;
+  final bool reportUnavailableTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) == null) {
+      return OperationButton(
+        text: text,
+        icon: icon,
+        onPressed: onPressed,
+        deferFeedback: deferFeedback,
+        reportUnavailableTap: reportUnavailableTap,
+      );
+    }
+    final key = BaseCampTerminalMechanicalKey(
+      width: double.infinity,
+      height: 52,
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
+          Flexible(child: Text(text, maxLines: 2)),
+        ],
+      ),
+    );
+    if (onPressed != null) {
+      return ActionableFeedbackRegion(
+        deferResolution: deferFeedback,
+        child: key,
+      );
+    }
+    if (!reportUnavailableTap) return key;
+    return ActionableFeedbackRegion(
+      result: ActionableFeedbackResult.unavailable,
+      child: key,
+    );
+  }
 }

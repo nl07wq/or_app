@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -98,6 +99,49 @@ void main() {
       0xffaeb894,
     );
     expect((grain.painter! as BaseCampLcdGrainPainter).negative, isTrue);
+  });
+
+  testWidgets('instrument LCD owns the approved bright clipped grid', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _baseCampHarness(
+        child: const Scaffold(
+          body: Center(
+            child: BaseCampInstrumentLcd(child: Text('COMMAND CENTER READOUT')),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(BaseCampInstrumentLcd.lightSurface.toARGB32(), 0xffb9c8a0);
+    expect(BaseCampInstrumentLcd.lightInk.toARGB32(), 0xff263c29);
+    expect(BaseCampInstrumentLcd.lightSecondaryInk.toARGB32(), 0xff526c4b);
+    expect(BaseCampInstrumentLcd.lightRecess.toARGB32(), 0xff4d6148);
+    expect(BaseCampInstrumentLcd.lightOuterBorder.toARGB32(), 0xff263a29);
+    expect(
+      _contrastRatio(
+        BaseCampInstrumentLcd.lightInk,
+        BaseCampInstrumentLcd.lightSurface,
+      ),
+      greaterThanOrEqualTo(4.5),
+    );
+    expect(
+      _contrastRatio(const Color(0xfff0f4df), const Color(0xff526c4b)),
+      greaterThanOrEqualTo(4.5),
+    );
+    final grid = tester.widget<CustomPaint>(
+      find.byKey(const ValueKey('base-camp-instrument-lcd-grid')),
+    );
+    expect(grid.painter, isA<BaseCampInstrumentGridPainter>());
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('base-camp-instrument-lcd-grid')),
+        matching: find.byType(ClipRRect),
+      ),
+      findsWidgets,
+    );
   });
 
   for (final negative in <bool>[false, true]) {
@@ -433,6 +477,28 @@ void main() {
       }
     },
   );
+}
+
+double _contrastRatio(Color foreground, Color background) {
+  double luminance(Color color) {
+    double channel(int value) {
+      final normalized = value / 255;
+      return normalized <= .04045
+          ? normalized / 12.92
+          : math.pow((normalized + .055) / 1.055, 2.4).toDouble();
+    }
+
+    final argb = color.toARGB32();
+    return .2126 * channel((argb >> 16) & 0xff) +
+        .7152 * channel((argb >> 8) & 0xff) +
+        .0722 * channel(argb & 0xff);
+  }
+
+  final first = luminance(foreground);
+  final second = luminance(background);
+  final lighter = first > second ? first : second;
+  final darker = first > second ? second : first;
+  return (lighter + .05) / (darker + .05);
 }
 
 Widget _baseCampHarness({Widget? child}) => MaterialApp(
