@@ -1265,9 +1265,8 @@ class _BriefReportSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
-      return BaseCampInstrumentLcd(
-        key: const ValueKey('command-center-brief-bounded-lcd-display'),
-        padding: const EdgeInsets.all(16),
+      return DashboardGlassCard(
+        key: const ValueKey('command-center-brief-instrument-chassis'),
         child: child,
       );
     }
@@ -1621,7 +1620,7 @@ class _ReadableText extends StatelessWidget {
     final paragraphs = _visualParagraphs(
       ReportHumanPresentation.analysisText(text),
     );
-    return Column(
+    final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (var index = 0; index < paragraphs.length; index++) ...[
@@ -1632,7 +1631,10 @@ class _ReadableText extends StatelessWidget {
                         ? Theme.of(context).textTheme.bodyMedium
                         : Theme.of(context).textTheme.bodyLarge)
                     ?.copyWith(
-                      color: color,
+                      color:
+                          BaseCampTerminalPaletteScope.maybeOf(context) != null
+                          ? BaseCampInstrumentLcd.foregroundFor(context)
+                          : color,
                       height: 1.65,
                       fontSize: emphasized ? 17 : null,
                       fontWeight: emphasized ? FontWeight.w600 : null,
@@ -1641,6 +1643,12 @@ class _ReadableText extends StatelessWidget {
           if (index != paragraphs.length - 1) const SizedBox(height: 8),
         ],
       ],
+    );
+    if (BaseCampTerminalPaletteScope.maybeOf(context) == null) return content;
+    return BaseCampInstrumentLcd(
+      preserveGeometry: true,
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      child: content,
     );
   }
 }
@@ -2152,21 +2160,14 @@ class _BriefDebriefPageFlipTabBarState
           : TabBarIndicatorSize.label,
       indicator: baseCamp
           ? BoxDecoration(
-              color: palette.negative
-                  ? palette.background
-                  : BaseCampInstrumentLcd.lightSurface,
-              border: Border.all(
-                color: palette.negative
-                    ? palette.primaryText
-                    : BaseCampInstrumentLcd.lightOuterBorder,
-              ),
+              color: palette.background,
+              border: Border.all(color: palette.primaryText),
+              borderRadius: BorderRadius.circular(3),
             )
           : null,
-      labelColor: baseCamp
-          ? BaseCampInstrumentLcd.foregroundFor(context)
-          : null,
+      labelColor: baseCamp ? palette.primaryText : null,
       unselectedLabelColor: baseCamp
-          ? BaseCampInstrumentLcd.foregroundFor(context, bright: false)
+          ? BaseCampTerminalPalette.housingForeground
           : null,
       dividerColor: baseCamp ? Colors.transparent : null,
       onTap: (index) {
@@ -2182,11 +2183,13 @@ class _BriefDebriefPageFlipTabBarState
     return ActionableFeedbackRegion(
       role: ActionableFeedbackRole.silent,
       child: baseCamp
-          ? BaseCampInstrumentLcd(
-              bright: false,
-              preserveGeometry: true,
-              applyForeground: false,
-              padding: EdgeInsets.zero,
+          ? DecoratedBox(
+              key: const ValueKey('brief-debrief-physical-selector'),
+              decoration: BoxDecoration(
+                color: BaseCampTerminalPalette.housing,
+                border: Border.all(color: BaseCampTerminalPalette.housingEdge),
+                borderRadius: BorderRadius.circular(4),
+              ),
               child: tabBar,
             )
           : tabBar,
@@ -2338,6 +2341,7 @@ class _BackNumberSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
       return BaseCampInstrumentLcd(
+        preserveGeometry: true,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: child,
       );
@@ -2355,6 +2359,7 @@ class _ReportStateSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     if (BaseCampTerminalPaletteScope.maybeOf(context) != null) {
       return BaseCampInstrumentLcd(
+        preserveGeometry: true,
         padding: const EdgeInsets.all(14),
         child: child,
       );

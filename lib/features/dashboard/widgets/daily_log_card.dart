@@ -627,55 +627,67 @@ class _DailyLogEntryStatus extends StatelessWidget {
       key: ValueKey('daily-log-entry-${label.toLowerCase()}'),
       label: '$label $semanticsState',
       container: true,
-      child: BaseCampInstrumentLcd(
-        padding: EdgeInsets.zero,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(8),
-            child: ExcludeSemantics(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 2,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          label,
-                          maxLines: 1,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.labelLarge?.copyWith(color: color),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: ExcludeSemantics(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color:
+                              BaseCampTerminalPaletteScope.maybeOf(context) ==
+                                  null
+                              ? color
+                              : colorScheme.onSurface,
                         ),
                       ),
+                    ),
+                    if (BaseCampTerminalPaletteScope.maybeOf(context) == null)
                       SizedBox(
                         key: ValueKey('daily-log-state-${label.toLowerCase()}'),
                         width: 22,
                         child: Icon(icon, color: color, size: 22),
-                      ),
+                      )
+                    else ...[
                       SizedBox(
-                        key: ValueKey(
-                          'daily-log-chevron-${label.toLowerCase()}',
-                        ),
-                        width: 22,
-                        child: Icon(
-                          Icons.chevron_right,
-                          color: colorScheme.onSurfaceVariant,
-                          size: 22,
+                        key: ValueKey('daily-log-state-${label.toLowerCase()}'),
+                        width: 32,
+                        height: 28,
+                        child: BaseCampInstrumentLcd(
+                          preserveGeometry: true,
+                          padding: EdgeInsets.zero,
+                          child: Center(
+                            child: Icon(icon, color: color, size: 20),
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 4),
                     ],
-                  ),
+                    SizedBox(
+                      key: ValueKey('daily-log-chevron-${label.toLowerCase()}'),
+                      width: 22,
+                      child: Icon(
+                        Icons.chevron_right,
+                        color: colorScheme.onSurfaceVariant,
+                        size: 22,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ).actionableFeedback(),
-        ),
+          ),
+        ).actionableFeedback(),
       ),
     );
   }
@@ -730,6 +742,7 @@ class _DailyCloseReadiness extends StatelessWidget {
       container: true,
       child: ExcludeSemantics(
         child: BaseCampInstrumentLcd(
+          preserveGeometry: true,
           padding: const EdgeInsets.all(9),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -779,7 +792,7 @@ class _DailyCloseBlockerGrid extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(child: _DailyCloseBlockerCell(blocker: blockers[index])),
-            AppSpacing.gapSM,
+            const SizedBox(width: 16),
             Expanded(
               child: index + 1 < blockers.length
                   ? _DailyCloseBlockerCell(blocker: blockers[index + 1])

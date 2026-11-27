@@ -100,9 +100,14 @@ class _ModuleAssessmentCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  module.label,
-                  style: Theme.of(context).textTheme.titleSmall,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    module.label,
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
                 ),
               ),
               if (level != null) ...[
@@ -163,27 +168,29 @@ class _AssessmentItem extends StatelessWidget {
           ),
           AppSpacing.gapXS,
         ],
-        _AssessmentReadout(
-          child: item.metric == DailyAssessmentMetric.weightTrend
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _WeightFactValue(reference: currentWeightReference),
-                    if (readiness == null) ...[
-                      AppSpacing.gapXS,
-                      Text(_valueLabel(item, currentWeightReference)),
+        if (readiness != null)
+          _TrainingReadinessDetails(facts: readiness)
+        else
+          _AssessmentReadout(
+            key: ValueKey('daily-assessment-readout-${item.metric.name}'),
+            child: item.metric == DailyAssessmentMetric.weightTrend
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _WeightFactValue(reference: currentWeightReference),
+                      if (readiness == null) ...[
+                        AppSpacing.gapXS,
+                        Text(_valueLabel(item, currentWeightReference)),
+                      ],
                     ],
-                  ],
-                )
-              : readiness != null
-              ? _TrainingReadinessDetails(facts: readiness)
-              : Text(
-                  item.metric == DailyAssessmentMetric.work &&
-                          workDisplayValue != null
-                      ? workDisplayValue!
-                      : _valueLabel(item, currentWeightReference),
-                ),
-        ),
+                  )
+                : Text(
+                    item.metric == DailyAssessmentMetric.work &&
+                            workDisplayValue != null
+                        ? workDisplayValue!
+                        : _valueLabel(item, currentWeightReference),
+                  ),
+          ),
         AppSpacing.gapXS,
         Text(dailyAssessmentSpecificLabel(item)),
       ],
@@ -270,13 +277,10 @@ class _BodyFatFact extends StatelessWidget {
           Text('BODY FAT', style: Theme.of(context).textTheme.labelLarge),
           AppSpacing.gapXS,
           const _AssessmentReadout(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [Text('NOT AVAILABLE'), Text('—')],
-            ),
+            key: ValueKey('daily-assessment-readout-body-fat'),
+            minHeight: 58,
+            child: Text('NOT AVAILABLE'),
           ),
-          AppSpacing.gapXS,
-          const Text('NOT AVAILABLE'),
         ],
       );
     }
@@ -307,18 +311,19 @@ class _BodyFatFact extends StatelessWidget {
       children: [
         Text('BODY FAT', style: Theme.of(context).textTheme.labelLarge),
         AppSpacing.gapXS,
+        if (reference.source != DailyBodyFatReferenceSource.notAvailable) ...[
+          Text(
+            isWeekAverage ? 'WEEK AVERAGE' : 'TODAY FACT',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          AppSpacing.gapXS,
+        ],
         _AssessmentReadout(
+          key: const ValueKey('daily-assessment-readout-body-fat'),
+          minHeight: 58,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (reference.source !=
-                  DailyBodyFatReferenceSource.notAvailable) ...[
-                Text(
-                  isWeekAverage ? 'WEEK AVERAGE' : 'TODAY FACT',
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-                AppSpacing.gapXS,
-              ],
               Text(
                 validCurrent
                     ? '${current.toStringAsFixed(1)} %'
@@ -365,7 +370,18 @@ class _ReadinessFactRow extends StatelessWidget {
       children: [
         Expanded(child: Text(label)),
         AppSpacing.gapSM,
-        Flexible(child: Text(value, textAlign: TextAlign.end)),
+        Flexible(
+          child: _AssessmentReadout(
+            key: ValueKey(
+              'daily-assessment-training-${label.toLowerCase().replaceAll(' ', '-')}',
+            ),
+            minHeight: 30,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Text(value, textAlign: TextAlign.end),
+            ),
+          ),
+        ),
       ],
     ),
   );
@@ -416,6 +432,9 @@ class _StringListCard extends StatelessWidget {
         Text(title, style: Theme.of(context).textTheme.titleSmall),
         AppSpacing.gapSM,
         _AssessmentReadout(
+          key: ValueKey(
+            'daily-assessment-list-${title.toLowerCase().replaceAll(' ', '-')}',
+          ),
           child: values.isEmpty
               ? const Text('NOT AVAILABLE')
               : Column(
@@ -429,15 +448,30 @@ class _StringListCard extends StatelessWidget {
 }
 
 class _AssessmentReadout extends StatelessWidget {
-  const _AssessmentReadout({required this.child});
+  const _AssessmentReadout({
+    super.key,
+    required this.child,
+    this.minHeight = 38,
+  });
 
   final Widget child;
+  final double minHeight;
 
   @override
-  Widget build(BuildContext context) => BaseCampInstrumentLcd(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-    child: child,
-  );
+  Widget build(BuildContext context) {
+    if (BaseCampTerminalPaletteScope.maybeOf(context) == null) return child;
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minWidth: double.infinity,
+        minHeight: minHeight,
+      ),
+      child: BaseCampInstrumentLcd(
+        preserveGeometry: true,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        child: child,
+      ),
+    );
+  }
 }
 
 Color dailyAssessmentLevelColor(DailyAssessmentLevel level) => switch (level) {

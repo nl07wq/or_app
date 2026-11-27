@@ -1260,23 +1260,120 @@ void main() {
               of: find.byKey(const ValueKey('command-center-tab-scroll')),
               matching: find.byType(BaseCampInstrumentLcd),
             ),
-            findsNWidgets(4),
+            findsNothing,
+          );
+          final selectedTab = tester.widget<AnimatedContainer>(
+            find.byKey(const ValueKey('command-center-tab-2')),
+          );
+          final unselectedTab = tester.widget<AnimatedContainer>(
+            find.byKey(const ValueKey('command-center-tab-1')),
+          );
+          final selectedSurface =
+              (selectedTab.decoration! as BoxDecoration).color!;
+          final unselectedSurface =
+              (unselectedTab.decoration! as BoxDecoration).color!;
+          expect(
+            selectedSurface.computeLuminance(),
+            greaterThan(unselectedSurface.computeLuminance()),
+          );
+          final selectedTextButton = tester.widget<TextButton>(
+            find.descendant(
+              of: find.byKey(const ValueKey('command-center-tab-2')),
+              matching: find.byType(TextButton),
+            ),
+          );
+          final unselectedTextButton = tester.widget<TextButton>(
+            find.descendant(
+              of: find.byKey(const ValueKey('command-center-tab-1')),
+              matching: find.byType(TextButton),
+            ),
+          );
+          expect(
+            _contrastRatio(
+              selectedTextButton.style!.foregroundColor!.resolve({})!,
+              selectedSurface,
+            ),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            _contrastRatio(
+              unselectedTextButton.style!.foregroundColor!.resolve({})!,
+              unselectedSurface,
+            ),
+            greaterThanOrEqualTo(4.5),
           );
           expect(
             find.byKey(const ValueKey('current-operation-cycle-value')),
             findsOneWidget,
           );
+          final cycleLcd = find.byKey(
+            const ValueKey('current-operation-cycle-lcd'),
+          );
+          expect(tester.getSize(cycleLcd).height, 36);
+          expect(tester.getSize(cycleLcd).width, greaterThan(70));
           await _scrollDailyCommand(tester, -500);
           expect(
             find.byKey(const ValueKey('daily-log-grid-two-column')),
             findsOneWidget,
           );
+          for (final module in const [
+            'status',
+            'food',
+            'training',
+            'activity',
+          ]) {
+            final state = find.byKey(ValueKey('daily-log-state-$module'));
+            expect(
+              find.descendant(
+                of: state,
+                matching: find.byType(BaseCampInstrumentLcd),
+              ),
+              findsOneWidget,
+            );
+            expect(tester.getSize(state), const Size(32, 28));
+          }
 
           await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
           final tabBar = tester.widget<TabBar>(
             find.byKey(const ValueKey('brief-debrief-tab-bar')),
           );
           expect(tabBar.indicatorSize, TabBarIndicatorSize.tab);
+          final selectorDecoration =
+              tester
+                      .widget<DecoratedBox>(
+                        find.byKey(
+                          const ValueKey('brief-debrief-physical-selector'),
+                        ),
+                      )
+                      .decoration
+                  as BoxDecoration;
+          final selectedDecoration = tabBar.indicator! as BoxDecoration;
+          expect(
+            selectedDecoration.color!.computeLuminance(),
+            greaterThan(selectorDecoration.color!.computeLuminance()),
+          );
+          expect(
+            _contrastRatio(tabBar.labelColor!, selectedDecoration.color!),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            _contrastRatio(
+              tabBar.unselectedLabelColor!,
+              selectorDecoration.color!,
+            ),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            find.byKey(const ValueKey('brief-debrief-physical-selector')),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(
+              of: find.byKey(const ValueKey('brief-debrief-physical-selector')),
+              matching: find.byType(BaseCampInstrumentLcd),
+            ),
+            findsNothing,
+          );
           expect(find.byType(BaseCampTerminalMechanicalKey), findsWidgets);
           expect(tester.takeException(), isNull);
         },
@@ -1293,7 +1390,7 @@ void main() {
         of: find.byKey(const ValueKey('command-center-tab-scroll')),
         matching: find.byType(BaseCampInstrumentLcd),
       ),
-      findsNWidgets(4),
+      findsNothing,
     );
     await _tapCommandCenterTab(tester, 'BRIEF / DEBRIEF');
     expect(
@@ -1302,6 +1399,32 @@ void main() {
           .indicatorSize,
       TabBarIndicatorSize.tab,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FINALIZE BLOCKED columns keep an explicit internal gap', (
+    tester,
+  ) async {
+    await _pump(tester, width: 320, baseCamp: true);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('daily-log-finalize-readiness')),
+      260,
+      scrollable: _dailyCommandScrollable(),
+    );
+    final status = tester.getRect(
+      find.byKey(const ValueKey('daily-log-blocker-STATUS')),
+    );
+    final food = tester.getRect(
+      find.byKey(const ValueKey('daily-log-blocker-FOOD')),
+    );
+    final activity = tester.getRect(
+      find.byKey(const ValueKey('daily-log-blocker-ACTIVITY')),
+    );
+    final debrief = tester.getRect(
+      find.byKey(const ValueKey('daily-log-blocker-DAILY DEBRIEF')),
+    );
+    expect(food.left - status.right, greaterThanOrEqualTo(16));
+    expect(debrief.left - activity.right, greaterThanOrEqualTo(16));
     expect(tester.takeException(), isNull);
   });
 
@@ -2989,6 +3112,14 @@ void _expectRectNear(Rect actual, Rect expected) {
   expect(actual.top, closeTo(expected.top, 0.5));
   expect(actual.right, closeTo(expected.right, 0.5));
   expect(actual.bottom, closeTo(expected.bottom, 0.5));
+}
+
+double _contrastRatio(Color foreground, Color background) {
+  final light = foreground.computeLuminance();
+  final dark = background.computeLuminance();
+  final high = light > dark ? light : dark;
+  final low = light > dark ? dark : light;
+  return (high + .05) / (low + .05);
 }
 
 void _expectUndistortedRender(

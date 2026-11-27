@@ -877,53 +877,70 @@ class _WorkspaceHeaderState extends State<_WorkspaceHeader> {
               key: ValueKey('command-center-tab-$index'),
               duration: const Duration(milliseconds: 160),
               decoration: BoxDecoration(
+                color: BaseCampTerminalPaletteScope.maybeOf(context) == null
+                    ? null
+                    : index == widget.currentPage
+                    ? BaseCampTerminalPaletteScope.of(context).background
+                    : BaseCampTerminalPalette.housing,
                 border: Border(
+                  top: BorderSide(
+                    color: BaseCampTerminalPaletteScope.maybeOf(context) == null
+                        ? Colors.transparent
+                        : BaseCampTerminalPalette.housingEdge,
+                  ),
+                  left: BorderSide(
+                    color: BaseCampTerminalPaletteScope.maybeOf(context) == null
+                        ? Colors.transparent
+                        : BaseCampTerminalPalette.housingEdge,
+                  ),
+                  right: BorderSide(
+                    color: BaseCampTerminalPaletteScope.maybeOf(context) == null
+                        ? Colors.transparent
+                        : BaseCampTerminalPalette.housingEdge,
+                  ),
                   bottom: BorderSide(
                     color: index == widget.currentPage
                         ? Theme.of(context).colorScheme.primary
-                        : Colors.transparent,
+                        : BaseCampTerminalPaletteScope.maybeOf(context) == null
+                        ? Colors.transparent
+                        : BaseCampTerminalPalette.housingEdge,
                     width: 3,
                   ),
                 ),
               ),
-              child: BaseCampInstrumentLcd(
-                bright: index == widget.currentPage,
-                padding: EdgeInsets.zero,
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    foregroundColor:
-                        BaseCampTerminalPaletteScope.maybeOf(context) == null
-                        ? null
-                        : BaseCampInstrumentLcd.foregroundFor(
-                            context,
-                            bright: index == widget.currentPage,
-                          ),
-                  ),
-                  onPressed: () {
-                    if ((index == CommandCenterSection.periodicReport.index ||
-                            index == CommandCenterSection.briefDebrief.index) &&
-                        widget.currentPage != index) {
-                      GlobalTouchRipple.previewFeedback(
-                        TouchFeedbackSound.pageFlip,
-                      );
-                    }
-                    widget.onSelectPage(index);
-                  },
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      labels[index],
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontWeight: index == widget.currentPage
-                            ? FontWeight.bold
-                            : null,
-                      ),
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  foregroundColor:
+                      BaseCampTerminalPaletteScope.maybeOf(context) == null
+                      ? null
+                      : index == widget.currentPage
+                      ? BaseCampTerminalPaletteScope.of(context).primaryText
+                      : BaseCampTerminalPalette.housingForeground,
+                ),
+                onPressed: () {
+                  if ((index == CommandCenterSection.periodicReport.index ||
+                          index == CommandCenterSection.briefDebrief.index) &&
+                      widget.currentPage != index) {
+                    GlobalTouchRipple.previewFeedback(
+                      TouchFeedbackSound.pageFlip,
+                    );
+                  }
+                  widget.onSelectPage(index);
+                },
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    labels[index],
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontWeight: index == widget.currentPage
+                          ? FontWeight.bold
+                          : null,
                     ),
                   ),
-                ).actionableFeedback(role: ActionableFeedbackRole.silent),
-              ),
+                ),
+              ).actionableFeedback(role: ActionableFeedbackRole.silent),
             ),
           ),
         ),
@@ -964,19 +981,27 @@ class _BaseCampCycleLcd extends StatelessWidget {
         ? palette.background
         : BaseCampInstrumentLcd.lightSurface;
     final grid = BaseCampInstrumentLcd.secondaryFor(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: surface,
-        border: Border.all(
-          color: palette.negative
-              ? palette.primaryText
-              : BaseCampInstrumentLcd.lightOuterBorder,
+    return SizedBox(
+      key: const ValueKey('current-operation-cycle-lcd'),
+      width: double.infinity,
+      height: 36,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: surface,
+          border: Border.all(
+            color: palette.negative
+                ? palette.primaryText
+                : BaseCampInstrumentLcd.lightOuterBorder,
+          ),
+          borderRadius: BorderRadius.circular(3),
         ),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: CustomPaint(
-        foregroundPainter: BaseCampInstrumentGridPainter(color: grid),
-        child: child,
+        child: CustomPaint(
+          foregroundPainter: BaseCampInstrumentGridPainter(color: grid),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+            child: Align(alignment: Alignment.centerLeft, child: child),
+          ),
+        ),
       ),
     );
   }
