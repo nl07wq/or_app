@@ -961,7 +961,7 @@ class _BaseCampCycleLcd extends StatelessWidget {
     final palette = BaseCampTerminalPaletteScope.maybeOf(context);
     if (palette == null) return child;
     final surface = palette.negative
-        ? palette.field
+        ? palette.background
         : BaseCampInstrumentLcd.lightSurface;
     final grid = BaseCampInstrumentLcd.secondaryFor(context);
     return DecoratedBox(

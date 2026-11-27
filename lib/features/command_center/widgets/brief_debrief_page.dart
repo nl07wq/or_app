@@ -2153,7 +2153,7 @@ class _BriefDebriefPageFlipTabBarState
       indicator: baseCamp
           ? BoxDecoration(
               color: palette.negative
-                  ? palette.field
+                  ? palette.background
                   : BaseCampInstrumentLcd.lightSurface,
               border: Border.all(
                 color: palette.negative

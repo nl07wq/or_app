@@ -131,6 +131,10 @@ void main() {
       _contrastRatio(const Color(0xfff0f4df), const Color(0xff526c4b)),
       greaterThanOrEqualTo(4.5),
     );
+    expect(
+      _contrastRatio(const Color(0xffaeb894), const Color(0xff273326)),
+      greaterThanOrEqualTo(4.5),
+    );
     final grid = tester.widget<CustomPaint>(
       find.byKey(const ValueKey('base-camp-instrument-lcd-grid')),
     );

@@ -244,7 +244,7 @@ class BaseCampInstrumentLcd extends StatelessWidget {
     final palette = BaseCampTerminalPaletteScope.maybeOf(context);
     if (palette == null) return child;
     final surface = palette.negative
-        ? (bright ? palette.field : BaseCampTerminalPalette.housing)
+        ? (bright ? palette.background : BaseCampTerminalPalette.housing)
         : (bright ? lightSurface : const Color(0xff526c4b));
     final ink = foregroundFor(context, bright: bright);
     final secondaryInk = secondaryFor(context, bright: bright);
