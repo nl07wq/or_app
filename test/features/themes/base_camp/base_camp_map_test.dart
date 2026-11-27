@@ -272,7 +272,7 @@ void main() {
       'lib/features/themes/base_camp/widgets/base_camp_map.dart',
     ).readAsStringSync();
 
-    expect(helpers, contains('baseCampAssetAcquisitionConcurrency = 4'));
+    expect(helpers, contains('baseCampAssetAcquisitionConcurrency = 3'));
     expect(helpers, contains('baseCampAcquireAssetBytes'));
     expect(map, contains("cache['cacheReused'] == true"));
     expect(map, isNot(contains("cache['cacheStatus'] != 'miss'")));

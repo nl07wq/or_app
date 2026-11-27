@@ -789,6 +789,7 @@ class _BaseCampMapState extends State<BaseCampMap>
     );
     var cacheReuseCount = 0;
     var eventLoopYieldMs = 0;
+    String? activeAsset;
     final frameTimings = <Map<String, Object?>>[];
     late BaseCampAssetAcquisitionResult acquisition;
     try {
@@ -797,6 +798,7 @@ class _BaseCampMapState extends State<BaseCampMap>
       );
       for (var index = 0; index < baseCampWaterV3BFrameAssets.length; index++) {
         final asset = baseCampWaterV3BFrameAssets[index];
+        activeAsset = asset;
         await acquisitionBatch.waitFor(asset);
         if (!mounted) return;
         final frameWatch = Stopwatch()..start();
@@ -828,7 +830,9 @@ class _BaseCampMapState extends State<BaseCampMap>
         'ASSET',
         'WATER_FX_FRAME_PRECACHE_FAILED',
         fields: <String, Object?>{
+          'asset': activeAsset,
           'errorType': error.runtimeType.toString(),
+          'error': error.toString(),
           'implementation': 'approvedV3BRoundingV2RgbaFrames',
         },
       );

@@ -5,7 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-const baseCampAssetAcquisitionConcurrency = 4;
+const baseCampAssetAcquisitionConcurrency = 3;
 
 final _baseCampAssetAcquisitionPool = _BaseCampAssetAcquisitionPool(
   baseCampAssetAcquisitionConcurrency,

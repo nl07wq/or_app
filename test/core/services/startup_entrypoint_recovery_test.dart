@@ -43,11 +43,9 @@ void main() {
     },
   );
 
-  test('release-matched main bundle is preloaded after worker recovery', () {
+  test('release-matched main bundle starts without normal recovery delay', () {
     final source = File('web/index.html').readAsStringSync();
-    final recovery = source.indexOf(
-      'window.__orAppStartupRecovery.finally(function ()',
-    );
+    final startFlutter = source.indexOf('const startFlutter = function ()');
     final preload = source.indexOf("mainPreload.rel = 'preload'");
     final versionedMain = source.indexOf(
       "mainPreload.href = 'main.dart.js?or_app_release=__OR_APP_RELEASE__'",
@@ -56,8 +54,8 @@ void main() {
       "bootstrap.src = 'flutter_bootstrap.js?or_app_release=__OR_APP_RELEASE__'",
     );
 
-    expect(recovery, greaterThanOrEqualTo(0));
-    expect(preload, greaterThan(recovery));
+    expect(startFlutter, greaterThanOrEqualTo(0));
+    expect(preload, greaterThan(startFlutter));
     expect(versionedMain, greaterThan(preload));
     expect(bootstrap, greaterThan(versionedMain));
     expect(source, contains("mainPreload.as = 'script'"));
@@ -65,9 +63,19 @@ void main() {
     expect(source, contains('mainPreloadRequestedMs'));
     expect(source, contains('mainPreloadLoadedMs'));
     expect(source, isNot(contains('href="https://www.gstatic.com"')));
+    expect(source, contains("startFlutter();"));
+    expect(
+      source,
+      contains("window.__orAppStartupRecovery.finally(startFlutter)"),
+    );
+    expect(source, contains("'background_cleanup'"));
+    expect(source, contains("'legacy_controller_gate'"));
+    expect(source, contains('legacyFlutterControllerAtStart'));
     expect(source, contains("module.rel = 'modulepreload'"));
     expect(source, contains("wasm.type = 'application/wasm'"));
+    expect(source, contains("wasm.crossOrigin = 'use-credentials'"));
     expect(source, contains("wasm.href = variant + 'canvaskit.wasm'"));
+    expect(source, isNot(contains("wasm.crossOrigin = 'anonymous'")));
   });
 
   test('startup host has no additional pre-Flutter presentation', () {

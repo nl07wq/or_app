@@ -67,7 +67,10 @@
       wasm.rel = 'preload';
       wasm.as = 'fetch';
       wasm.type = 'application/wasm';
-      wasm.crossOrigin = 'anonymous';
+      // CanvasKit's same-origin fetch uses same-origin credentials. Match it
+      // exactly so WebKit can consume this preload instead of transferring a
+      // second WASM response with a different credentials mode.
+      wasm.crossOrigin = 'use-credentials';
       wasm.href = variant + 'canvaskit.wasm';
       document.head.append(module, wasm);
       window.__orAppStartupTiming.canvasKitPreloadVariant = variant;
@@ -231,9 +234,25 @@
     // Retire only identifiable legacy Flutter workers. The notification
     // worker intentionally shares the application scope, so scope alone is
     // never sufficient evidence for unregistering a worker.
+    const startupRecoveryBasePath = new URL(document.baseURI).pathname;
+    const startupRecoveryController = 'serviceWorker' in navigator
+      ? navigator.serviceWorker.controller
+      : null;
+    let startupRecoveryControllerPath = null;
+    try {
+      startupRecoveryControllerPath = startupRecoveryController
+        ? new URL(startupRecoveryController.scriptURL, document.baseURI).pathname
+        : null;
+    } catch (_) {}
+    const legacyFlutterControllerAtStart =
+      typeof startupRecoveryControllerPath === 'string' &&
+      startupRecoveryControllerPath.indexOf(startupRecoveryBasePath) === 0 &&
+      startupRecoveryControllerPath.endsWith('/flutter_service_worker.js');
+    window.__orAppStartupTiming.startupRecoveryMode =
+      legacyFlutterControllerAtStart ? 'legacy_controller_gate' : 'background_cleanup';
     window.__orAppStartupRecovery = (async function () {
       if (!('serviceWorker' in navigator)) return;
-      const basePath = new URL(document.baseURI).pathname;
+      const basePath = startupRecoveryBasePath;
       const reloadKey = 'or_app.legacy_service_worker_retired.v1';
       const workerScripts = function (registration) {
         return [registration.active, registration.waiting, registration.installing]
@@ -281,7 +300,7 @@
         // A reload detaches this document from the now-unregistered legacy
         // worker.  Bound it to two attempts so a browser implementation that
         // retains a controller cannot create a reload loop.
-        if (retired && attempts < 2) {
+        if (retired && legacyFlutterControllerAtStart && attempts < 2) {
           sessionStorage.setItem(reloadKey, String(attempts + 1));
           window.location.replace(window.location.href);
           return new Promise(function () {});
@@ -298,7 +317,10 @@
     // newly fetched HTML shell from pairing with a max-age cached bootstrap.
     // The bootstrap itself is patched by the workflow to request the matching
     // main.dart.js release token as well.
-    window.__orAppStartupRecovery.finally(function () {
+    let flutterStartupRequested = false;
+    const startFlutter = function () {
+      if (flutterStartupRequested) return;
+      flutterStartupRequested = true;
       window.__orAppStartupTiming.bootstrapRequestedMs = performance.now();
       window.__orAppMarkPreDart('bootstrap_requested', {
         bootstrapRequestedMs: window.__orAppStartupTiming.bootstrapRequestedMs
@@ -335,7 +357,15 @@
         window.__orAppMarkPreDart('bootstrap_failed', {});
       }, { once: true });
       document.body.appendChild(bootstrap);
-    });
+    };
+    // Only a document currently controlled by the obsolete Flutter worker
+    // must wait for retirement. Normal launches clean registrations in the
+    // background while entrypoint acquisition starts immediately.
+    if (legacyFlutterControllerAtStart) {
+      window.__orAppStartupRecovery.finally(startFlutter);
+    } else {
+      startFlutter();
+    }
   </script>
 </body>
 </html>
